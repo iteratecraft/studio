@@ -30,5 +30,8 @@ AI agents count as people here. A build agent's context must never include files
 
 ## Allowed study levels
 
-Levels 1–4 are approved (public docs, published public courses, community sample files, normal use
-of a trial). Level 5 (decompiling) needs a separate, written decision.
+Levels 1–3 are approved: public docs, courses published on the public web, and community sample files.
+Level 4 (using a trial) is **withdrawn**. Articulate's Terms §4.1(d) bar using the Services to build a
+competing product, and trials fall under those terms (research finding F-0001). No project member
+creates an Articulate account or trial. Level 5 (decompiling) is not allowed. Public docs are read
+page by page, never bulk-crawled (AUP §4.2).
