@@ -77,15 +77,19 @@ Media: ffmpeg (bundled) · local text-to-speech (optional)
 
 ## Study (reverse engineering) with REA
 
-Approved depth: **levels 1–4.**
+Approved depth: **levels 1–3.** Level 4 was withdrawn after reading Articulate's terms (finding F-0001;
+see CLEAN-ROOM.md).
 
 | Level | Source | REA route |
 |---|---|---|
 | 1 | Articulate's public help docs and release notes | none (plain web pages) |
 | 2 | Courses published on the public web with Storyline or Rise | `analyze_javascript_application`, `capture_browser_scenario` |
 | 3 | Community-shared sample `.story` files | `open_binary` archive inventory |
-| 4 | Normal use of the trial (the user starts it): author, publish, observe | browser tools on our own published courses and on the web apps |
-| 5 | Decompiling Storyline (.NET) | `inspect_managed_artifact`. **Not approved.** Needs a separate decision and a legal read first. |
+| 4 | ~~Normal use of a trial~~ | **Withdrawn.** Terms §4.1(d) forbid using the services to build a competing product. |
+| 5 | Decompiling Storyline (.NET) | **Not allowed.** |
+
+Runtime captures run only on local `file:` copies, or with the player's analytics flag off, so that no
+vendor telemetry is sent (finding F-0002).
 
 Every finding goes into `research/FINDINGS.md` with REA Evidence IDs, marked observed, inferred or
 unknown. Before any study starts, Articulate's Terms of Service and Acceptable Use Policy are read in
