@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/node": "24.19.1",
+    "@types/node": "catalog:",
     "turbo": "catalog:",
     "vitest": "catalog:"
   }

@@ -67,7 +67,10 @@ function pnpm(args: string[]): string {
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
   });
-  if (run.status !== 0) throw new Error(`pnpm ${args.join(" ")} failed:\n${run.stderr}`);
+  // pnpm prints --json errors on stdout, so both streams go into the message.
+  if (run.status !== 0) {
+    throw new Error(`pnpm ${args.join(" ")} failed:\n${run.stderr}${run.stdout}`);
+  }
   return run.stdout;
 }
 

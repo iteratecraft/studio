@@ -81,4 +81,5 @@ jobs:
           path: |
             apps/web/playwright-report/
             apps/web/test-results/
+            packages/conformance/playwright-report/
           if-no-files-found: ignore
