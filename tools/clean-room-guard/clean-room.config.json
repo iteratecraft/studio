@@ -1,0 +1,83 @@
+{
+  "rules": [
+    {
+      "id": "research-reference",
+      "description": "Points at the private research repository or one of its paths. Build work must never depend on it.",
+      "scan": "content",
+      "patterns": [
+        "iteratecraft[/\\\\]research\\b",
+        "course-suite[/\\\\]research\\b",
+        "\\.\\.[/\\\\]research\\b",
+        "(?<![\\w-])research[/\\\\][\\w.-]",
+        "[(,\\[=:]\\s*[\"'`]research[\"'`]|[\"'`]research[\"'`]\\s*[,)\\]]"
+      ],
+      "examples": {
+        "content": [
+          "// git clone https://github.com/iteratecraft/research",
+          "const notes = \"C:/Users/me/course-suite/research/notes.md\";",
+          "import data from \"../research/evidence.json\";",
+          "// see research/FINDINGS.md",
+          "const notes = join(\"..\", \"research\", \"FINDINGS.md\");",
+          "const dir = path.resolve(root, '..', 'research');",
+          "const parts = [`..`, `research`];",
+          "const RESEARCH_DIR = \"research\";",
+          "const paths = { dir: 'research' };"
+        ]
+      }
+    },
+    {
+      "id": "vendor-trademark",
+      "description": "Uses a vendor trademark in code, UI text or a file name. Trademarks may appear only in docs/ and Markdown, as plain 'compatible with' statements.",
+      "scan": "both",
+      "patterns": ["articulate", "storyline", "rise[ _-]*360", "review[ _-]*360", "reach[ _-]*360"],
+      "examples": {
+        "content": [
+          "export const articulateClient = {};",
+          "const appName = \"Storyline\";",
+          "label: 'Open in Rise 360'",
+          "const REVIEW_360_URL = \"\";",
+          "title=\"Reach360 learners\""
+        ],
+        "path": ["packages/storyline-import/src/index.ts", "apps/web/src/rise360/menu.ts"]
+      }
+    },
+    {
+      "id": "vendor-player-bundle",
+      "description": "Looks like a prebuilt player bundle: a minified or content-hashed script or style sheet. Course fixtures must be source we authored or open-source output; allow-list open-source output with a reason.",
+      "source": "Generic build-output markers, not vendor file names. specs/storyline.md section 4, 'Published web package': the player runtime ships as prebuilt bundles shared by every course. specs/rise.md section 4, 'Published web package': hashed script and style bundles.",
+      "scan": "path",
+      "patterns": ["\\.min\\.[cm]?js$", "[.-][0-9a-f]{8,}\\.(?:[cm]?js|css)$"],
+      "examples": {
+        "path": [
+          "fixtures/course/lib/player.min.js",
+          "fixtures/course/assets/app.3f9a1c2b.js",
+          "fixtures/course/assets/main-9c1d2e3f4a.css"
+        ]
+      }
+    }
+  ],
+  "allow": [
+    {
+      "rule": "vendor-trademark",
+      "path": "^docs/",
+      "reason": "Documentation may state compatibility with the vendor's products."
+    },
+    {
+      "rule": "vendor-trademark",
+      "path": "\\.md$",
+      "reason": "Markdown prose may state compatibility with the vendor's products."
+    },
+    {
+      "rule": "research-reference",
+      "path": "^ARCHITECTURE\\.md$",
+      "reason": "Describes where the study team records findings; it links nothing a build agent could open."
+    }
+  ],
+  "allowText": [
+    {
+      "rule": "vendor-trademark",
+      "pattern": "\\[[a-z0-9-]+:R\\d+\\]",
+      "reason": "Spec rule tags in test titles name the spec file, for example [storyline:R5]."
+    }
+  ]
+}

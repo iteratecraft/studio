@@ -49,6 +49,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm check:deps
+      - run: pnpm check:clean-room
+      # The specs repository is not checked out in CI, so this skips with exit 0 at the default
+      # `../specs`; it fails only if the script itself breaks.
+      - run: pnpm report:trace
 
       - name: Install Chromium for Playwright
         run: pnpm --filter @course-suite/web exec playwright install --only-shell chromium
