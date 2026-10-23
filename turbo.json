@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "agentGuidance": false,
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    }
+  },
+  "boundaries": {
+    "tags": {
+      "format": {
+        "dependencies": { "allow": [] }
+      },
+      "engine": {
+        "dependencies": { "allow": ["format", "engine"] }
+      },
+      "ui": {
+        "dependencies": { "allow": ["format", "engine"] }
+      },
+      "app": {
+        "dependencies": { "allow": ["format", "engine", "ui"] }
+      },
+      "mit": {
+        "dependencies": { "allow": ["mit"] }
+      }
+    }
+  }
+}
