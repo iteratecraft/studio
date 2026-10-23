@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { buildReport, findTags, parseRules } from "./trace.ts";
+import { buildReport, findTags, parseRules, TEST_FILE } from "./trace.ts";
 
 // The two rule formats the specs use: a numbered list, and `- R1.` bullets.
 const NUMBERED = `# Spec: demo
@@ -80,6 +80,16 @@ describe("findTags", () => {
   });
 });
 
+describe("TEST_FILE", () => {
+  test("counts unit, spec and end-to-end test files", () => {
+    for (const file of ["a.test.ts", "b.spec.tsx", "c.e2e.ts", "d.e2e.mjs"]) {
+      expect(file).toMatch(TEST_FILE);
+    }
+    expect("e2e.ts").not.toMatch(TEST_FILE);
+    expect("a.ts").not.toMatch(TEST_FILE);
+  });
+});
+
 describe("buildReport", () => {
   const rules = [...parseRules("demo", NUMBERED), ...parseRules("team", BULLETS)];
   const tags = findTags(
@@ -111,10 +121,13 @@ describe("report:trace", () => {
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
 
-  test("skips with a clear message when the specs are absent", { timeout: 30_000 }, () => {
+  // The skip when the default ../specs is absent depends on the checkout's surroundings, so only
+  // the explicit path is tested here.
+  test("fails when an explicit --specs directory is absent", { timeout: 30_000 }, () => {
     const result = run("--specs", join(tmpdir(), "no-such-specs-dir"));
-    expect(result.stdout).toContain("Spec directory not found");
-    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("Spec directory not found");
+    expect(result.stdout).toBe("");
+    expect(result.status).toBe(1);
   });
 
   test("writes the report for a specs directory", { timeout: 30_000 }, () => {

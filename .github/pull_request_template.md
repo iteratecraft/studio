@@ -19,7 +19,9 @@
 - [ ] `pnpm typecheck`
 - [ ] `pnpm lint`
 - [ ] `pnpm test`
+- [ ] `pnpm test:e2e`
 - [ ] `pnpm check:deps`
+- [ ] `pnpm check:licences`
 - [ ] `pnpm check:clean-room`
 
 ## Not verified

@@ -8,14 +8,18 @@
         "iteratecraft[/\\\\]research\\b",
         "course-suite[/\\\\]research\\b",
         "\\.\\.[/\\\\]research\\b",
-        "(?<![\\w-])research[/\\\\][\\w.-]"
+        "(?<![\\w-])research[/\\\\][\\w.-]",
+        "[(,\\[]\\s*[\"'`]research[\"'`]|[\"'`]research[\"'`]\\s*[,)\\]]"
       ],
       "examples": {
         "content": [
           "// git clone https://github.com/iteratecraft/research",
           "const notes = \"C:/Users/me/course-suite/research/notes.md\";",
           "import data from \"../research/evidence.json\";",
-          "// see research/FINDINGS.md"
+          "// see research/FINDINGS.md",
+          "const notes = join(\"..\", \"research\", \"FINDINGS.md\");",
+          "const dir = path.resolve(root, '..', 'research');",
+          "const parts = [`..`, `research`];"
         ]
       }
     },
@@ -37,14 +41,15 @@
     },
     {
       "id": "vendor-player-bundle",
-      "description": "Looks like a vendor player bundle or LMS driver. Course fixtures must be packages we authored or open-source output.",
+      "description": "Looks like a prebuilt player bundle: a minified or content-hashed script or style sheet. Course fixtures must be source we authored or open-source output; allow-list open-source output with a reason.",
+      "source": "Generic build-output markers, not vendor file names. specs/storyline.md section 4, 'Published web package': the player runtime ships as prebuilt bundles shared by every course. specs/rise.md section 4, 'Published web package': hashed script and style bundles.",
       "scan": "path",
-      "patterns": ["(^|/)story_content/", "scormdriver", "(^|/)story_html5\\b"],
+      "patterns": ["\\.min\\.[cm]?js$", "[.-][0-9a-f]{8,}\\.(?:[cm]?js|css)$"],
       "examples": {
         "path": [
-          "fixtures/course/story_content/data.js",
-          "fixtures/course/lms/scormdriver.js",
-          "fixtures/course/story_html5.html"
+          "fixtures/course/lib/player.min.js",
+          "fixtures/course/assets/app.3f9a1c2b.js",
+          "fixtures/course/assets/main-9c1d2e3f4a.css"
         ]
       }
     }

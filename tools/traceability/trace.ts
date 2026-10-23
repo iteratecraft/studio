@@ -4,7 +4,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { repoFiles } from "../clean-room-guard/guard.ts";
+import { isEntryPoint, repoFiles } from "../clean-room-guard/guard.ts";
 
 export interface SpecRule {
   spec: string;
@@ -43,7 +43,7 @@ export function parseRules(spec: string, markdown: string): SpecRule[] {
 }
 
 const TAG = /\[([a-z0-9-]+):R(\d+)\]/g;
-const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
+export const TEST_FILE = /\.(test|spec|e2e)\.[cm]?[jt]sx?$/;
 
 // shortcut: a tag anywhere in a test file counts, not only inside a test title; parse titles with
 // the TypeScript AST if tags start showing up in comments.
@@ -108,13 +108,17 @@ export function buildReport(rules: SpecRule[], tags: TestTag[], emptySpecs: stri
   return `${out.join("\n")}\n`;
 }
 
-if (import.meta.main) {
+if (isEntryPoint(import.meta)) {
   const root = join(import.meta.dirname, "..", "..");
   const { values } = parseArgs({
     options: { specs: { type: "string" }, out: { type: "string" } },
   });
   const specsDir = resolve(values.specs ?? join(root, "..", "specs"));
-  if (!existsSync(specsDir)) {
+  if (!existsSync(specsDir) && values.specs) {
+    // Only the default location may be absent; a path the caller named must exist.
+    console.error(`Spec directory not found: ${specsDir}.`);
+    process.exitCode = 1;
+  } else if (!existsSync(specsDir)) {
     console.log(
       `Spec directory not found: ${specsDir}. Skipping the traceability report. ` +
         "Pass --specs <dir> to point at a checkout of the specs repository.",

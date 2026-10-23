@@ -1,9 +1,10 @@
 // Clean-room and trademark guard (M0-05). Rejects files that point at the private research
-// repository, use vendor trademarks outside docs, or look like a vendor player bundle. The rules,
+// repository, use vendor trademarks outside docs, or look like a prebuilt player bundle. The rules,
 // their allow-list and sample violations live in clean-room.config.json.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type Scan = "content" | "path" | "both";
 
@@ -12,6 +13,8 @@ export interface Rule {
   description: string;
   scan: Scan;
   patterns: string[];
+  /** Where the patterns come from, when they are not self-evident. */
+  source?: string;
   examples: { content?: string[]; path?: string[] };
 }
 
@@ -87,11 +90,18 @@ export function checkFiles(root: string, paths: string[], config: Config): Findi
       if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
     }
+    // UTF-16 text has NUL bytes, so tell it from binary by its byte-order mark.
+    const utf16 =
+      bytes[0] === 0xff && bytes[1] === 0xfe
+        ? "utf-16le"
+        : bytes[0] === 0xfe && bytes[1] === 0xff
+          ? "utf-16be"
+          : undefined;
     // shortcut: binary files get path rules only; scan their strings if a vendor binary slips past.
-    if (bytes.subarray(0, 8000).includes(0)) continue;
+    if (!utf16 && bytes.subarray(0, 8000).includes(0)) continue;
 
-    bytes
-      .toString("utf8")
+    new TextDecoder(utf16 ?? "utf-8")
+      .decode(bytes)
       .split(/\r?\n/)
       .forEach((text, index) => {
         for (const rule of contentRules) {
@@ -111,7 +121,21 @@ export function repoFiles(root: string): string[] {
   return output.split("\0").filter(Boolean);
 }
 
-if (import.meta.main) {
+/**
+ * True when the module is the script Node was started with. `import.meta.main` only exists from
+ * Node 24.2, and `engines` allows 24.0, so fall back to comparing real paths with `argv[1]`.
+ */
+export function isEntryPoint(meta: { main?: boolean; url: string }, script = process.argv[1]) {
+  if (meta.main !== undefined) return meta.main;
+  if (!script) return false;
+  try {
+    return realpathSync.native(script) === realpathSync.native(fileURLToPath(meta.url));
+  } catch {
+    return false; // argv[1] is not a file, so this module was not started as a script
+  }
+}
+
+if (isEntryPoint(import.meta)) {
   const root = join(import.meta.dirname, "..", "..");
   const config = loadConfig(root);
   const files = repoFiles(root);

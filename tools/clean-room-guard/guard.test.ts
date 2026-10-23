@@ -5,8 +5,9 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, test } from "vitest";
-import { CONFIG_PATH, checkFiles, loadConfig } from "./guard.ts";
+import { CONFIG_PATH, checkFiles, isEntryPoint, loadConfig } from "./guard.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const config = loadConfig(repoRoot);
@@ -34,7 +35,9 @@ const pathCases = config.rules.flatMap((r) => (r.examples.path ?? []).map((e) =>
 describe("check:clean-room", () => {
   test("passes on the repository as it is", { timeout: 30_000 }, () => {
     const guard = join(import.meta.dirname, "guard.ts");
-    const run = spawnSync(process.execPath, [guard], { cwd: repoRoot, encoding: "utf8" });
+    // Early Node 24 releases warn that type stripping is experimental; that is not a finding.
+    const args = ["--disable-warning=ExperimentalWarning", guard];
+    const run = spawnSync(process.execPath, args, { cwd: repoRoot, encoding: "utf8" });
     expect(run.stderr).toBe("");
     expect(run.stdout).toContain("no findings");
     expect(run.status).toBe(0);
@@ -75,6 +78,26 @@ describe("check:clean-room", () => {
     expect(check({ [bundle]: Buffer.from([0, 1, 2]) })).toHaveLength(1);
   });
 
+  test("scans UTF-16 text files that start with a byte-order mark", () => {
+    const line = rule("vendor-trademark")?.examples.content?.[0] ?? "";
+    const le = Buffer.from(
+      `﻿export {};
+${line}
+`,
+      "utf16le",
+    );
+    const be = Buffer.from(le).swap16();
+    expect(check({ "le.ts": le, "be.ts": be })).toEqual([
+      expect.objectContaining({ path: "le.ts", line: 2, rule: "vendor-trademark" }),
+      expect.objectContaining({ path: "be.ts", line: 2, rule: "vendor-trademark" }),
+    ]);
+  });
+
+  test("does not flag the word research outside a path", () => {
+    const prose = 'const label = "Research notes"; // researchers read the `research` repository';
+    expect(check({ "a.ts": prose })).toEqual([]);
+  });
+
   test("never flags its own config, which must name what it forbids", () => {
     const line = rule("vendor-trademark")?.examples.content?.[0] ?? "";
     expect(check({ [CONFIG_PATH]: line })).toEqual([]);
@@ -87,5 +110,23 @@ describe("check:clean-room", () => {
     mkdirSync(dirname(join(dir, CONFIG_PATH)), { recursive: true });
     writeFileSync(join(dir, CONFIG_PATH), JSON.stringify(broken));
     expect(() => loadConfig(dir)).toThrow("scan must be one of");
+  });
+});
+
+describe("isEntryPoint", () => {
+  const self = join(import.meta.dirname, "guard.ts");
+  const url = pathToFileURL(self).href;
+
+  test("trusts import.meta.main where Node provides it", () => {
+    expect(isEntryPoint({ main: true, url }, "elsewhere.ts")).toBe(true);
+    expect(isEntryPoint({ main: false, url }, self)).toBe(false);
+  });
+
+  // Node 24.0 and 24.1 have no import.meta.main; the scripts must still run, not exit 0 silently.
+  test("falls back to argv[1] when import.meta.main is missing", () => {
+    expect(isEntryPoint({ url }, self)).toBe(true);
+    expect(isEntryPoint({ url }, join(import.meta.dirname, "guard.test.ts"))).toBe(false);
+    expect(isEntryPoint({ url }, join(tmpdir(), "no-such-script.ts"))).toBe(false);
+    expect(isEntryPoint({ url }, undefined)).toBe(false);
   });
 });
