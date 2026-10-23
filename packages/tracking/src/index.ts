@@ -1,5 +1,12 @@
-// Tracking core and resume codec (STD-01): the resume payload format every standard's adapter
-// stores.
+// Tracking core and resume codec (STD-01): standard-neutral status, write schedule and adapter
+// interface, a debug adapter, and the resume payload format every standard's adapter stores.
+export type {
+  AdapterCall,
+  KeyValueStorage,
+  MemoryAdapter,
+  MemoryAdapterOptions,
+} from "./memory.js";
+export { createMemoryAdapter } from "./memory.js";
 export type {
   DecodeResult,
   DropPart,
@@ -17,3 +24,16 @@ export {
   RESUME_CAPS,
   RESUME_FORMAT,
 } from "./resume.js";
+export type {
+  Clock,
+  Completion,
+  Launch,
+  Mode,
+  Session,
+  Status,
+  Success,
+  Tracker,
+  TrackerOptions,
+  TrackingAdapter,
+} from "./tracker.js";
+export { createTracker } from "./tracker.js";
