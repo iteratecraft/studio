@@ -6,6 +6,12 @@ settings:
 
 catalogs:
   default:
+    '@playwright/test':
+      specifier: 1.64.0
+      version: 1.64.0
+    '@types/node':
+      specifier: 24.19.1
+      version: 24.19.1
     turbo:
       specifier: 2.11.7
       version: 2.11.7
@@ -42,10 +48,32 @@ importers:
   apps/web:
     devDependencies:
       '@playwright/test':
-        specifier: 1.64.0
+        specifier: 'catalog:'
         version: 1.64.0
       '@types/node':
-        specifier: 24.19.1
+        specifier: 'catalog:'
+        version: 24.19.1
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+
+  packages/conformance:
+    dependencies:
+      '@xmldom/xmldom':
+        specifier: 0.9.12
+        version: 0.9.12
+      playwright-core:
+        specifier: 1.64.0
+        version: 1.64.0
+      scorm-again:
+        specifier: 3.4.6
+        version: 3.4.6
+    devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.0
+      '@types/node':
+        specifier: 'catalog:'
         version: 24.19.1
       vitest:
         specifier: 'catalog:'
@@ -84,7 +112,7 @@ importers:
   tools:
     devDependencies:
       '@types/node':
-        specifier: 24.19.1
+        specifier: 'catalog:'
         version: 24.19.1
       turbo:
         specifier: 'catalog:'
@@ -445,6 +473,10 @@ packages:
   '@vitest/spy@5.0.3':
     resolution: {integrity: sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg==}
 
+  '@xmldom/xmldom@0.9.12':
+    resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
+    engines: {node: '>=14.6'}
+
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
@@ -592,6 +624,10 @@ packages:
     resolution: {integrity: sha512-6odND+fel5zVw3I4Yc2e69gvguDnX0CAAGiNDZSq4ik5WUcaLrkD2GLuog0XcODbor31hZ5ayEMgVDno+KPV5g==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
+
+  scorm-again@3.4.6:
+    resolution: {integrity: sha512-+dVqku6XSbLTRoC2eMQ2oUkfOSYda6BSvfC7efWKkNT5fqXD6sGjEI4g08GGKBxqMe211iBz/VqzEPFtFzZpKQ==}
+    engines: {node: '>=20.19.0'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -914,6 +950,8 @@ snapshots:
 
   '@vitest/spy@5.0.3': {}
 
+  '@xmldom/xmldom@0.9.12': {}
+
   assertion-error@2.0.1: {}
 
   chai@6.3.0: {}
@@ -1028,6 +1066,8 @@ snapshots:
       '@rolldown/binding-openharmony-arm64': 1.2.15
       '@rolldown/binding-win32-arm64-msvc': 1.2.15
       '@rolldown/binding-win32-x64-msvc': 1.2.15
+
+  scorm-again@3.4.6: {}
 
   source-map-js@1.2.2: {}
 

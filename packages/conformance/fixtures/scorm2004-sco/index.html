@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Test SCO</title></head>
+<body>
+<p>SCORM 2004 test SCO</p>
+<script>
+  // Finds the SCORM 2004 API on this window or an ancestor, as the standard describes.
+  function findApi(win) {
+    for (let w = win, depth = 0; w && depth < 10; w = w.parent, depth++) {
+      if (w.API_1484_11) return w.API_1484_11;
+      if (w === w.parent) break;
+    }
+    return null;
+  }
+  const api = findApi(window);
+  api.Initialize("");
+  api.SetValue("cmi.score.scaled", "0.9");
+  api.SetValue("cmi.completion_status", "completed");
+  api.SetValue("cmi.success_status", "passed");
+  api.SetValue("cmi.exit", "normal");
+  api.Commit("");
+  api.Terminate("");
+</script>
+</body>
+</html>

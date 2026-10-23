@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Test SCO</title></head>
+<body>
+<p>SCORM 1.2 test SCO</p>
+<script>
+  // Finds the SCORM 1.2 API on this window or an ancestor, as the standard describes.
+  function findApi(win) {
+    for (let w = win, depth = 0; w && depth < 10; w = w.parent, depth++) {
+      if (w.API) return w.API;
+      if (w === w.parent) break;
+    }
+    return null;
+  }
+  const api = findApi(window);
+  api.LMSInitialize("");
+  api.LMSGetValue("cmi.core.lesson_status");
+  api.LMSSetValue("cmi.core.score.raw", "90");
+  api.LMSSetValue("cmi.core.lesson_status", "passed");
+  api.LMSSetValue("cmi.suspend_data", "v1;done");
+  api.LMSCommit("");
+  api.LMSFinish("");
+</script>
+</body>
+</html>
