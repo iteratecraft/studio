@@ -104,6 +104,10 @@ importers:
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
 
   packages/tracking:
+    dependencies:
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
     devDependencies:
       vitest:
         specifier: 'catalog:'
