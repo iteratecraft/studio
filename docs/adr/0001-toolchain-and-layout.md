@@ -104,6 +104,15 @@ unless the target is declared and allowed for that layer.
 - An MIT package may depend only on other MIT packages. Its `turbo.json` carries the `mit` tag, which
   `check:deps` enforces, and the tests check that the tag matches the `license` field.
 - Anything that ships in a course, such as theme tokens, goes in an MIT package, never in `ui`.
+- `pnpm check:licences` (`tools/licence-gate/`) enforces these licences and the licences of every
+  production dependency: GPL, AGPL, SSPL, BUSL, CC-BY-NC and unreviewed licences fail everywhere, and
+  LGPL also fails in course-shipped packages. Reviewed exceptions go in
+  `tools/licence-gate/exceptions.json`. It keeps the dependency list in `THIRD_PARTY_NOTICES.md`
+  current. It takes the course-shipped set from the `mit` tags.
+- Bundlers inline devDependencies and peerDependencies into the player, so a course-shipped package
+  declares everything it ships under `dependencies`, where the licence gate checks it. Its
+  `devDependencies` and `peerDependencies` hold only test tooling (`vitest`), and the licence gate
+  fails on anything else.
 
 ## Consequences
 

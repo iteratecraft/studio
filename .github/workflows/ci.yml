@@ -53,6 +53,7 @@ jobs:
       # The specs repository is not checked out in CI, so this skips with exit 0 at the default
       # `../specs`; it fails only if the script itself breaks.
       - run: pnpm report:trace
+      - run: pnpm check:licences
 
       - name: Install Chromium for Playwright
         run: pnpm --filter @course-suite/web exec playwright install --only-shell chromium

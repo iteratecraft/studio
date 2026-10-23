@@ -43,7 +43,8 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
   path. `pnpm check:deps` enforces this.
 - Anything that ships inside a published course is MIT and may depend only on MIT packages. Everything
   else is Apache-2.0. A new package needs a `turbo.json` with one layer tag (`format`, `engine`, `ui`
-  or `app`), plus `mit` if it is MIT.
+  or `app`), plus `mit` if it is MIT. An MIT package declares everything it ships under
+  `dependencies`; its `devDependencies` and `peerDependencies` hold only test tooling (`vitest`).
 - Pin exact dependency versions. A version shared by several packages goes in the pnpm `catalog`.
 
 ## Commands
@@ -62,6 +63,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm check:deps` | Dependency-direction and licence-layer check |
 | `pnpm check:clean-room` | Clean-room and trademark guard (rules and allow-list in `tools/clean-room-guard/clean-room.config.json`) |
 | `pnpm report:trace` | Markdown report of spec rules covered by tagged tests (`--specs <dir>`, default `../specs`, skipped only when the default is absent; `--out <file>`) |
+| `pnpm check:licences` | Package licences, production dependency licences and `THIRD_PARTY_NOTICES.md` (`--write` regenerates it) |
 
 Run all of them before you open a PR.
 
