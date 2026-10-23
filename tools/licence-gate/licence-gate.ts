@@ -1,8 +1,11 @@
 // Licence gate (roadmap M0-04, ADR-0001 "Licences"). Run it with `pnpm check:licences`; add
 // `--write` to regenerate the dependency list in THIRD_PARTY_NOTICES.md.
 //
-// (a) Every workspace package's `license` field matches ADR-0001: MIT for the course-shipped set
-//     below, Apache-2.0 for everything else. Course-shipped packages carry their own MIT LICENSE.
+// (a) Every workspace package's `license` field matches ADR-0001: MIT for the course-shipped
+//     packages (those whose turbo.json carries the `mit` tag), Apache-2.0 for everything else.
+//     Course-shipped packages carry their own MIT LICENSE. Their devDependencies may hold only the
+//     test tooling below: bundlers inline devDependencies into the player, so anything a course
+//     ships must be a dependency, where (b) scans it.
 // (b) Every production dependency, direct or transitive, has a reviewed licence. GPL, AGPL, SSPL,
 //     BUSL, CC-BY-NC and unknown or unreviewed licences fail everywhere. LGPL is accepted in the
 //     apps and tools but fails in course-shipped packages, because those ship inside every course.
@@ -15,11 +18,11 @@
 // `inCourses: false` covers the package only outside course-shipped packages. An exception that no
 // longer matches any dependency fails the check, so the list cannot go stale.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-// The course-shipped (MIT) set from ADR-0001. Change it only together with the ADR.
-const COURSE_SHIPPED = ["packages/format", "packages/player-blocks", "packages/tracking"];
+// devDependencies a course-shipped package may keep: test tooling that never reaches a bundle.
+const COURSE_TOOLING = new Set(["vitest"]);
 
 // Accepted everywhere: permissive licences whose only condition is keeping the notice.
 const PERMISSIVE = new Set([
@@ -143,9 +146,17 @@ const workspace = readJsonText(pnpm(["ls", "-r", "--json", "--depth", "-1"])) as
   path: string;
 }[];
 const dirs = new Map(workspace.map((pkg) => [relativeDir(pkg.path), pkg]));
+const courseNames: string[] = [];
 for (const [dir, pkg] of dirs) {
-  const expected = COURSE_SHIPPED.includes(dir) ? "MIT" : "Apache-2.0";
-  const { license } = readJson(join(pkg.path, "package.json")) as { license?: unknown };
+  const turboFile = join(pkg.path, "turbo.json");
+  const { tags } = (existsSync(turboFile) ? readJson(turboFile) : {}) as { tags?: unknown };
+  const courseShipped = Array.isArray(tags) && tags.includes("mit");
+  if (courseShipped) courseNames.push(pkg.name);
+  const expected = courseShipped ? "MIT" : "Apache-2.0";
+  const { license, devDependencies } = readJson(join(pkg.path, "package.json")) as {
+    license?: unknown;
+    devDependencies?: Record<string, string>;
+  };
   if (license !== expected) {
     problems.push(`${dir}: license is ${JSON.stringify(license)}, ADR-0001 requires "${expected}"`);
   }
@@ -154,17 +165,20 @@ for (const [dir, pkg] of dirs) {
   if (expected === "MIT" && !text.startsWith("MIT License")) {
     problems.push(`${dir}: a course-shipped package needs its own MIT LICENSE file`);
   }
+  for (const name of courseShipped ? Object.keys(devDependencies ?? {}) : []) {
+    if (!COURSE_TOOLING.has(name)) {
+      problems.push(
+        `${dir}: devDependency ${name} may be bundled into courses; declare it under dependencies ` +
+          "so its licence is checked",
+      );
+    }
+  }
   if (dir === "." && !text.startsWith("Apache License")) {
     problems.push("LICENSE at the repository root must be the Apache License 2.0");
   }
 }
-for (const dir of COURSE_SHIPPED) {
-  if (!dirs.has(dir))
-    problems.push(`${dir}: listed as course-shipped but is not a workspace package`);
-}
 
 // (b) Production dependency licences.
-const courseNames = COURSE_SHIPPED.flatMap((dir) => dirs.get(dir)?.name ?? []);
 const key = (dep: Installed) => `${dep.name}\u0000${dep.license}`;
 const shippedInCourses = new Set((courseNames.length > 0 ? scan(courseNames) : []).map(key));
 const dependencies = scan([]);
@@ -200,10 +214,14 @@ for (const dep of dependencies) {
     rows.add(
       `| ${dep.name} | ${version ?? ""} | ${dep.license} | ${shippedInCourses.has(key(dep)) ? "yes" : "no"} |`,
     );
-    const noticeFile = ["NOTICE", "NOTICE.md", "NOTICE.txt"]
-      .map((f) => join(path, f))
-      .find(existsSync);
-    if (noticeFile) notices.set(id, readFileSync(noticeFile, "utf8").replace(/\r\n/g, "\n").trim());
+    // Match by name, not existsSync: file-name case matters on Linux but not on Windows or macOS.
+    const noticeFile = readdirSync(path)
+      .sort()
+      .find((f) => /^notice(\.md|\.txt)?$/i.test(f));
+    if (noticeFile) {
+      const text = readFileSync(join(path, noticeFile), "utf8");
+      notices.set(id, text.replace(/\r\n/g, "\n").trim());
+    }
   }
 }
 const block = [

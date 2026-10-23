@@ -108,7 +108,10 @@ unless the target is declared and allowed for that layer.
   production dependency: GPL, AGPL, SSPL, BUSL, CC-BY-NC and unreviewed licences fail everywhere, and
   LGPL also fails in course-shipped packages. Reviewed exceptions go in
   `tools/licence-gate/exceptions.json`. It keeps the dependency list in `THIRD_PARTY_NOTICES.md`
-  current. The course-shipped set is listed in that script too; change it together with this ADR.
+  current. It takes the course-shipped set from the `mit` tags.
+- Bundlers inline devDependencies into the player, so a course-shipped package declares everything
+  it ships under `dependencies`. Its `devDependencies` hold only test tooling (`vitest`), and the
+  licence gate fails on anything else.
 
 ## Consequences
 
