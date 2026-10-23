@@ -1,0 +1,17 @@
+{
+  "name": "@course-suite/tools",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "turbo": "catalog:",
+    "vitest": "catalog:"
+  }
+}

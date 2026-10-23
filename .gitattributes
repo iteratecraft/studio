@@ -1,0 +1,2 @@
+# LF everywhere so the formatter gives the same result on Windows, macOS and Linux.
+* text=auto eol=lf
