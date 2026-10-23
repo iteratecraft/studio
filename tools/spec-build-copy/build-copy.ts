@@ -4,7 +4,15 @@
 // URL's SHA-256: the same URL gets the same id in every file and in every later copy, and the study
 // team can find the URL behind an id by hashing the URLs of the original specs.
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { isEntryPoint } from "../clean-room-guard/guard.ts";
@@ -66,7 +74,18 @@ export function buildCopy(from: string, out: string) {
   mkdirSync(out, { recursive: true });
   const urls = new Map<string, string>();
   for (const name of files) {
-    writeFileSync(join(out, name), replaceUrls(readFileSync(join(from, name), "utf8"), urls));
+    // Write a new file and rename it into place: writing through an existing `out` file would also
+    // change a spec it is hard-linked to, while a rename only replaces the link.
+    const target = join(out, name);
+    const temp = `${target}.${process.pid}.tmp`;
+    try {
+      writeFileSync(temp, replaceUrls(readFileSync(join(from, name), "utf8"), urls), {
+        flag: "wx",
+      });
+      renameSync(temp, target);
+    } finally {
+      rmSync(temp, { force: true });
+    }
   }
   return { files, urls };
 }

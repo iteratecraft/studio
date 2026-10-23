@@ -84,10 +84,19 @@ A package may import only from layers to its left. Engine packages may import ea
 import other apps. No package imports a file outside its own directory; it imports other packages by
 name.
 
+**`conformance` is test-only.** The package reader and test LMS exist to check course packages in
+tests, so `ui` and the apps never import it, directly or through another package. Its `turbo.json`
+carries the `test-only` tag, whose rule in the root `turbo.json` denies `ui` and `app` dependents.
+The rule follows dependencies of dependencies, so an engine package that `ui` or an app imports
+cannot import it either; `tools/` and the package's own tests use it. A product feature that needs
+to read packages (for example importing a course into the server) gets its own package without the
+tag, in a reviewed change, rather than lifting the rule.
+
 The direction is enforced by `pnpm check:deps`, which runs `turbo boundaries`. Each package's
 `turbo.json` carries one layer tag (`format`, `engine`, `ui` or `app`), and the root `turbo.json`
 lists which tags each layer may depend on. `tools/check-deps/check-deps.test.ts` proves the check fails
-on each kind of forbidden import, and that every package carries exactly one layer tag.
+on each kind of forbidden import, including `ui` or an app importing `conformance`, and that every
+package carries exactly one layer tag.
 `turbo boundaries` is marked experimental; if it changes or goes away, a script in `tools/` replaces it
 and the same tests keep it honest.
 

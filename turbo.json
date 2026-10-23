@@ -33,6 +33,9 @@
       },
       "mit": {
         "dependencies": { "allow": ["mit"] }
+      },
+      "test-only": {
+        "dependents": { "deny": ["ui", "app"] }
       }
     }
   }

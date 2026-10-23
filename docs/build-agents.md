@@ -64,6 +64,8 @@ memory load into them, and nobody's own settings change.
 
 [`build-agent-settings.json`](build-agent-settings.json) is ready to copy. It:
 
+- turns off bypass-permissions mode (`disableBypassPermissionsMode`), so a session cannot be started
+  or switched into a mode that skips these rules;
 - blocks the `rea` and `claude-in-chrome` MCP servers (`deniedMcpServers`) and denies their tools
   (`mcp__rea`, `mcp__claude-in-chrome`), in case another settings layer adds them back;
 - denies the `reverse-engineer-anything` skill;
@@ -102,7 +104,9 @@ command refuses an `--out` that is the `--from` folder, is inside it or holds it
 paths, so a case variant, junction or symlink cannot get past it. It prints the hosts it removed;
 none of them may be on the web allow-list.
 
-It copies only the `.md` files directly in `--from` and deletes nothing in `--out`, so a spec
+It writes each output as a new file and renames it into place, so an `--out` file hard-linked to a
+spec is replaced, never written through. It copies only the `.md` files directly in `--from` and
+deletes nothing in `--out`, so a spec
 removed from the specs stays in an existing build copy: delete `--out` before a refresh. Refresh the
 build copy whenever the specs change. Build agents read only the copy.
 
@@ -115,4 +119,6 @@ build copy whenever the specs change. Build agents read only the copy.
 - The settings example has been checked against the published Claude Code settings schema, not in a
   live session. Check in the first live build session that `deniedMcpServers` takes effect outside
   managed settings (the `mcp__` deny rules cover it if not), that the absolute and relative
-  `research` rules block a `Read`, and that a `WebFetch` to a host off the allow-list asks.
+  `research` rules block a `Read`, that a `WebFetch` to a host off the allow-list asks, and that
+  `disableBypassPermissionsMode` refuses `--dangerously-skip-permissions` and hides bypass mode
+  from the mode switch.

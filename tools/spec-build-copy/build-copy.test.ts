@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -87,6 +89,17 @@ describe("specs:build-copy", () => {
     expect(existsSync(join(out, "notes.txt"))).toBe(false);
     expect(() => buildCopy(from, from)).toThrow("must not be or contain each other");
     expect(() => buildCopy(tempDir(), out)).toThrow("No .md files");
+  });
+
+  test("replaces an --out file hard-linked to a spec instead of writing through it", () => {
+    const from = tempDir();
+    const out = tempDir();
+    writeFileSync(join(from, "demo.md"), SPEC);
+    linkSync(join(from, "demo.md"), join(out, "demo.md"));
+    buildCopy(from, out);
+    expect(readFileSync(join(from, "demo.md"), "utf8")).toBe(SPEC);
+    expect(readFileSync(join(out, "demo.md"), "utf8")).toBe(replaceUrls(SPEC));
+    expect(readdirSync(out)).toEqual(["demo.md"]);
   });
 
   describe("refuses an --out that is, holds or sits inside --from", () => {

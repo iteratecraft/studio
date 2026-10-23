@@ -68,6 +68,27 @@ describe("check:deps", () => {
     expect(result.status).not.toBe(0);
   });
 
+  // ADR-0001: the package reader and test LMS are test-only, so nothing the apps ship may pull them
+  // in, directly or through an engine package. Each package in the chain imports the next one.
+  test.each([
+    ["the UI importing it", ["packages/ui"]],
+    ["an app importing it", ["apps/web"]],
+    ["the UI importing an engine package that imports it", ["packages/ui", "packages/exporters"]],
+  ])("fails on the test-only conformance package: %s", { timeout: TIMEOUT_MS }, (_name, chain) => {
+    const dir = copyRepo();
+    const imports = [...chain.slice(1), "packages/conformance"].map(
+      (pkg) => `@course-suite/${basename(pkg)}`,
+    );
+    chain.forEach((pkg, i) => {
+      const dependency = imports[i] as string;
+      addDependency(dir, pkg, dependency);
+      writeFileSync(join(dir, pkg, "src", "violation.ts"), `export * from "${dependency}";\n`);
+    });
+    const result = checkDeps(dir);
+    expect(result.output).toContain("found with tag listed in denylist");
+    expect(result.status).not.toBe(0);
+  });
+
   test("fails on a relative import into another package", { timeout: TIMEOUT_MS }, () => {
     const dir = copyRepo();
     const source = `export * from "../../format/src/index.js";\n`;
