@@ -42,7 +42,9 @@ ship inside the package. M1-30 tests every output and fails on any request outsi
 
 - **No telemetry by default.** Opt-in telemetry, if ever wanted, needs a new ADR.
 - Preview may load third-party media that the author embedded; that is the author's own content.
-- A new destination needs a row here, with purpose and off switch, before its code is merged.
+- A new destination needs a row here, with purpose and off switch, before its code is merged. Known
+  rows still to come with their tasks: the stock media library searched from the editor (rise.md §3 C
+  "Block library").
 - The server edition's own outbound connections (mail, single sign-on, webhooks) are added to this ADR
   by ENG-39 before Server 0.1.
 

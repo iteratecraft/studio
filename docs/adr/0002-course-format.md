@@ -57,7 +57,7 @@ valid in every standard.
 | Publish and export (all standards), republish an update | kept | kept, so learner resume and LMS records survive an update |
 | Import of a package or XLIFF file we exported | kept | kept |
 | Import from a foreign format (for example PowerPoint) | new | minted once at import, stable from then on |
-| Sync and co-editing | kept | kept; sync never re-mints. A collision found at merge re-mints the later object and remaps its references |
+| Sync and co-editing | kept | kept; sync never re-mints. A collision found at merge re-mints one of the two objects and remaps its references, by a rule every replica applies the same way (for example, the object from the lower client id keeps the id); the rule is fixed with D-5 |
 
 ### Versions and migrations
 
@@ -78,6 +78,11 @@ valid in every standard.
   namespaces (`org.example.plugin`); each value is any JSON.
 - `ext` is preserved verbatim through every operation in the id table. Exporters leave it out of
   published packages unless a plugin that owns the namespace asks for it.
+- Ids inside `ext` and inside unknown newer-MINOR properties are opaque to this app version: duplicate
+  and paste do not remap them, and reference integrity and delete-cleanup do not see them. So a newer
+  app, or the plugin that owns a namespace, must expect a dangling or stale reference in its own data:
+  it reports it as a validation warning (with its JSON Pointer path) and drops the reference, never
+  fails the document.
 - Unknown properties outside `ext` are a validation error, except the newer-MINOR case above.
 
 ### Reference integrity

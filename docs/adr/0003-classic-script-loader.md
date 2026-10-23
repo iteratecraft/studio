@@ -10,9 +10,10 @@
 A published course must open from a local disk (`file://`) as well as from any static host or LMS
 (rise.md §4 "Published web package"). The course data file is loaded by a script tag for exactly this
 reason: it needs no CORS and no server. Chromium treats `file://` pages as an opaque origin and blocks
-module scripts (`<script type="module">`) and dynamic `import()` there, and also `fetch` and
-`XMLHttpRequest` of package files. The player is split into chunks loaded on demand (rise.md §4), so
-lazy loading needs a mechanism that works without modules.
+module scripts loaded from files (`<script type="module" src>`) and dynamic `import()` there, and also
+`fetch`, `XMLHttpRequest` and workers of package files. A classic `<script src>` still loads. The
+player is split into chunks loaded on demand (rise.md §4), so lazy loading needs a mechanism that works
+without modules.
 
 ## Decision
 
@@ -20,11 +21,27 @@ lazy loading needs a mechanism that works without modules.
   and chunk as a self-contained classic script (IIFE format), never an ES module.
 - **Every lazy chunk and every plugin loads by script-tag injection**, the same way as the course data
   file:
-  1. The loader adds `<script src="<relative path>">` to the document.
-  2. The chunk, when it runs, registers itself by name on one player-owned global registry.
-  3. The loader's promise resolves on registration and rejects on the script's `error` event, with the
-     chunk name in the error.
-  4. Each chunk is requested at most once; later calls get the same promise.
+  1. If the chunk is already in the registry, the loader resolves at once. Otherwise it adds
+     `<script src="<relative path>">` to the document.
+  2. The chunk registers itself by name on one player-owned global registry, synchronously, while its
+     top-level code runs. A chunk never registers later (after a timer, an event or a promise).
+  3. The loader's promise settles on the first of these, and every rejection is an error that names
+     the chunk and the reason:
+     - the script's `load` event: resolve if the chunk is now registered under its expected name;
+       otherwise reject with "loaded without registering". A classic script's `load` fires after its
+       top-level code has run, so this catches a chunk that throws at top level and a chunk that
+       registers under another name. Both fire `load`, not `error`.
+     - the script's `error` event (the file is missing or could not be read): reject.
+     - a timeout of 30 seconds from injection, with neither event: reject. This is one player
+       constant, not an author setting.
+  4. Concurrent calls for the same chunk share one pending promise. A resolved promise is kept for the
+     session. A rejected promise is dropped from the cache and its script element removed, so the
+     next call injects the script again; a chunk that registered late (after its timeout) resolves
+     at step 1 instead.
+  5. A rejection the player cannot work around shows the player's error screen in the course window:
+     it says which part of the course failed to load, offers **Retry** (which calls the loader again)
+     and logs the error with the chunk name to the browser console. The error is never sent anywhere
+     (ADR-0004).
 - Paths are relative to the index page, so the same package works under `file://`, `http(s)://` and
   inside an LMS frame.
 - Shipped code never uses `type="module"`, `import()`, `import.meta`, `fetch` or `XMLHttpRequest` for
@@ -33,6 +50,21 @@ lazy loading needs a mechanism that works without modules.
 - **Every chunk gets a `file://` test:** a Playwright test opens the built package from disk in
   Chromium, triggers that chunk's load, checks that its code ran, and fails on any console error or
   failed request. A new chunk without such a test fails review.
+- **The loader's own tests** run against a built package opened from disk (`file://`) in Chromium,
+  with test chunks:
+
+  | Case | Expected |
+  |---|---|
+  | Chunk loads and registers | resolves; the chunk's code ran; no console error, no failed request |
+  | Chunk file missing | rejects naming the chunk; the error screen shows |
+  | Chunk throws at top level | rejects with "loaded without registering", naming the chunk; the error screen shows |
+  | Chunk registers under another name | rejects with "loaded without registering", naming the chunk |
+  | Two calls before the first settles | one script element; both calls get the same result |
+  | Retry after a failure (the test writes the missing file, then presses Retry) | a new script element is injected and the load resolves |
+  | Neither `load` nor `error` fires | rejects after the timeout, naming the chunk; the error screen shows |
+
+  The timeout case runs over `http://` with a request the test holds open, because a `file://` read
+  cannot be stalled; the test shortens the timeout through a test-only hook.
 - The build checks its own output and fails if a shipped script contains a module script tag,
   `import(` or `import.meta`.
 
@@ -42,8 +74,9 @@ lazy loading needs a mechanism that works without modules.
 - The editor's preview runs the same player build, so preview and published course load the same way.
 - We give up native module loading and the bundler's built-in code splitting for shipped code; chunk
   boundaries are declared by us and registered by name.
-- Follow-ups: the loader and registry in the player shell (M1-09); IIFE output and the output check in
-  the package builder (M1-16); `file://` tests as each chunk lands; the no-network tests (M1-30).
+- Follow-ups: the loader, registry, error screen and the loader's tests in the player shell (M1-09);
+  IIFE output and the output check in the package builder (M1-16); `file://` tests as each chunk
+  lands; the no-network tests (M1-30).
 
 ## Alternatives considered
 
