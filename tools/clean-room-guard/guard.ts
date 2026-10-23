@@ -122,8 +122,9 @@ export function repoFiles(root: string): string[] {
 }
 
 /**
- * True when the module is the script Node was started with. `import.meta.main` only exists from
- * Node 24.2, and `engines` allows 24.0, so fall back to comparing real paths with `argv[1]`.
+ * True when the module is the script Node was started with. `engines` requires Node 24.2, which has
+ * `import.meta.main`; the `argv[1]` real-path fallback keeps the scripts running on an older Node
+ * that ignores `engines`, instead of exiting 0 without checking anything.
  */
 export function isEntryPoint(meta: { main?: boolean; url: string }, script = process.argv[1]) {
   if (meta.main !== undefined) return meta.main;

@@ -9,7 +9,7 @@
         "course-suite[/\\\\]research\\b",
         "\\.\\.[/\\\\]research\\b",
         "(?<![\\w-])research[/\\\\][\\w.-]",
-        "[(,\\[]\\s*[\"'`]research[\"'`]|[\"'`]research[\"'`]\\s*[,)\\]]"
+        "[(,\\[=:]\\s*[\"'`]research[\"'`]|[\"'`]research[\"'`]\\s*[,)\\]]"
       ],
       "examples": {
         "content": [
@@ -19,7 +19,9 @@
           "// see research/FINDINGS.md",
           "const notes = join(\"..\", \"research\", \"FINDINGS.md\");",
           "const dir = path.resolve(root, '..', 'research');",
-          "const parts = [`..`, `research`];"
+          "const parts = [`..`, `research`];",
+          "const RESEARCH_DIR = \"research\";",
+          "const paths = { dir: 'research' };"
         ]
       }
     },
