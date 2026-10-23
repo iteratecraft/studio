@@ -42,7 +42,7 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 
 ## Layout, layers and licences
 
-- `packages/format` <- engine packages (`player-blocks`, `tracking`, `exporters`, `conformance`) <-
+- `packages/format` and `packages/labels` <- engine packages (`player-blocks`, `tracking`, `exporters`, `conformance`) <-
   `packages/ui` <- `apps/*`. Import only from layers to your left; import other packages by name, never by relative
   path. `pnpm check:deps` enforces this.
 - Anything that ships inside a published course is MIT and may depend only on MIT packages. Everything
@@ -61,7 +61,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm install` | Install locked dependencies |
 | `pnpm build` | Build every package (Turborepo) |
 | `pnpm typecheck` | TypeScript strict check |
-| `pnpm lint` | Biome lint and format check (`pnpm exec biome check --write .` fixes) |
+| `pnpm lint` | Biome lint and format check, including the rule against hard-coded learner text in `packages/player-*` (`tools/lint/`; `pnpm exec biome check --write .` fixes formatting) |
 | `pnpm test` | Vitest unit tests |
 | `pnpm test:e2e` | Playwright browser tests (first run: `pnpm --filter @course-suite/web exec playwright install --only-shell chromium`) |
 | `pnpm check:deps` | Dependency-direction and licence-layer check |

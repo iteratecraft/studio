@@ -1,0 +1,28 @@
+// Learner-facing text in player code must come from the label set (ENG-09). biome.json applies this
+// rule to packages/player-*/src outside tests; tools/lint/learner-text.test.ts shows what it reports.
+// It flags string and template literals containing a letter that reach a DOM text, label or
+// dialog sink. Text built in other ways (a variable, a helper) is left to review.
+
+language js
+
+or {
+  `$_.$property = $text` where {
+    $property <: r"textContent|innerText|innerHTML|outerHTML|title|alt|placeholder|label|aria(?:Label|Description|RoleDescription|ValueText|Placeholder)"
+  },
+  `$_.setAttribute($name, $text)` where {
+    $name <: r"[\"'`](?:aria-(?:label|description|roledescription|valuetext|placeholder)|title|alt|placeholder|label)[\"'`]"
+  },
+  `$_.$method($text)` where {
+    $method <: r"append|prepend|replaceChildren|before|after|replaceWith|createTextNode"
+  },
+  `$_.$method($_, $text)` where { $method <: r"insertAdjacentText|insertAdjacentHTML" },
+  `new Text($text)`,
+  `$fn($text)` where { $fn <: r"(?:window\.)?(?:alert|confirm|prompt)" }
+} where {
+  $text <: or {
+    r"\"[^\"]*\p{L}[\s\S]*\"",
+    r"'[^']*\p{L}[\s\S]*'",
+    r"`(?:[^`$]|\$[^{`]|\$\{[^}]*\})*\p{L}[\s\S]*`"
+  },
+  register_diagnostic(span=$text, message="Learner-facing text must come from the label set (@course-suite/labels), not a string in player code.")
+}
