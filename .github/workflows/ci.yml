@@ -35,6 +35,20 @@ jobs:
         with:
           persist-credentials: false
 
+      # Course fixtures (M0-12): iteratecraft/test-courses, checked out at a fixed commit so a
+      # fixture change reaches studio only through a reviewed bump of `ref` here. A checkout step,
+      # not a git submodule, so a clone of studio never needs access to the fixtures repository.
+      # Not enabled yet: that repository is private, so this step needs a read-only token in the
+      # TEST_COURSES_TOKEN secret (a fine-grained token with Contents: read on test-courses only),
+      # and no test reads fixtures yet. Enable it with the first test that does.
+      # - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      #   with:
+      #     repository: iteratecraft/test-courses
+      #     ref: 80b974773ddeb93ea3851ff0e9d0381dbaf4b253
+      #     path: test-courses
+      #     token: ${{ secrets.TEST_COURSES_TOKEN }}
+      #     persist-credentials: false
+
       # Reads the pnpm version from `packageManager` in package.json.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
