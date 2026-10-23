@@ -48,7 +48,8 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 
 ## Commands
 
-Node 24 (`.nvmrc`) and pnpm (`packageManager` in `package.json`).
+Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.json`). Set
+`TURBO_TELEMETRY_DISABLED=1` in your shell; CI sets it too (ADR-0001).
 
 | Command | What it does |
 |---|---|

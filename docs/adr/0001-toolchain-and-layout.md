@@ -18,9 +18,9 @@ must not put obligations on the companies that publish courses.
 
 | Area | Choice | Pinned in |
 |---|---|---|
-| Runtime | Node.js 24 | `.nvmrc`, `engines` in `package.json` |
+| Runtime | Node.js 24, 24.2 or later (`import.meta.main`) | `.nvmrc` (`24`, latest 24.x), `engines` in `package.json` |
 | Package manager | pnpm workspaces | `packageManager` in `package.json`, `pnpm-workspace.yaml` |
-| Task runner | Turborepo (`build`, `typecheck`, `lint`, `test`) | `turbo.json` |
+| Task runner | Turborepo (`build`, `typecheck`, `test`) | `turbo.json` |
 | Language | TypeScript, `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `verbatimModuleSyntax` | `tsconfig.base.json` |
 | Unit tests | Vitest | pnpm `catalog` |
 | Lint and format | Biome (one tool, one config) | `biome.json` |
@@ -31,12 +31,18 @@ must not put obligations on the companies that publish courses.
 - Dependency versions are exact, never ranges. A version shared by several packages lives once in the
   pnpm `catalog` in `pnpm-workspace.yaml`.
 - Tools are added by the task that first needs them, not before.
-- Every package declares what it imports, including test tools: `turbo boundaries` rejects an import
-  of an undeclared package.
+- Every package declares what its code imports, including test libraries such as Vitest:
+  `turbo boundaries` rejects an import of an undeclared package. Command-line tools that scripts only
+  run and never import (`tsc`, `biome`) are declared once, in the root `package.json`.
+- `pnpm lint` runs Biome once over the whole repository from the root, so it also covers root files.
+  It is not a Turborepo task and packages have no `lint` script.
 - **Biome instead of ESLint + Prettier.** It lints and formats with one dependency and one config file,
   and it does not need the TypeScript compiler API, which TypeScript 7 no longer offers as a stable
   interface. We give up ESLint's type-aware rules; `tsc` strict mode covers most of that ground.
 - `"agentGuidance": false` in `turbo.json` keeps Turborepo from rewriting our `AGENTS.md`.
+- **Turborepo telemetry is off for this project.** `turbo.json` has no setting for it, so CI (M0-03) sets
+  `TURBO_TELEMETRY_DISABLED=1` in its environment. Contributors set the same variable in their own
+  shell; we do not ask anyone to change machine-wide settings.
 
 ### Supported platforms, in rollout order
 
@@ -83,6 +89,11 @@ lists which tags each layer may depend on. `tools/check-deps/check-deps.test.ts`
 on each kind of forbidden import, and that every package carries exactly one layer tag.
 `turbo boundaries` is marked experimental; if it changes or goes away, a script in `tools/` replaces it
 and the same tests keep it honest.
+
+**Known gap:** `turbo boundaries` checks specifiers it can read in the source. A package loaded at
+run time through `createRequire(import.meta.url)("...")`, or through `import()` with a computed
+specifier, gets past the check. Reviewers reject these in `packages/*` and `apps/*`
+unless the target is declared and allowed for that layer.
 
 ### Licences
 
