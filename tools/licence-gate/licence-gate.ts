@@ -3,9 +3,9 @@
 //
 // (a) Every workspace package's `license` field matches ADR-0001: MIT for the course-shipped
 //     packages (those whose turbo.json carries the `mit` tag), Apache-2.0 for everything else.
-//     Course-shipped packages carry their own MIT LICENSE. Their devDependencies may hold only the
-//     test tooling below: bundlers inline devDependencies into the player, so anything a course
-//     ships must be a dependency, where (b) scans it.
+//     Course-shipped packages carry their own MIT LICENSE. Their devDependencies and
+//     peerDependencies may hold only the test tooling below: bundlers inline both into the player,
+//     so anything a course ships must be a dependency, where (b) scans it.
 // (b) Every production dependency, direct or transitive, has a reviewed licence. GPL, AGPL, SSPL,
 //     BUSL, CC-BY-NC and unknown or unreviewed licences fail everywhere. LGPL is accepted in the
 //     apps and tools but fails in course-shipped packages, because those ship inside every course.
@@ -153,9 +153,12 @@ for (const [dir, pkg] of dirs) {
   const courseShipped = Array.isArray(tags) && tags.includes("mit");
   if (courseShipped) courseNames.push(pkg.name);
   const expected = courseShipped ? "MIT" : "Apache-2.0";
-  const { license, devDependencies } = readJson(join(pkg.path, "package.json")) as {
+  const { license, devDependencies, peerDependencies } = readJson(
+    join(pkg.path, "package.json"),
+  ) as {
     license?: unknown;
     devDependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
   };
   if (license !== expected) {
     problems.push(`${dir}: license is ${JSON.stringify(license)}, ADR-0001 requires "${expected}"`);
@@ -165,10 +168,16 @@ for (const [dir, pkg] of dirs) {
   if (expected === "MIT" && !text.startsWith("MIT License")) {
     problems.push(`${dir}: a course-shipped package needs its own MIT LICENSE file`);
   }
-  for (const name of courseShipped ? Object.keys(devDependencies ?? {}) : []) {
+  const bundled = courseShipped
+    ? [
+        ...Object.keys(devDependencies ?? {}).map((name) => ["devDependency", name] as const),
+        ...Object.keys(peerDependencies ?? {}).map((name) => ["peerDependency", name] as const),
+      ]
+    : [];
+  for (const [kind, name] of bundled) {
     if (!COURSE_TOOLING.has(name)) {
       problems.push(
-        `${dir}: devDependency ${name} may be bundled into courses; declare it under dependencies ` +
+        `${dir}: ${kind} ${name} may be bundled into courses; declare it under dependencies ` +
           "so its licence is checked",
       );
     }

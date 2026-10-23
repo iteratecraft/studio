@@ -109,9 +109,10 @@ unless the target is declared and allowed for that layer.
   LGPL also fails in course-shipped packages. Reviewed exceptions go in
   `tools/licence-gate/exceptions.json`. It keeps the dependency list in `THIRD_PARTY_NOTICES.md`
   current. It takes the course-shipped set from the `mit` tags.
-- Bundlers inline devDependencies into the player, so a course-shipped package declares everything
-  it ships under `dependencies`. Its `devDependencies` hold only test tooling (`vitest`), and the
-  licence gate fails on anything else.
+- Bundlers inline devDependencies and peerDependencies into the player, so a course-shipped package
+  declares everything it ships under `dependencies`, where the licence gate checks it. Its
+  `devDependencies` and `peerDependencies` hold only test tooling (`vitest`), and the licence gate
+  fails on anything else.
 
 ## Consequences
 

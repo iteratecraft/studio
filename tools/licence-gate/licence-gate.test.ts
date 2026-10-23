@@ -3,7 +3,15 @@
 // every problem it finds, so independent failures share one copy and each must appear in the output.
 // Fixture dependencies are local `file:` packages, so no network is needed.
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -41,9 +49,12 @@ function addDependency(
   const fixture = join(dir, "fixtures", name);
   mkdirSync(fixture, { recursive: true });
   writeFileSync(join(fixture, "package.json"), JSON.stringify({ name, version: "1.0.0", license }));
+  // pnpm accepts only a version range for a peer, and would fetch it from the registry offline.
+  const peer = field === "peerDependencies";
+  if (peer) appendFileSync(join(dir, "pnpm-workspace.yaml"), "\nautoInstallPeers: false\n");
   editJson(join(dir, pkg, "package.json"), (manifest) => {
     const deps = (manifest[field] ?? {}) as Record<string, string>;
-    manifest[field] = { ...deps, [name]: `file:../../fixtures/${name}` };
+    manifest[field] = { ...deps, [name]: peer ? "1.0.0" : `file:../../fixtures/${name}` };
   });
 }
 
@@ -149,6 +160,14 @@ describe("check:licences", () => {
         "GPL-3.0-only",
         "devDependencies",
         "packages/tracking: devDependency dep-gpl-dev may be bundled into courses",
+      ],
+      [
+        "an LGPL peerDependency in a course-shipped package",
+        "packages/tracking",
+        "dep-lgpl-peer",
+        "LGPL-3.0-only",
+        "peerDependencies",
+        "packages/tracking: peerDependency dep-lgpl-peer may be bundled into courses",
       ],
     ];
     const dir = copyRepo();

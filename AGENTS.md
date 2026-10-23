@@ -44,7 +44,7 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 - Anything that ships inside a published course is MIT and may depend only on MIT packages. Everything
   else is Apache-2.0. A new package needs a `turbo.json` with one layer tag (`format`, `engine`, `ui`
   or `app`), plus `mit` if it is MIT. An MIT package declares everything it ships under
-  `dependencies`; its `devDependencies` hold only test tooling (`vitest`).
+  `dependencies`; its `devDependencies` and `peerDependencies` hold only test tooling (`vitest`).
 - Pin exact dependency versions. A version shared by several packages goes in the pnpm `catalog`.
 
 ## Commands
