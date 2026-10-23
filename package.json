@@ -15,7 +15,8 @@
     "test:e2e": "turbo run test:e2e",
     "check:deps": "turbo boundaries",
     "check:clean-room": "node tools/clean-room-guard/guard.ts",
-    "report:trace": "node tools/traceability/trace.ts"
+    "report:trace": "node tools/traceability/trace.ts",
+    "check:licences": "node tools/licence-gate/licence-gate.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
