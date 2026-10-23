@@ -1,6 +1,8 @@
 // Reads a ZIP archive held in memory without ever writing it to disk. Every entry name, size and
 // byte range is checked before any data is inflated, and inflation itself is capped at the size
 // the archive declares, so a hostile archive fails with a problem instead of exhausting memory.
+// Files are inflated one at a time to verify them, and again when read, so the archive never
+// holds all of its inflated files at once.
 import { crc32, inflateRawSync } from "node:zlib";
 import { fail, ok, type Problem, type Result } from "./result.js";
 
@@ -9,9 +11,12 @@ export interface ZipLimits {
   maxEntries: number;
   /** Most bytes all files may inflate to, together. */
   maxTotalBytes: number;
-  /** Highest inflated-to-compressed ratio for an entry larger than `ratioFloorBytes`. */
+  /**
+   * Highest inflated-to-compressed ratio, both for one entry and for the whole archive (the
+   * declared sizes of all files over the archive's byte length).
+   */
   maxRatio: number;
-  /** Entries up to this inflated size skip the ratio check; tiny text files compress very well. */
+  /** An entry, or a whole archive, up to this inflated size skips the ratio check. */
   ratioFloorBytes: number;
 }
 
@@ -22,15 +27,27 @@ export const defaultZipLimits: ZipLimits = {
   ratioFloorBytes: 1024 * 1024,
 };
 
+/** The verified files of an archive. Reading a file inflates it from the archive's bytes. */
+export interface ZipArchive {
+  /** File entry names in central-directory order; directory entries are dropped. */
+  readonly names: readonly string[];
+  has(name: string): boolean;
+  /** The file's bytes, or undefined when the archive has no such file. */
+  read(name: string): Uint8Array | undefined;
+}
+
 const EOCD = 0x06054b50;
 const CENTRAL = 0x02014b50;
 const LOCAL = 0x04034b50;
 const UNIX = 3;
 const S_IFMT = 0o170000;
 const S_IFLNK = 0o120000;
-const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+const RESERVED = /^(con|prn|aux|nul|conin\$|conout\$|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it rejects
 const FORBIDDEN = /[\u0000-\u001f<>:"|?*]/;
+// Windows allows 255 UTF-16 units per name and most Unix file systems 255 UTF-8 bytes. The UTF-8
+// byte count is never the smaller of the two, so one check covers both.
+const MAX_SEGMENT_BYTES = 255;
 
 /** Why `name` cannot be extracted safely on every supported OS, or undefined when it can. */
 export function unsafeEntryName(name: string): string | undefined {
@@ -44,6 +61,9 @@ export function unsafeEntryName(name: string): string | undefined {
     if (FORBIDDEN.test(segment)) return "contains a character Windows does not allow in names";
     if (RESERVED.test(segment)) return `uses the reserved Windows device name '${segment}'`;
     if (/[. ]$/.test(segment)) return "has a segment ending in a dot or space";
+    if (Buffer.byteLength(segment) > MAX_SEGMENT_BYTES) {
+      return `has a segment longer than ${MAX_SEGMENT_BYTES} bytes`;
+    }
   }
   return undefined;
 }
@@ -56,17 +76,20 @@ interface CentralEntry {
   compressedSize: number;
   size: number;
   localOffset: number;
+  /** Byte range of the entry's data, set once its local header is checked. */
+  start: number;
+  end: number;
 }
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
-/** Inflates every file in `bytes`; returns them keyed by entry name. Directory entries are dropped. */
+/** Checks every entry of `bytes` and returns its files. The archive keeps a view of `bytes`. */
 export function readZip(
   bytes: Uint8Array,
   limits: ZipLimits = defaultZipLimits,
-): Result<Map<string, Uint8Array>> {
+): Result<ZipArchive> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const archive = (message: string) => fail<Map<string, Uint8Array>>([{ file: "", message }]);
+  const archive = (message: string) => fail<ZipArchive>([{ file: "", message }]);
 
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 0xffff); i--) {
@@ -94,6 +117,8 @@ export function readZip(
   const problems: Problem[] = [];
   const entries: CentralEntry[] = [];
   const seen = new Map<string, string>();
+  // Every folder that holds an entry, keyed like `seen`, to catch a file with a folder's name.
+  const folders = new Set<string>();
   let total = 0;
   let at = cdOffset;
   for (let n = 0; n < count; n++) {
@@ -129,13 +154,16 @@ export function readZip(
       problem(unsafe);
       continue;
     }
-    const key = name.replace(/\/$/, "").normalize("NFC").toLowerCase();
+    const key = nameKey(name);
     const clash = seen.get(key);
     if (clash !== undefined) {
       problem(`has the same name as '${clash}' (names are compared ignoring case)`);
       continue;
     }
     seen.set(key, name);
+    for (let i = key.indexOf("/"); i >= 0; i = key.indexOf("/", i + 1)) {
+      folders.add(key.slice(0, i));
+    }
     if (madeBy === UNIX && (mode & S_IFMT) === S_IFLNK) {
       problem("is a symbolic link");
       continue;
@@ -158,7 +186,22 @@ export function readZip(
       continue;
     }
     total += size;
-    entries.push({ name, nameBytes, method, crc, compressedSize, size, localOffset });
+    entries.push({
+      name,
+      nameBytes,
+      method,
+      crc,
+      compressedSize,
+      size,
+      localOffset,
+      start: 0,
+      end: 0,
+    });
+  }
+  for (const entry of entries) {
+    if (folders.has(nameKey(entry.name))) {
+      problems.push({ file: entry.name, message: "is a file, but other entries sit inside it" });
+    }
   }
   if (total > limits.maxTotalBytes) {
     problems.push({
@@ -166,10 +209,16 @@ export function readZip(
       message: `inflates to ${total} bytes; the limit is ${limits.maxTotalBytes}`,
     });
   }
+  // Many entries, each just inside the per-entry limits, still add up: bound the whole archive.
+  if (total > limits.ratioFloorBytes && total > bytes.byteLength * limits.maxRatio) {
+    problems.push({
+      file: "",
+      message: `inflates ${total} bytes from ${bytes.byteLength} (limit ${limits.maxRatio}:1)`,
+    });
+  }
   if (problems.length > 0) return fail(problems);
 
   // Entries whose data overlap let a small archive inflate the same bytes many times.
-  const files = new Map<string, Uint8Array>();
   let previousEnd = 0;
   let previousName = "";
   for (const entry of [...entries].sort((a, b) => a.localOffset - b.localOffset)) {
@@ -184,9 +233,9 @@ export function readZip(
       continue;
     }
     const nameLength = view.getUint16(local + 26, true);
-    const start = local + 30 + nameLength + view.getUint16(local + 28, true);
-    const end = start + entry.compressedSize;
-    if (end > cdOffset) {
+    entry.start = local + 30 + nameLength + view.getUint16(local + 28, true);
+    entry.end = entry.start + entry.compressedSize;
+    if (entry.end > cdOffset) {
       problem("has data that runs past the end of the file data");
       continue;
     }
@@ -194,28 +243,55 @@ export function readZip(
       problem("has a different name in its local header than in the central directory");
       continue;
     }
-    previousEnd = end;
+    previousEnd = entry.end;
     previousName = entry.name;
-    const raw = bytes.subarray(start, end);
-    let data: Uint8Array;
-    try {
-      // maxOutputLength stops inflation one byte past the declared size, whatever the data says.
-      data = entry.method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: entry.size + 1 });
-    } catch {
-      problem("has compressed data that is damaged or inflates beyond its declared size");
-      continue;
-    }
-    if (data.length !== entry.size) {
-      problem(`inflates to ${data.length} bytes but declares ${entry.size}`);
-      continue;
-    }
-    if (crc32(data) >>> 0 !== entry.crc) {
-      problem("fails its CRC-32 check");
-      continue;
-    }
-    files.set(entry.name, data);
   }
-  return problems.length > 0 ? fail(problems) : ok(files);
+  if (problems.length > 0) return fail(problems);
+
+  // Verify each file and drop its bytes before the next; stop at the first bad one.
+  for (const entry of entries) {
+    const data = inflate(bytes, entry);
+    if (typeof data === "string") return fail([{ file: entry.name, message: data }]);
+  }
+
+  const byName = new Map(entries.map((entry) => [entry.name, entry]));
+  return ok({
+    names: entries.map((entry) => entry.name),
+    has: (name) => byName.has(name),
+    read(name) {
+      const entry = byName.get(name);
+      if (!entry) return undefined;
+      const data = inflate(bytes, entry);
+      if (typeof data === "string") {
+        throw new Error(`'${name}' changed after the archive was verified: it ${data}`);
+      }
+      return data;
+    },
+  });
+}
+
+/** How names are compared: without a trailing slash, NFC-normalised and ignoring case. */
+function nameKey(name: string): string {
+  return name.replace(/\/$/, "").normalize("NFC").toLowerCase();
+}
+
+/** The entry's inflated bytes, or why they are wrong. */
+function inflate(bytes: Uint8Array, entry: CentralEntry): Uint8Array | string {
+  const raw = bytes.subarray(entry.start, entry.end);
+  let data: Uint8Array;
+  try {
+    // maxOutputLength makes zlib stop one byte past the declared size, whatever the data says.
+    // A stored file is copied so that no reader can change the archive's bytes through it.
+    data =
+      entry.method === 0 ? raw.slice() : inflateRawSync(raw, { maxOutputLength: entry.size + 1 });
+  } catch {
+    return "has compressed data that is damaged or inflates beyond its declared size";
+  }
+  if (data.length !== entry.size) {
+    return `inflates to ${data.length} bytes but declares ${entry.size}`;
+  }
+  if (crc32(data) >>> 0 !== entry.crc) return "fails its CRC-32 check";
+  return data;
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {

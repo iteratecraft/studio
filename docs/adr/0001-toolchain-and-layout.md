@@ -64,6 +64,7 @@ packages/format          course format                        MIT
 packages/player-blocks   Blocks player runtime                MIT
 packages/tracking        SCORM / xAPI / cmi5 runtime          MIT
 packages/exporters       builds course packages               Apache-2.0
+packages/conformance     package reader and test LMS          Apache-2.0
 packages/ui              shared React UI for the apps         Apache-2.0
 apps/desktop             Electron app                         Apache-2.0
 apps/server              self-hosted server                   Apache-2.0
@@ -76,7 +77,7 @@ docs/adr/                architecture decision records
 
 ```text
 format  <-  engine packages  <-  ui  <-  apps
-            (player-blocks, tracking, exporters)
+            (player-blocks, tracking, exporters, conformance)
 ```
 
 A package may import only from layers to its left. Engine packages may import each other. Apps never

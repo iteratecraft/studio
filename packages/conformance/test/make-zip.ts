@@ -19,12 +19,16 @@ export interface ZipEntry {
 export function makeZip(entries: ZipEntry[]): Uint8Array {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
+  // Entries that share one data value are deflated once, so big hostile archives build quickly.
+  const deflated = new Map<Uint8Array | string, Buffer>();
   let offset = 0;
   for (const entry of entries) {
     const name = Buffer.from(entry.name, "utf8");
     const raw = Buffer.from(entry.data ?? "");
     const method = entry.method ?? 8;
-    const data = method === 8 ? deflateRawSync(raw) : raw;
+    const source = entry.data ?? "";
+    const data = method === 8 ? (deflated.get(source) ?? deflateRawSync(raw)) : raw;
+    if (method === 8) deflated.set(source, data);
     const crc = entry.crc ?? crc32(raw);
     const size = entry.declaredSize ?? raw.length;
     const flags = (entry.flags ?? 0) | 0x800;

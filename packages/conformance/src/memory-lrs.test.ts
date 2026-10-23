@@ -59,6 +59,42 @@ describe("in-memory LRS (S-5 test subset)", () => {
     expect(lms.lrs.statements).toEqual([]);
   });
 
+  test("rejects a batch that repeats an id and a PUT whose id differs from statementId", async () => {
+    lms = await startTestLms();
+    const id = "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab";
+    const twice = await fetch(`${lms.xapiEndpoint}statements`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify([
+        { ...statement, id },
+        { ...statement, id },
+      ]),
+    });
+    expect(twice.status).toBe(400);
+    const other = "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d";
+    const mismatch = await fetch(`${lms.xapiEndpoint}statements?statementId=${id}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ ...statement, id: other }),
+    });
+    expect(mismatch.status).toBe(400);
+    expect(lms.lrs.statements).toEqual([]);
+  });
+
+  test("merges only JSON objects into activity state", async () => {
+    lms = await startTestLms();
+    const params = new URLSearchParams({
+      activityId: "https://example.org/course",
+      agent,
+      stateId: "bookmark",
+    });
+    const url = `${lms.xapiEndpoint}activities/state?${params}`;
+    await fetch(url, { method: "PUT", headers, body: '{"page":1}' });
+    expect((await fetch(url, { method: "POST", headers, body: "[1,2]" })).status).toBe(400);
+    expect((await fetch(url, { method: "POST", headers, body: "null" })).status).toBe(400);
+    expect(await (await fetch(url, { headers })).json()).toEqual({ page: 1 });
+  });
+
   test("stores, merges, lists and deletes activity state", async () => {
     lms = await startTestLms();
     const url = (stateId?: string) => {

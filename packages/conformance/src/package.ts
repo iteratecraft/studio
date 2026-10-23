@@ -1,5 +1,5 @@
-// Reads a course package: safe unzip, then the one descriptor at its root, then a check that a
-// relative launch href names a file the package contains.
+// Reads a course package: safe unzip, then the one descriptor at its root, then a check that the
+// launch href is an http(s) URL or names a file the package contains.
 import { fail, ok, type Result } from "./result.js";
 import { parseScormManifest, SCORM_MANIFEST, type ScormManifest } from "./scorm-manifest.js";
 import {
@@ -10,7 +10,7 @@ import {
   TINCAN_XML,
   type TincanDescriptor,
 } from "./xapi-descriptors.js";
-import { defaultZipLimits, readZip, type ZipLimits } from "./zip.js";
+import { defaultZipLimits, readZip, type ZipArchive, type ZipLimits } from "./zip.js";
 
 export type PackageDescriptor =
   | { kind: "scorm"; manifest: ScormManifest }
@@ -18,8 +18,8 @@ export type PackageDescriptor =
   | { kind: "cmi5"; course: Cmi5Course };
 
 export interface CoursePackage {
-  /** File contents keyed by entry name, such as `index.html` or `scorm/api.js`. */
-  files: Map<string, Uint8Array>;
+  /** The package's files by entry name, such as `index.html` or `scorm/api.js`. */
+  files: ZipArchive;
   descriptor: PackageDescriptor;
   /** Launch href relative to the package root (query and fragment kept), or an absolute URL. */
   launchHref: string;
@@ -46,7 +46,7 @@ export function readPackage(
   const name = found[0] ?? "";
   let xml: string;
   try {
-    xml = utf8.decode(files.get(name));
+    xml = utf8.decode(files.read(name));
   } catch {
     return fail([{ file: name, message: "is not valid UTF-8" }]);
   }
@@ -71,19 +71,39 @@ export function readPackage(
   }
 
   const target = launchFile(launchHref);
+  if (typeof target === "object") {
+    return fail([{ file: name, message: `launches '${launchHref}', which ${target.problem}` }]);
+  }
   if (target !== undefined && !files.has(target)) {
     return fail([{ file: name, message: `launches '${launchHref}', which is not in the package` }]);
   }
   return ok({ files, descriptor, launchHref });
 }
 
-/** The package file a relative href opens, or undefined for an absolute URL. */
-export function launchFile(href: string): string | undefined {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) return undefined;
-  const path = href.replace(/[?#].*$/, "");
-  try {
-    return decodeURIComponent(path);
-  } catch {
-    return path;
+/**
+ * The package file a relative launch href opens, with `.` and `..` segments resolved; undefined for
+ * an http(s) URL; or why the href cannot launch.
+ */
+export function launchFile(href: string): string | undefined | { problem: string } {
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase();
+  if (scheme === "http" || scheme === "https") return undefined;
+  if (scheme !== undefined || href.startsWith("/")) {
+    return { problem: "is neither a path inside the package nor an http(s) URL" };
   }
+  const path = href.replace(/[?#].*$/, "");
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    decoded = path;
+  }
+  const segments: string[] = [];
+  for (const segment of decoded.split("/")) {
+    if (segment === "..") {
+      if (segments.pop() === undefined) return { problem: "climbs out of the package" };
+    } else if (segment !== ".") {
+      segments.push(segment);
+    }
+  }
+  return segments.join("/");
 }

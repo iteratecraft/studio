@@ -12,7 +12,7 @@ describe("readPackage", () => {
     if (!result.ok) return;
     expect(result.value.descriptor.kind).toBe("scorm");
     expect(result.value.launchHref).toBe("index.html");
-    expect([...result.value.files.keys()].sort()).toEqual(["imsmanifest.xml", "index.html"]);
+    expect([...result.value.files.names].sort()).toEqual(["imsmanifest.xml", "index.html"]);
   });
 
   test("detects tincan.xml and cmi5.xml packages", () => {
@@ -54,6 +54,31 @@ describe("readPackage", () => {
         message: "launches 'missing%20page.html', which is not in the package",
       },
     ]);
+  });
+
+  test.each([
+    ["a/../index.html", true],
+    ["./index.html?x=1#top", true],
+    ["https://example.org/au", true],
+    ["javascript:alert(1)", false],
+    ["data:text/html,hi", false],
+    ["//example.org/au", false],
+    ["/index.html", false],
+    ["../index.html", false],
+    ["a/../../index.html", false],
+  ])("checks the launch href %s", (href, accepted) => {
+    const result = readPackage(
+      makeZip([
+        {
+          name: "tincan.xml",
+          data: `<tincan><activities><activity id="urn:a"><launch>${href}</launch></activity></activities></tincan>`,
+        },
+        { name: "index.html", data: "" },
+      ]),
+    );
+    expect(result.ok || result.problems).toEqual(
+      accepted || [{ file: "tincan.xml", message: expect.stringContaining(`launches '${href}'`) }],
+    );
   });
 
   test("rejects a package with no descriptor or with two", () => {

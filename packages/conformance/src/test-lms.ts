@@ -2,6 +2,10 @@
 // page, the package's files from memory and an in-memory xAPI LRS. The host page puts the
 // scorm-again (MIT) run-time API on window.API (SCORM 1.2) or window.API_1484_11 (SCORM 2004),
 // launches the SCO in a frame and records every API call, in order, on window.__trace.
+// The trace records what scorm-again answered. After LMSFinish (1.2) its results and error codes
+// can differ from the standard's, so golden traces assert call order and results up to the finish.
+// The SCO is same-origin with the host page and can rewrite window.__trace and window.__done, so a
+// trace is only as trustworthy as the package: fine for packages we author, not proof for others.
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -113,7 +117,7 @@ for (const method of config.methods) {
   wrapped[method] = (...args) => {
     const result = String(api[method](...args));
     trace.push({ method, args: args.map(String), result, errorCode: String(api[config.lastError]()) });
-    if (method === config.finish) window.__done = true;
+    if (method === config.finish && result === "true") window.__done = true;
     return result;
   };
 }
@@ -165,7 +169,7 @@ export async function startTestLms(pkg?: CoursePackage): Promise<TestLms> {
         return send(400, "text/plain", "bad path");
       }
       // Files are looked up by entry name in memory, so no request can reach the disk.
-      const data = pkg.files.get(name);
+      const data = pkg.files.read(name);
       const type = CONTENT_TYPES[extname(name).toLowerCase()] ?? "application/octet-stream";
       if (data) return send(200, type, data);
     }

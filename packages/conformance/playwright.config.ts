@@ -6,5 +6,6 @@ export default defineConfig({
   testMatch: "**/*.e2e.ts",
   // A leaked test.only would silently skip every other test in CI.
   forbidOnly: !!process.env.CI,
-  reporter: [["list"]],
+  // CI uploads playwright-report/ when a browser test fails.
+  reporter: [["list"], ["html", { open: "never" }]],
 });

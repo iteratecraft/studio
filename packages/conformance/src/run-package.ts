@@ -14,7 +14,7 @@ export interface RunOptions {
 export interface PackageRun {
   /** Every run-time API call, in order. */
   trace: ScormCall[];
-  /** True once the SCO called LMSFinish (1.2) or Terminate (2004) before the timeout. */
+  /** True once a call to LMSFinish (1.2) or Terminate (2004) succeeded before the timeout. */
   finished: boolean;
   /** Uncaught errors from the host page or the SCO. */
   pageErrors: string[];

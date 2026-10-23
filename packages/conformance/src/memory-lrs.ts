@@ -71,7 +71,13 @@ export function createMemoryLrs(): MemoryLrs {
       for (const statement of batch) {
         if (!isStatement(statement))
           return send(400, { error: "statement needs actor, verb, object" });
+        if (method === "PUT" && statement.id !== undefined && statement.id !== id) {
+          return send(400, { error: "statement id differs from the statementId parameter" });
+        }
         const statementId = String(statement.id ?? id ?? randomUUID());
+        if (accepted.some((s) => s.id === statementId)) {
+          return send(400, { error: `statement ${statementId} appears twice in the batch` });
+        }
         if (statements.some((s) => s.id === statementId)) {
           return send(409, { error: `statement ${statementId} already exists` });
         }
@@ -116,13 +122,11 @@ export function createMemoryLrs(): MemoryLrs {
       const previous = state.get(key);
       // POST merges JSON objects into an existing JSON document (xAPI 1.0.3, Part Three 2.2).
       if (method === "POST" && previous && contentType.startsWith("application/json")) {
-        try {
-          const merged = { ...JSON.parse(previous.body), ...JSON.parse(body) };
-          state.set(key, { contentType, body: JSON.stringify(merged) });
-          return send(204);
-        } catch {
-          return send(400, { error: "POST can merge only JSON objects" });
-        }
+        const before = parseObject(previous.body);
+        const update = parseObject(body);
+        if (!before || !update) return send(400, { error: "POST can merge only JSON objects" });
+        state.set(key, { contentType, body: JSON.stringify({ ...before, ...update }) });
+        return send(204);
       }
       state.set(key, { contentType, body });
       return send(204);
@@ -141,6 +145,18 @@ function isStatement(value: unknown): value is Record<string, unknown> {
     "verb" in value &&
     "object" in value
   );
+}
+
+/** The JSON object in `text`, or undefined when it is not JSON or not an object. */
+function parseObject(text: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function readBody(request: IncomingMessage): Promise<string | undefined> {

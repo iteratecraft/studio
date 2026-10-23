@@ -78,3 +78,28 @@ test("returns the partial trace when the SCO never finishes", async () => {
   expect(run.finished).toBe(false);
   expect(run.trace.map((call) => call.method)).toEqual(["LMSInitialize"]);
 });
+
+test("keeps running after a finish call that fails", async ({ browser }) => {
+  const manifest = readFileSync(
+    new URL("../fixtures/scorm12-sco/imsmanifest.xml", import.meta.url),
+  );
+  // LMSFinish before LMSInitialize fails; the run must go on to the real finish.
+  const sco = `<!doctype html><title>Early finish</title><script>
+parent.API.LMSFinish("");
+setTimeout(() => { parent.API.LMSInitialize(""); parent.API.LMSFinish(""); }, 300);
+</script>`;
+  const result = readPackage(
+    makeZip([
+      { name: "imsmanifest.xml", data: manifest },
+      { name: "index.html", data: sco },
+    ]),
+  );
+  if (!result.ok) throw new Error(JSON.stringify(result.problems));
+  const run = await runPackage(result.value, { browser });
+  expect(run.finished).toBe(true);
+  expect(run.trace.map((call) => [call.method, call.result])).toEqual([
+    ["LMSFinish", "false"],
+    ["LMSInitialize", "true"],
+    ["LMSFinish", "true"],
+  ]);
+});
