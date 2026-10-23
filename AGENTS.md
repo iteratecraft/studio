@@ -14,6 +14,10 @@ You are on the **build team**. You implement from the public specs and open stan
 - Never copy vendor code, text, images, templates, characters, icons or label wording.
 - Never use vendor trademarks in names, UI or docs, beyond plain "compatible with" statements.
 - If a spec is unclear, ask for the spec to be fixed. Do not go and look at the vendor's product.
+- Run in the build-agent configuration and read the build copy of the specs:
+  [docs/build-agents.md](docs/build-agents.md).
+- Course fixtures live in the private `iteratecraft/test-courses` repository and follow its
+  provenance policy: only packages we authored, ADL/CATAPULT samples and open-source tool output.
 
 ## Write the least code that fully works
 
@@ -63,6 +67,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm check:deps` | Dependency-direction and licence-layer check |
 | `pnpm check:clean-room` | Clean-room and trademark guard (rules and allow-list in `tools/clean-room-guard/clean-room.config.json`) |
 | `pnpm report:trace` | Markdown report of spec rules covered by tagged tests (`--specs <dir>`, default `../specs`, skipped only when the default is absent; `--out <file>`) |
+| `pnpm specs:build-copy --from <dir> --out <dir>` | Build copy of the specs with every URL replaced by a stable id (lead or study team only, see `docs/build-agents.md`) |
 | `pnpm check:licences` | Package licences, production dependency licences and `THIRD_PARTY_NOTICES.md` (`--write` regenerates it) |
 
 Run all of them before you open a PR.

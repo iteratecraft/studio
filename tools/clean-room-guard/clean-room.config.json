@@ -71,6 +71,11 @@
       "rule": "research-reference",
       "path": "^ARCHITECTURE\\.md$",
       "reason": "Describes where the study team records findings; it links nothing a build agent could open."
+    },
+    {
+      "rule": "research-reference",
+      "path": "^docs/build-agent(s\\.md|-settings\\.json)$",
+      "reason": "The build-agent setup names the research path only to deny reading it."
     }
   ],
   "allowText": [

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "deniedMcpServers": [{ "serverName": "rea" }, { "serverName": "claude-in-chrome" }],
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:nodejs.org)",
+      "WebFetch(domain:pnpm.io)",
+      "WebFetch(domain:turborepo.com)",
+      "WebFetch(domain:www.typescriptlang.org)",
+      "WebFetch(domain:biomejs.dev)",
+      "WebFetch(domain:vitest.dev)",
+      "WebFetch(domain:playwright.dev)"
+    ],
+    "deny": [
+      "mcp__rea",
+      "mcp__rea__*",
+      "mcp__claude-in-chrome",
+      "mcp__claude-in-chrome__*",
+      "Skill(reverse-engineer-anything)",
+      "WebSearch",
+      "Read(//c/REPLACE/WITH/PATH/TO/research/**)",
+      "Edit(//c/REPLACE/WITH/PATH/TO/research/**)",
+      "Read(../research/**)",
+      "Edit(../research/**)",
+      "Read(**/research/**)",
+      "Edit(**/research/**)",
+      "Bash(git clone *research*)",
+      "Bash(gh repo clone *research*)",
+      "PowerShell(git clone *research*)",
+      "PowerShell(gh repo clone *research*)",
+      "WebFetch(domain:articulate.com)",
+      "WebFetch(domain:www.articulate.com)",
+      "WebFetch(domain:community.articulate.com)",
+      "WebFetch(domain:cdn.articulate.com)",
+      "WebFetch(domain:360.articulate.com)",
+      "WebFetch(domain:articulatesupport.com)",
+      "WebFetch(domain:www.articulatesupport.com)"
+    ]
+  }
+}
