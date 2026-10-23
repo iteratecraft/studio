@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
@@ -71,16 +71,13 @@ function run(dir: string, args: string[]): { status: number | null; output: stri
 
 // pnpm keeps one store per drive, and CI checks out to D: while tmpdir() is on C:, so point the
 // copy at the store this repository was installed from. `store path` ends in the layout version.
+// It goes in the copy's .npmrc, not on the install command line, because `pnpm licenses list`
+// reads package metadata from the configured store too.
 let storeDir: string | undefined;
 function install(dir: string): void {
   storeDir ??= dirname(run(repoRoot, ["store", "path"]).output.trim());
-  const result = run(dir, [
-    "install",
-    "--prefer-offline",
-    "--no-frozen-lockfile",
-    "--store-dir",
-    storeDir,
-  ]);
+  appendFileSync(join(dir, ".npmrc"), `\nstore-dir=${storeDir.split(sep).join("/")}\n`);
+  const result = run(dir, ["install", "--prefer-offline", "--no-frozen-lockfile"]);
   expect(result.status, result.output).toBe(0);
 }
 
