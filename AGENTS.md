@@ -60,6 +60,8 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm test` | Vitest unit tests |
 | `pnpm test:e2e` | Playwright browser tests (first run: `pnpm --filter @course-suite/web exec playwright install --only-shell chromium`) |
 | `pnpm check:deps` | Dependency-direction and licence-layer check |
+| `pnpm check:clean-room` | Clean-room and trademark guard (rules and allow-list in `tools/clean-room-guard/clean-room.config.json`) |
+| `pnpm report:trace` | Markdown report of spec rules covered by tagged tests (`--specs <dir>`, default `../specs`; `--out <file>`) |
 
 Run all of them before you open a PR.
 
@@ -67,7 +69,8 @@ Run all of them before you open a PR.
 
 - Conventional Commit subjects and PR titles (`feat:`, `fix:`, `chore:`, `docs:`...).
 - **Cite the spec rule ids and roadmap ids** your change implements (for example `M0-02`, a spec rule
-  id from `specs`) in the PR body, and tag tests with the spec rule ids they cover.
+  id from `specs`) in the PR body, and tag tests with the spec rule ids they cover: `[rise:R11]` in a
+  test title means rule 11 of `rise.md`.
 - The PR body says what and why, which checks you ran with their real results, and what is not
   verified.
 - Never merge your own PR, never push to `main`, never force-push someone else's branch.
