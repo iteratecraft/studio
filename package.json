@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
     "check:deps": "turbo boundaries"
   },
   "devDependencies": {

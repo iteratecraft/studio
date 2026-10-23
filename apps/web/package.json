@@ -13,9 +13,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "24.19.1",
     "vitest": "catalog:"
   }
 }

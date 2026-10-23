@@ -58,6 +58,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm typecheck` | TypeScript strict check |
 | `pnpm lint` | Biome lint and format check (`pnpm exec biome check --write .` fixes) |
 | `pnpm test` | Vitest unit tests |
+| `pnpm test:e2e` | Playwright browser tests (first run: `pnpm --filter @course-suite/web exec playwright install --only-shell chromium`) |
 | `pnpm check:deps` | Dependency-direction and licence-layer check |
 
 Run all of them before you open a PR.

@@ -11,6 +11,10 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "env": ["CI"]
     }
   },
   "boundaries": {
