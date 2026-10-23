@@ -64,14 +64,41 @@ Media: ffmpeg (bundled) · local text-to-speech (optional)
 | Server | Node.js (TypeScript) | Reuses engine code directly |
 | Data | PostgreSQL + S3-compatible storage | Standard, and scales horizontally |
 | Co-editing | Yjs + Hocuspocus (MIT) | CRDT: true simultaneous and offline-capable editing |
-| Deploy | Docker Compose (small) and a Helm chart (large) | The company chooses its own size |
+| Deploy | One container for small teams, Docker Compose for medium, Helm for large | Self-hosting must be a few commands; see below |
 | Updates | GitHub Releases + auto-updater | No servers of our own |
+
+## Easy self-hosting (hard requirement)
+
+Running your own server must take a few commands, not a project. These rules apply from the first
+server release:
+
+- **One command to start a small team.** A single all-in-one container uses SQLite and the local disk
+  for files, so it needs no separate database or object store:
+  ```bash
+  docker run -d --name course-suite -p 8080:8080 -v course-suite-data:/data ghcr.io/iteratecraft/course-suite:latest
+  ```
+  Open `http://localhost:8080`. The first visit creates the admin account; nothing else to configure.
+- **Medium and large use the same image.** The same image switches to PostgreSQL and S3-compatible
+  storage through environment variables. A ready `compose.yaml` (app + PostgreSQL + MinIO) is started
+  with `docker compose up -d`. A Helm chart covers Kubernetes.
+- **Secrets are generated, never hand-written.** First start creates and stores its own keys. An
+  optional `.env` overrides anything.
+- **Upgrade is pull and restart.** `docker pull` the new tag and restart. Database migrations run
+  automatically, forward-only, with a backup taken first.
+- **Backup and restore are one command each** (`course-suite backup` / `course-suite restore`, run
+  through `docker exec`), covering the database and files together.
+- **Moving up a size is supported.** A built-in export/import moves a small SQLite install to
+  PostgreSQL + S3 without data loss.
+- **Works on Docker Desktop for Windows and macOS and on any Linux server**, x64 and arm64.
+- **CI proves it.** On every server release, CI starts the published image from a clean machine with
+  the exact documented commands, signs in, creates a course and checks that backup, restore and
+  upgrade from the previous release lose nothing.
 
 ## Scaling guide for self-hosters (estimates, to be load-tested)
 
 | Size | Example | Setup |
 |---|---|---|
-| Small | Up to about 20 authors and 1,000 learners | One VM (2 vCPU, 4 GB) with Docker Compose |
+| Small | Up to about 20 authors and 1,000 learners | One VM (2 vCPU, 4 GB) running the single all-in-one container |
 | Medium | About 100 authors and 10,000 learners | 2–4 app instances, managed PostgreSQL, S3 and a CDN |
 | Large | 100,000+ learners | Kubernetes Helm chart with autoscaling |
 

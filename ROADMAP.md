@@ -172,7 +172,8 @@ applied these by hand.)
 - **Epics:** ENG-18, ENG-19, ENG-39, ENG-42, TEAM-01 to TEAM-03, TEAM-05 to TEAM-08, BLK-17, plus the
   audit-log and load-harness slices.
 - **Exit:**
-  - `docker compose up` on a 2 vCPU / 4 GB VM serves the browser Blocks editor.
+  - The single documented `docker run` command (and `docker compose up -d` for the PostgreSQL setup) on a 2 vCPU / 4 GB VM serves the browser Blocks editor, with first-run admin setup and no manual configuration.
+  - Self-hosting meets every rule in ARCHITECTURE.md "Easy self-hosting", checked by a clean-machine CI job.
   - Roles are proven on every endpoint by tests.
   - Three authors co-edit one course live with locks, take-over and presence, and the convergence fuzz
     test is green.
@@ -352,7 +353,7 @@ planning.
 - [ ] **M0-07** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC *(before M2)*
 - [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(before M2)*
 - [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(before M2)*
-- [ ] **M0-10** Server skeleton: Fastify, /health for PostgreSQL and MinIO, migrations, Docker Compose *(before M3)*
+- [ ] **M0-10** Server skeleton: Fastify, /health, migrations; **one all-in-one image** (SQLite + local files by default, PostgreSQL + S3 by env vars), plus `compose.yaml`; documented single `docker run` command proven in CI *(before M3)*
 - [ ] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(before M3)*
 - [ ] **M0-12** `test-courses` repo scaffold, pinned in CI
 - [ ] **M0-13** Scheduler: recompute milestone dates from `depends_on` and team count; publish in CI
