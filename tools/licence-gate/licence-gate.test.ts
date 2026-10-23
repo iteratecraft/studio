@@ -1,7 +1,9 @@
 // Proves that `pnpm check:licences` (M0-04) fails on each kind of licence problem. Each test runs
-// against a fresh copy of this repository, installed offline from the pnpm store. The gate reports
-// every problem it finds, so independent failures share one copy and each must appear in the output.
-// Fixture dependencies are local `file:` packages, so no network is needed.
+// against a fresh copy of this repository, installed from the pnpm store. The gate reports every
+// problem it finds, so independent failures share one copy and each must appear in the output.
+// Fixture dependencies are local `file:` packages. Adding one makes pnpm re-resolve that package's
+// other dependencies, which needs registry metadata; a frozen-lockfile install (CI) never caches it,
+// so installs prefer the cache and fetch only that metadata.
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
@@ -49,7 +51,7 @@ function addDependency(
   const fixture = join(dir, "fixtures", name);
   mkdirSync(fixture, { recursive: true });
   writeFileSync(join(fixture, "package.json"), JSON.stringify({ name, version: "1.0.0", license }));
-  // pnpm accepts only a version range for a peer, and would fetch it from the registry offline.
+  // pnpm accepts only a version range for a peer, and would otherwise fetch it from the registry.
   const peer = field === "peerDependencies";
   if (peer) appendFileSync(join(dir, "pnpm-workspace.yaml"), "\nautoInstallPeers: false\n");
   editJson(join(dir, pkg, "package.json"), (manifest) => {
@@ -74,7 +76,7 @@ function install(dir: string): void {
   storeDir ??= dirname(run(repoRoot, ["store", "path"]).output.trim());
   const result = run(dir, [
     "install",
-    "--offline",
+    "--prefer-offline",
     "--no-frozen-lockfile",
     "--store-dir",
     storeDir,
