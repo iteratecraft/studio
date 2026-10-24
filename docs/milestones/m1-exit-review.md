@@ -11,9 +11,15 @@ How to read it:
   test host) rather than the thing the item names. What is missing is said.
 - **Not met:** nothing in `studio` proves it.
 - **Not verified:** this review could not check it.
-- **(local)** after a proof: the test needs a `test-courses/` checkout. CI does not check it out yet
-  (the step in `.github/workflows/ci.yml` waits for the `TEST_COURSES_TOKEN` secret), so in CI these
-  tests skip or run over the format's fixtures only.
+- **(local)** after a proof: the test needs a `test-courses/` checkout. CI on `main` does not check it
+  out (the step in `.github/workflows/ci.yml` is commented out and waits for a `TEST_COURSES_TOKEN`
+  secret), so in CI these tests skip or run over the format's fixtures only. Open PR #25 replaces that
+  step with one that checks the corpus out with a read-only deploy key in the
+  `TEST_COURSES_DEPLOY_KEY` secret; that secret does not exist yet, so #25's CI runs take the skip
+  path too.
+- **PR #25** (M1-21, the Moodle job) was opened after this review was first written and is not
+  merged. Where it bears on an item, the item keeps its result on `main` and a note says what #25's
+  head `6b07a2b` shows, from its CI run 40118239132 and its review.
 - The proof is named by file and test title. This review matched titles to items and read test
   bodies only where an item's wording needed it; a title that overstates its body would not be
   caught here.
@@ -31,7 +37,7 @@ How to read it:
 | Package builder, web output | M1-16, M1-17 | yes | 3 met, 2 not met |
 | SCORM 1.2 | M1-18, M1-19 | yes | 4 met, 3 not met |
 | Standards harness | M1-20 | yes | 2 met, 2 not met |
-| Moodle job | M1-21 | **no** | see M1-18/19 and M1-20 |
+| Moodle job | M1-21 | **no** (open in #25) | see M1-18/19 and M1-20 |
 | SCORM 2004 | M1-22, M1-23 | yes | 4 met, 1 partly, 1 not met |
 | xAPI | M1-24, M1-25 | yes | 4 met, 1 partly |
 | cmi5 | M1-26, M1-27 | yes | 4 met, 1 not met |
@@ -90,7 +96,7 @@ ENG-05 done when (the model's share; the rest is under M1-11/12):
 
 - **Package:** `@course-suite/labels` (MIT); lint rule `tools/lint/learner-text.grit` wired in
   `biome.json`.
-- **Entry points:** `english` (96 keys), `resolveLabels`, `formatLabel`, `checkLabelSet`, `LABEL_KEYS`.
+- **Entry points:** `english` (109 keys, one per entry of `LABEL_KEYS`), `resolveLabels`, `formatLabel`, `checkLabelSet`, `LABEL_KEYS`.
 
 ENG-09 done when:
 
@@ -171,7 +177,7 @@ ENG-03 done when:
 
 | Item | Result | Proof |
 |---|---|---|
-| Traversal, bomb, symlink and duplicate-name zips are rejected with a reason | Met | `packages/conformance/src/zip.test.ts` "rejects the unsafe name ../evil.js" and 19 more names, "rejects symbolic links", "rejects names that collide, ignoring case", "rejects an entry whose inflated-to-compressed ratio is too high", "rejects archives that inflate past the total cap…" |
+| Traversal, bomb, symlink and duplicate-name zips are rejected with a reason | Met | `packages/conformance/src/zip.test.ts` "rejects the unsafe name ../evil.js" and 16 more names, "rejects symbolic links", "rejects names that collide, ignoring case", "rejects an entry whose inflated-to-compressed ratio is too high", "rejects archives that inflate past the total cap…" |
 | Public ADL and CATAPULT sample packages parse, launch and produce a trace | Not met | Only hand-written SCOs (`packages/conformance/e2e/run-package.e2e.ts`) and our own packages are launched |
 | The same host package runs unchanged inside the server in M4 | Later | M4 |
 
@@ -203,8 +209,8 @@ STD-04 done when:
 |---|---|---|
 | Headless call log matches the launch and exit goldens exactly | Met | `packages/conformance/e2e/standards.e2e.ts` SCORM 1.2 goldens under `packages/exporters/test/golden/scorm12/` (fixtures in CI, corpus local) |
 | Manifest validates against the ADL SCORM 1.2 schemas | Not met | The check is structural (`scorm12.test.ts`); no XSD validation (see #14) |
-| In Moodle, a relaunch returns to the same place with the same state | Not met | No Moodle job on `main` (M1-21). Shown in the test LMS only: `scorm12.e2e.ts` "a learner completes a lesson, closes, relaunches, resumes at that lesson and passes" |
-| A passed quiz with passed/incomplete shows passed and the score in Moodle's report | Not met | Moodle (M1-21). In the test LMS: same test as above |
+| In Moodle, a relaunch returns to the same place with the same state | Not met | No Moodle job on `main` (M1-21). Shown in the test LMS: `scorm12.e2e.ts` "a learner completes a lesson, closes, relaunches, resumes at that lesson and passes". Open #25: in Moodle 5.3, for `fixtures/sample` and `fixtures/full`, the cover offers to resume at the lesson left, and Moodle's bookmark and suspend data equal what the test LMS keeps after the same path; the corpus courses did not run there (no deploy key) |
+| A passed quiz with passed/incomplete shows passed and the score in Moodle's report | Not met | Moodle (M1-21). In the test LMS: same test as above. Open #25 reads Moodle's SCORM tracks, not its report or gradebook pages. Its quiz-course tests assert `passed` 100 and `failed` 0, but the course has a mastery score, so Moodle derives that status itself: #25's review showed those two tests still pass when our package reports `completed` instead of `passed`. The `fixtures/full` comparison with the test LMS did catch that break |
 | A review-mode launch makes zero LMSSetValue calls | Met | `scorm12.e2e.ts` "[standards:R15] [standards:P-14] a review-mode launch makes zero LMSSetValue calls" |
 | A simulated commit error shows a non-blocking message, the course goes on, the next commit retries | Met | `packages/tracking/src/scorm12.test.ts` "a refused commit is reported, the course goes on and the next commit retries"; `runtime.test.ts` "an LMS call that throws shows the save-failed notice once and never stops the course" |
 | Removing the course frame still commits status and resume data | Met | `scorm12.e2e.ts` relaunch test closes the frame (`closeSco`) and asserts the exit order; `lifecycle.e2e.ts` "page-hide ends the session" |
@@ -219,14 +225,21 @@ STD-03 done when:
 | Item | Result | Proof |
 |---|---|---|
 | CI fails when any SCORM call is reordered, added, removed or changed | Met | `standards.e2e.ts` compares the whole call list with `toEqual` and shows the diff |
-| Moodle job imports a SCORM 1.2 zip, launches it and reads back status and score | Not met | M1-21 |
+| Moodle job imports a SCORM 1.2 zip, launches it and reads back status and score | Not met | M1-21. Open #25 adds the job `moodle (SCORM 1.2 end to end)` (ubuntu-latest, the approved Linux exception), green in run 40118239132 with 4 tests: `fixtures/sample`, `fixtures/full`, quiz pass, quiz fail. Limits are under M1-18/19 |
 | CATAPULT content suite runs headless with its report stored | Not met | Not run anywhere |
 | Runs on every pull request touching engine, player or exporters, under 20 minutes | Met | `pnpm test:e2e` runs on every pull request; the CI job has `timeout-minutes: 20`; the last three `main` runs took 3 to 9 minutes |
 
-### M1-21: Moodle end-to-end job — not delivered
+### M1-21: Moodle end-to-end job — not delivered (open in #25)
 
-- **Not on `main`** at `fc02c91`, and no pull request was open when this review was written.
-- Its items are listed as not met under M1-18/19 and M1-20.
+- **Not on `main`** at `fc02c91`. PR #25 (branch `m1/moodle-e2e`, head `6b07a2b`) is open and not
+  merged; its review asks for two fixes before merge.
+- What #25's CI shows: Moodle 5.3 in Docker on ubuntu-latest; SCORM 1.2 packages of the two format
+  fixtures and a quiz course uploaded, launched, left, relaunched, resumed and finished by a learner
+  in Chromium; status, bookmark, score and suspend data read back from Moodle's SCORM tracks.
+- What it does not show: the corpus courses in Moodle (the deploy key does not exist yet); the
+  status word our package sends, in the quiz-course tests (see M1-18/19); Moodle's report and
+  gradebook pages; a local run (only CI ran it).
+- Its items stay not met under M1-18/19 and M1-20 until #25 merges.
 
 ### M1-22, M1-23: SCORM 2004 4th edition exporter and runtime adapter (#19)
 
@@ -331,7 +344,7 @@ ENG-37 done when:
 | Exit criterion (ROADMAP.md) | Result | Notes |
 |---|---|---|
 | At least 6 reference Blocks courses validate and play from `file://` and over the web | Met (local) | 6 corpus courses; `corpus.test.ts`, `no-network.e2e.ts`. In CI only the fixtures run |
-| SCORM 1.2: launch, resume, pass, fail, score and exit verified end to end in Moodle | **Not met** | M1-21 not delivered. Verified in the scorm-again test LMS only |
+| SCORM 1.2: launch, resume, pass, fail, score and exit verified end to end in Moodle | **Not met** | M1-21 not on `main`; verified in the scorm-again test LMS. Open #25 runs launch, resume, pass, fail, score and exit in Moodle 5.3 for the fixtures and a quiz course, with the limits under M1-18/19 |
 | SCORM 1.2: golden traces match the spec rules | Met | `standards.e2e.ts` |
 | SCORM 2004: golden trace matches; completion and success reported separately | Met | `standards.e2e.ts`, `scorm2004.e2e.ts` |
 | SCORM 2004: runs in ILIAS | **Not met** | No ILIAS job (STD-19 is M2b) |
@@ -368,7 +381,8 @@ ENG-37 done when:
 Carried to later milestones or tasks:
 
 - **Real LMSs and LRSs:**
-  - Moodle job for SCORM 1.2 (M1-21, still open).
+  - Moodle job for SCORM 1.2 (M1-21, open in #25; after it, the corpus in Moodle and a quiz check
+    Moodle cannot override).
   - ILIAS for SCORM 2004, and at least 3 more LMSs (STD-19, M2b; decision D-8).
   - An open-source LRS for xAPI 1.0.3 and 2.0 (STD-03 feature "local LRS in a container").
   - The ADL CATAPULT content suite for cmi5 (STD-03, STD-07).
@@ -400,9 +414,13 @@ Carried to later milestones or tasks:
 - **Accessibility:** no screen-reader runs (NVDA, Narrator, VoiceOver) and no manual 400% zoom run.
   axe covers only part of WCAG.
 - **CI:**
-  - The test-courses checkout is disabled until the `TEST_COURSES_TOKEN` secret exists, so the corpus
-    goldens, corpus axe sweeps and corpus no-network runs pass only locally.
-  - Only Windows runs; macOS and Linux follow the platform order (ADR-0001).
+  - The test-courses checkout is disabled on `main`, so the corpus goldens, corpus axe sweeps and
+    corpus no-network runs pass only locally. Open #25 enables it behind the
+    `TEST_COURSES_DEPLOY_KEY` deploy key, which the lead still has to create (`docs/ci.md` in #25).
+  - Only Windows runs the product; macOS and Linux follow the platform order (ADR-0001). #25 adds
+    one ubuntu-latest job that only hosts Moodle, the exception the lead approved.
+  - #25 and this change both edit `.gitignore` and `packages/conformance/tsconfig.json` (one added
+    line each); whichever merges second keeps both lines.
 - **Known flaky test:** PR #22 reported
   `packages/conformance/e2e/scorm12.e2e.ts` "a learner completes a lesson, closes, relaunches…"
   failing 8 of 24 times when repeated at 8 workers. Not re-run for this review.
