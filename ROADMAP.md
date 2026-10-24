@@ -344,46 +344,46 @@ planning.
 
 ### M0
 
-- [ ] **M0-01** Engineering conventions: ADR template and ADR-0001 (toolchain: pnpm workspaces + Turborepo, Vitest, Playwright, electron-builder, Fastify; the MIT set of course-shipped packages; supported OS list)
-- [ ] **M0-02** Monorepo skeleton: packages `format`, `player-blocks`, `tracking`, `exporters`, `ui`; apps `desktop`, `server`, `web`; `tools`; dependency-direction check
-- [ ] **M0-03** CI on Windows, macOS and Linux: lint, typecheck, unit tests, browser smoke test; required on `main`
-- [ ] **M0-04** Licences and licence gate: Apache-2.0 root, MIT for every course-shipped package, NOTICE, scanner of built contents
-- [ ] **M0-05** Clean-room and trademark guard in CI, PR template citing spec ids
-- [ ] **M0-06** Spec traceability report: every numbered spec rule mapped to tagged tests
+- [x] **M0-01** Engineering conventions: ADR template and ADR-0001 (toolchain: pnpm workspaces + Turborepo, Vitest, Playwright, electron-builder, Fastify; the MIT set of course-shipped packages; supported OS list)
+- [x] **M0-02** Monorepo skeleton: packages `format`, `player-blocks`, `tracking`, `exporters`, `ui`; apps `desktop`, `server`, `web`; `tools`; dependency-direction check
+- [x] **M0-03** CI on Windows, macOS and Linux: lint, typecheck, unit tests, browser smoke test; required on `main` *(Windows done; macOS and Linux follow the platform order)*
+- [x] **M0-04** Licences and licence gate: Apache-2.0 root, MIT for every course-shipped package, NOTICE, scanner of built contents
+- [x] **M0-05** Clean-room and trademark guard in CI, PR template citing spec ids
+- [x] **M0-06** Spec traceability report: every numbered spec rule mapped to tagged tests
 - [ ] **M0-07** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC *(before M2)*
 - [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(before M2)*
 - [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(before M2)*
 - [ ] **M0-10** Server skeleton: Fastify, /health, migrations; **one all-in-one image** (SQLite + local files by default, PostgreSQL + S3 by env vars), plus `compose.yaml`; documented single `docker run` command proven in CI *(before M3)*
 - [ ] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(before M3)*
-- [ ] **M0-12** `test-courses` repo scaffold, pinned in CI
+- [x] **M0-12** `test-courses` repo scaffold, pinned in CI
 - [ ] **M0-13** Scheduler: recompute milestone dates from `depends_on` and team count; publish in CI
-- [ ] **M0-14** Build-agent configuration: no REA server, no research checkout, vendor domains and spec-source hosts blocked
-- [ ] **M0-15** Build copy of specs with source URLs reduced to ids
-- [ ] **M0-16** Fixture provenance policy for `test-courses`, with a CI check rejecting vendor players
+- [x] **M0-14** Build-agent configuration: no REA server, no research checkout, vendor domains and spec-source hosts blocked
+- [x] **M0-15** Build copy of specs with source URLs reduced to ids
+- [x] **M0-16** Fixture provenance policy for `test-courses`, with a CI check rejecting vendor players
 
 ### M1
 
-- [ ] **M1-01** ADR-0002 course format: schema dialect, stable ids, versioning and migrations, extension namespace only for unknown fields, newer major versions open read-only
-- [ ] **M1-01b** ADR: classic-script chunk loader for `file://`; ADR: outbound connections; decision D-5 co-editing granularity
-- [ ] **M1-02** Blocks course schema package (ENG-02)
-- [ ] **M1-03** Migrations, project identity, extension-field handling
-- [ ] **M1-04** Publish settings and reserved fields in the schema
-- [ ] **M1-05** Shared quiz and result model, interaction and answer id builders (ENG-05)
-- [ ] **M1-06** Label set format, English built-in set, lint against hard-coded learner strings (ENG-09)
-- [ ] **M1-07** Standard-neutral tracking core and adapter interface (STD-01)
-- [ ] **M1-08** Resume codec: versioned, keyed by stable ids, compressed, size caps per standard, fixed drop order
-- [ ] **M1-09** Blocks player shell (ENG-04): script-loaded data boot, cover, menu, lesson routing
-- [ ] **M1-10** Walking-skeleton blocks: text, heading, image with alt text, continue button, multiple-choice check
-- [ ] **M1-11** Progress engine (ENG-05)
-- [ ] **M1-12** Quiz lesson runtime: paging, submit, results, retries, passing, timer, random draws
-- [ ] **M1-13** Player lifecycle, state snapshot and restore, debug tracking adapter (ENG-06a)
-- [ ] **M1-14** Package reader with safe unzip and manifest parsers (ENG-03)
-- [ ] **M1-15** Test LMS host: SCORM 1.2/2004 API page on an MIT runtime in headless Chromium, call traces, in-memory LRS
-- [ ] **M1-16** Package builder pipeline (STD-02)
-- [ ] **M1-17** Blocks web output profile
-- [ ] **M1-18** SCORM 1.2 exporter (STD-04)
-- [ ] **M1-19** SCORM 1.2 runtime adapter with the Blocks profile
-- [ ] **M1-20** Standards CI harness: corpus × standards on every engine, player or exporter PR
+- [x] **M1-01** ADR-0002 course format: schema dialect, stable ids, versioning and migrations, extension namespace only for unknown fields, newer major versions open read-only
+- [x] **M1-01b** ADR: classic-script chunk loader for `file://`; ADR: outbound connections; decision D-5 co-editing granularity *(ADRs done; D-5 still open)*
+- [x] **M1-02** Blocks course schema package (ENG-02)
+- [x] **M1-03** Migrations, project identity, extension-field handling
+- [x] **M1-04** Publish settings and reserved fields in the schema
+- [x] **M1-05** Shared quiz and result model, interaction and answer id builders (ENG-05)
+- [x] **M1-06** Label set format, English built-in set, lint against hard-coded learner strings (ENG-09)
+- [x] **M1-07** Standard-neutral tracking core and adapter interface (STD-01)
+- [x] **M1-08** Resume codec: versioned, keyed by stable ids, compressed, size caps per standard, fixed drop order
+- [x] **M1-09** Blocks player shell (ENG-04): script-loaded data boot, cover, menu, lesson routing
+- [x] **M1-10** Walking-skeleton blocks: text, heading, image with alt text, continue button, multiple-choice check
+- [x] **M1-11** Progress engine (ENG-05)
+- [x] **M1-12** Quiz lesson runtime: paging, submit, results, retries, passing, timer, random draws
+- [x] **M1-13** Player lifecycle, state snapshot and restore, debug tracking adapter (ENG-06a)
+- [x] **M1-14** Package reader with safe unzip and manifest parsers (ENG-03)
+- [x] **M1-15** Test LMS host: SCORM 1.2/2004 API page on an MIT runtime in headless Chromium, call traces, in-memory LRS
+- [x] **M1-16** Package builder pipeline (STD-02)
+- [x] **M1-17** Blocks web output profile
+- [x] **M1-18** SCORM 1.2 exporter (STD-04)
+- [x] **M1-19** SCORM 1.2 runtime adapter with the Blocks profile
+- [x] **M1-20** Standards CI harness: corpus × standards on every engine, player or exporter PR
 - [ ] **M1-21** Moodle end-to-end job in a container
 - [ ] **M1-22** SCORM 2004 4th edition exporter (STD-05)
 - [ ] **M1-23** SCORM 2004 runtime adapter
@@ -391,7 +391,7 @@ planning.
 - [ ] **M1-25** xAPI runtime adapter
 - [ ] **M1-26** cmi5 exporter (STD-07)
 - [ ] **M1-27** cmi5 runtime adapter
-- [ ] **M1-28** Conformance corpus v1: at least 6 reference Blocks courses (ENG-37)
+- [x] **M1-28** Conformance corpus v1: at least 6 reference Blocks courses (ENG-37)
 - [ ] **M1-29** Player accessibility baseline, axe in CI
 - [ ] **M1-30** No-network guarantee tests for every output
 - [ ] **M1-31** M1 demo and exit review
@@ -439,6 +439,8 @@ planning.
 | D-21 | Server support policy and diagnostics export | latest 2 minors; local diagnostics bundle | before Server 0.1 |
 | D-22 | Stock-asset connectors licence read | — | before M5c |
 | D-23 | LTI 1.3 support (common LMS launch method, not used by the reference product) | server edition, after 1.0 | 1.1 planning |
+| D-24 | Continue-button settings names | **Decided 2026-10-24:** `completionType` (none, block-above, all-above), `buttonLabel`, `hintText`, as used by the reference courses | done |
+| D-25 | A link inside an author's SVG pointing outside the course | **Decided 2026-10-24:** allowed as navigation (ADR-0004); only addresses the browser loads by itself block publishing | done |
 
 ## How to read the backlog
 
