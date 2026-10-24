@@ -2,7 +2,9 @@
 // X-7, rule 16, ADR-0004): it talks only to the endpoint it is given. Statements go out in the order
 // they were sent, one request at a time; state documents are written after them, the latest version
 // of each. A failed request is retried after 100, 400, 400, 600 and 600 ms, then every 5 seconds
-// while the client reports itself offline, until it goes through.
+// while the client reports itself offline, until it goes through. A request with no full answer
+// within 10 seconds is given up and aborted, so an LRS that never answers cannot hold the course on
+// its loading screen, stall the statement queue or keep the offline banner from showing.
 import type { Clock } from "./tracker.js";
 
 /** What the client needs from `fetch`; tests pass their own. */
@@ -12,6 +14,8 @@ export interface HttpRequest {
   body?: string;
   /** The request outlives the page (`fetch` keepalive), for the last writes of a closing course. */
   keepalive?: boolean;
+  /** An `AbortSignal`, aborted when the request is given up (REQUEST_TIMEOUT_MS). */
+  signal?: unknown;
 }
 export interface HttpResponse {
   status: number;
@@ -23,6 +27,8 @@ export type Transport = (url: string, request: HttpRequest) => Promise<HttpRespo
 export const RETRY_DELAYS_MS = [100, 400, 400, 600, 600] as const;
 /** Wait between retries once the client is offline. */
 export const OFFLINE_RETRY_MS = 5_000;
+/** How long a request may take, its answer read in full, before it is given up as unanswered. */
+export const REQUEST_TIMEOUT_MS = 10_000;
 /** Statements kept while the LRS cannot be reached; later ones are dropped with an error. */
 export const MAX_QUEUED_STATEMENTS = 1_000;
 /** Statements per request. */
@@ -42,6 +48,20 @@ export class LrsError extends Error {
   }
 }
 
+/** A request with no full answer within REQUEST_TIMEOUT_MS. */
+export class RequestTimeout extends Error {
+  constructor(url: string) {
+    super(`No answer from ${url} within ${REQUEST_TIMEOUT_MS / 1000} seconds.`);
+    this.name = "RequestTimeout";
+  }
+}
+
+/** An answer read in full. */
+export interface Answer {
+  status: number;
+  body: string;
+}
+
 export interface LrsOptions {
   /** The LRS endpoint, ending in `/`. */
   endpoint: string;
@@ -49,7 +69,10 @@ export interface LrsOptions {
   auth: string;
   clock: Clock;
   transport?: Transport;
-  /** Called with false once the fast retries have failed, and with true when a request goes through again. */
+  /**
+   * Called with false once the fast retries have failed or a request went unanswered for
+   * REQUEST_TIMEOUT_MS, and with true when a request goes through again.
+   */
   onConnection?: (online: boolean) => void;
   /** Called when the LRS refuses a request for good, or a statement is dropped. Default: the console. */
   onError?: (error: unknown) => void;
@@ -60,7 +83,10 @@ export interface Lrs {
   readonly version: string;
   /** Asks the LRS which xAPI versions it supports (standards.md X-7). Never fails. */
   connect(): Promise<void>;
-  /** A state document, or undefined when there is none. Retried like a send; throws `LrsError`. */
+  /**
+   * A state document, or undefined when there is none. Retried like a send, but given up after one
+   * unanswered try, since the course waits on it; throws `LrsError`.
+   */
   getState(params: StateParams): Promise<string | undefined>;
   /** An agent profile document (agent, profileId), read like a state document. */
   getAgentProfile(params: StateParams): Promise<string | undefined>;
@@ -82,6 +108,40 @@ export const globalFetch: Transport = (url, request) =>
     cache: "no-store",
   } as HttpRequest);
 
+type Controller = { signal: unknown; abort(): void };
+const AbortControllerClass = (globalThis as { AbortController?: new () => Controller })
+  .AbortController;
+
+/**
+ * One request and its whole answer, given up after REQUEST_TIMEOUT_MS on `clock`: it then rejects
+ * with `RequestTimeout` and the request is aborted. A transport that ignores the signal may still
+ * answer later; that answer is not used.
+ */
+export function timedRequest(
+  transport: Transport,
+  clock: Clock,
+  url: string,
+  request: HttpRequest,
+): Promise<Answer> {
+  const controller = AbortControllerClass ? new AbortControllerClass() : undefined;
+  return new Promise<Answer>((resolve, reject) => {
+    const timer = clock.setTimeout(() => {
+      reject(new RequestTimeout(url));
+      controller?.abort();
+    }, REQUEST_TIMEOUT_MS);
+    transport(url, controller ? { ...request, signal: controller.signal } : request)
+      .then(async (response) => ({ status: response.status, body: await response.text() }))
+      .then(resolve, reject)
+      .finally(() => clock.clearTimeout(timer));
+  });
+}
+
+/** The last writes of a closing page wait for nobody, so they are never cut off. */
+const untimedRequest = async (transport: Transport, url: string, request: HttpRequest) => {
+  const response = await transport(url, request);
+  return { status: response.status, body: "" } satisfies Answer;
+};
+
 const logError = (error: unknown) =>
   (globalThis as { console?: { error(error: unknown): void } }).console?.error(error);
 
@@ -90,7 +150,8 @@ const query = (params: StateParams) =>
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join("&");
 
-type Outcome = "sent" | "retry" | "refused";
+/** Sent; worth retrying (no answer, 408, 429, 5xx); refused for good; or no answer in time. */
+type Outcome = "sent" | "retry" | "refused" | "timeout";
 
 export function createLrs(options: LrsOptions): Lrs {
   const { endpoint, clock } = options;
@@ -114,13 +175,14 @@ export function createLrs(options: LrsOptions): Lrs {
     ...(body && { "Content-Type": "application/json" }),
   });
 
-  /** One request: sent, worth retrying (no answer, 408, 429, 5xx) or refused for good. */
-  async function request(path: string, init: HttpRequest): Promise<[Outcome, HttpResponse?]> {
-    let response: HttpResponse;
+  async function request(path: string, init: HttpRequest): Promise<[Outcome, Answer?]> {
+    let response: Answer;
     try {
-      response = await transport(endpoint + path, init);
-    } catch {
-      return ["retry"];
+      response = init.keepalive
+        ? await untimedRequest(transport, endpoint + path, init)
+        : await timedRequest(transport, clock, endpoint + path, init);
+    } catch (error) {
+      return [error instanceof RequestTimeout ? "timeout" : "retry"];
     }
     const { status } = response;
     if (status < 300) return ["sent", response];
@@ -148,9 +210,10 @@ export function createLrs(options: LrsOptions): Lrs {
     busy = true;
     void request(path, init).then(async ([outcome, response]) => {
       if (closed) return;
-      if (outcome === "retry") {
+      if (outcome === "retry" || outcome === "timeout") {
         failures++;
-        if (failures > RETRY_DELAYS_MS.length) online(false);
+        // Ten seconds without an answer is already longer than the quick retries take: offline now.
+        if (outcome === "timeout" || failures > RETRY_DELAYS_MS.length) online(false);
         // Still busy while waiting, so a new statement does not cut the wait short.
         await wait(failures);
         busy = false;
@@ -208,12 +271,15 @@ export function createLrs(options: LrsOptions): Lrs {
         method: "GET",
         headers: headers(false),
       });
-      if (outcome === "sent" && response) return response.text();
+      if (outcome === "sent" && response) return response.body;
       if (response?.status === 404) return undefined;
-      if (outcome === "refused" || ++failed > RETRY_DELAYS_MS.length) {
+      // The course waits on this read: an LRS that let one try run out of time is not asked again.
+      if (outcome === "refused" || outcome === "timeout" || ++failed > RETRY_DELAYS_MS.length) {
+        const reason =
+          response?.status ?? (outcome === "timeout" ? "no answer in time" : "no answer");
         throw new LrsError(
           response?.status,
-          `The LRS document ${resource} could not be read: ${response?.status ?? "no answer"}`,
+          `The LRS document ${resource} could not be read: ${reason}`,
         );
       }
       await wait(failed);
@@ -229,7 +295,7 @@ export function createLrs(options: LrsOptions): Lrs {
       const [outcome, response] = await request("about", { method: "GET", headers: {} });
       if (outcome !== "sent" || !response) return;
       try {
-        const about = JSON.parse(await response.text()) as { version?: unknown };
+        const about = JSON.parse(response.body) as { version?: unknown };
         if (
           Array.isArray(about.version) &&
           about.version.some((v) => /^2\.0(\.|$)/.test(String(v)))

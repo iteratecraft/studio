@@ -289,6 +289,92 @@ test("[standards:X-5] with the network cut the offline banner shows; once it is 
   allValid(run.lrs.statements);
 });
 
+/** The LRS client's REQUEST_TIMEOUT_MS: a request with no answer by then is given up. */
+const REQUEST_TIMEOUT_MS = 10_000;
+
+/** A page clock the test can move on, so a request timeout does not cost real seconds. */
+const fakeClock = (page: Page) => page.clock.install();
+
+test("[standards:X-4] [standards:P-20] a state read the LRS never answers is given up: the course opens with the save notice and sends nothing", async ({
+  browser,
+}) => {
+  let reads = 0;
+  const run = await runXapiPackage(await xapiPackage(course), {
+    browser,
+    prepare: async (page) => {
+      await fakeClock(page);
+      // The LRS takes the request and never answers it.
+      await page.route("**/xapi/activities/state**", () => {
+        reads++;
+      });
+    },
+    drive: async (page) => {
+      await expect.poll(() => reads).toBe(1);
+      // Still on the loading screen, waiting for the state.
+      await expect(page.getByRole("link", { name: "Begin course" })).toHaveCount(0);
+      await page.clock.runFor(REQUEST_TIMEOUT_MS);
+      await page.getByRole("link", { name: "Begin course" }).click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Why compost");
+      await expect(
+        page.getByRole("status").filter({ hasText: "cannot be saved right now" }),
+      ).toBeVisible();
+    },
+  });
+  expect(run.pageErrors).toEqual([]);
+  expect(run.consoleErrors).toEqual([expect.stringContaining("no answer in time")]);
+  // One read, given up; nothing is written over a state the course could not read.
+  expect(reads).toBe(1);
+  expect(run.lrs.statements).toEqual([]);
+  expect(run.lrs.state.size).toBe(0);
+});
+
+test("[standards:X-5] a statement request the LRS never answers is given up: the offline banner shows, and every statement then arrives in order, once", async ({
+  browser,
+}) => {
+  const lrs = createMemoryLrs({ auth: TEST_LAUNCH.auth });
+  const run = await runXapiPackage(await xapiPackage(course), {
+    browser,
+    lrs,
+    prepare: fakeClock,
+    drive: async (page) => {
+      await page.getByRole("link", { name: "Begin course" }).click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Why compost");
+      await expect.poll(() => lrs.statements.length).toBe(2);
+      // The LRS takes the next statement request and never answers it.
+      let held = 0;
+      await page.route(
+        "**/xapi/statements**",
+        () => {
+          held++;
+        },
+        { times: 1 },
+      );
+      await outline(page, "Greens and browns").click();
+      await expect.poll(() => held).toBe(1);
+      const banner = page
+        .getByRole("status")
+        .filter({ hasText: "cannot reach your learning records" });
+      await expect(banner).toHaveCount(0);
+      await page.clock.runFor(REQUEST_TIMEOUT_MS);
+      await expect(banner).toBeVisible();
+      // The quick retry goes through, with what was queued behind it.
+      await page.clock.runFor(1_000);
+      await expect(banner).toHaveCount(0);
+      await expect.poll(() => lrs.statements.length).toBe(4);
+    },
+  });
+  expect(run.pageErrors).toEqual([]);
+  expect(run.consoleErrors).toEqual([]);
+  expect(lines(lrs.statements)).toEqual([
+    "attempted ~",
+    "experienced ~/lessonone1",
+    "leave ~/lessonone1",
+    "experienced ~/lessontwo1",
+    "leave ~/lessontwo1",
+  ]);
+  allValid(lrs.statements);
+});
+
 test("[standards:X-1] a package opened from disk reports to the LRS the launch link names", async ({
   browser,
 }) => {
