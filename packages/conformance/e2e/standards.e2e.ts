@@ -1,10 +1,11 @@
 // Standards CI harness (M1-20, STD-03; standards.md §3.11 T-6, T-7): every corpus course (or the
-// format's fixtures without a test-courses checkout) is built as SCORM 1.2 with the Blocks player,
-// run in the test LMS along one learner path under a fake clock, and its ordered API call trace is
-// compared with the golden trace committed under packages/exporters/test/golden. Any call added,
-// removed, reordered or changed in value fails, and the failure shows the diff. The same courses
-// built as xAPI walk the same path against the in-memory LRS; their golden is the statements the
-// LRS stored, in order, and the state document it holds (STD-06).
+// format's fixtures without a test-courses checkout) is built as SCORM 1.2 and as SCORM 2004 4th
+// edition with the Blocks player, run in the test LMS along one learner path under a fake clock, and
+// its ordered API call trace is compared with the golden trace committed under
+// packages/exporters/test/golden/<standard>. Any call added, removed, reordered or changed in value
+// fails, and the failure shows the diff. The same courses built as xAPI walk the same path against
+// the in-memory LRS; their golden is the statements the LRS stored, in order, and the state document
+// it holds (STD-06).
 //
 // Regenerate the goldens after an intended change with `UPDATE_GOLDEN=1 pnpm test:e2e`, and review the
 // diff like code: it is what every LMS will see.
@@ -22,10 +23,17 @@ import { closeSco, runPackage } from "../src/run-package.js";
 import { firstRead, runXapiPackage } from "../src/run-xapi.js";
 import type { ScormCall } from "../src/test-lms.js";
 import { statementProblems } from "../src/xapi-statement.js";
-import { ROOT, scorm12Package, standardsCourses, xapiPackage } from "../test/blocks.js";
+import {
+  ROOT,
+  type ScormStandard,
+  scorm12Package,
+  scorm2004Package,
+  standardsCourses,
+  type TestCourse,
+  xapiPackage,
+} from "../test/blocks.js";
 
-const GOLDEN = join(ROOT, "packages", "exporters", "test", "golden", "scorm12");
-const XAPI_GOLDEN = join(ROOT, "packages", "exporters", "test", "golden", "xapi");
+const GOLDEN = join(ROOT, "packages", "exporters", "test", "golden");
 /** Any fixed time: the trace holds only times relative to the launch. */
 const START = new Date("2026-01-05T09:00:00Z");
 
@@ -71,11 +79,33 @@ async function walk(course: Course, content: Page | Frame, page: Page) {
   await page.clock.runFor(COMMIT_INTERVAL_MS - 2 * RESUME_DELAY_MS);
 }
 
-for (const { name, course, media } of standardsCourses()) {
-  test(`[standards:R2] [standards:R3] [standards:R5] [standards:R7] [standards:R8] [standards:R9] [rise:R1] [rise:R2] [rise:R3] [rise:R4] ${name}: launch, start, lesson change, resume writes, timed save and page-hide exit match the golden trace`, async ({
+/** Each standard: how to package a course, and the rule tags its golden trace covers. */
+const STANDARDS: Record<
+  ScormStandard,
+  { label: string; tags: string; build: typeof scorm12Package }
+> = {
+  scorm12: {
+    label: "",
+    tags: "[standards:R2] [standards:R3] [standards:R5] [standards:R7] [standards:R8] [standards:R9] [rise:R1] [rise:R2] [rise:R3] [rise:R4]",
+    build: scorm12Package,
+  },
+  scorm2004: {
+    label: "SCORM 2004 ",
+    tags: "[standards:R1] [standards:R3] [standards:R5] [standards:R7] [standards:R8] [standards:R9] [standards:R17] [rise:R2] [rise:R3] [rise:R4]",
+    build: scorm2004Package,
+  },
+};
+
+for (const standard of ["scorm12", "scorm2004"] as const) {
+  for (const course of standardsCourses(standard)) goldenTest(standard, course);
+}
+
+function goldenTest(standard: ScormStandard, { name, course, media }: TestCourse) {
+  const { label, tags, build } = STANDARDS[standard];
+  test(`${tags} ${label}${name}: launch, start, lesson change, resume writes, timed save and page-hide exit match the golden trace`, async ({
     browser,
   }) => {
-    const run = await runPackage(await scorm12Package(course, media), {
+    const run = await runPackage(await build(course, media), {
       browser,
       prepare: freezeClock,
       drive: async (sco, page) => {
@@ -86,7 +116,7 @@ for (const { name, course, media } of standardsCourses()) {
     });
     expect(run.pageErrors).toEqual([]);
     expect(run.finished).toBe(true);
-    matchGolden(join(GOLDEN, `${name}.json`), run.trace.map(line));
+    matchGolden(join(GOLDEN, standard, `${name}.json`), run.trace.map(line));
   });
 }
 
@@ -122,6 +152,6 @@ for (const { name, course, media } of standardsCourses("xapi")) {
         JSON.parse(document.body),
       ]),
     );
-    matchGolden(join(XAPI_GOLDEN, `${name}.json`), { statements, state });
+    matchGolden(join(GOLDEN, "xapi", `${name}.json`), { statements, state });
   });
 }

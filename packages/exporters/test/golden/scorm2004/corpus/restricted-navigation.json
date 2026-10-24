@@ -1,0 +1,23 @@
+[
+  "Initialize(\"\") -> \"true\" [0]",
+  "GetValue(\"cmi.success_status\") -> \"unknown\" [0]",
+  "GetValue(\"cmi.completion_status\") -> \"unknown\" [0]",
+  "SetValue(\"cmi.exit\", \"suspend\") -> \"true\" [0]",
+  "GetValue(\"cmi.mode\") -> \"normal\" [0]",
+  "GetValue(\"cmi.suspend_data\") -> \"\" [403]",
+  "GetValue(\"cmi.success_status\") -> \"unknown\" [403]",
+  "GetValue(\"cmi.completion_status\") -> \"unknown\" [403]",
+  "SetValue(\"cmi.success_status\", \"unknown\") -> \"true\" [0]",
+  "SetValue(\"cmi.completion_status\", \"incomplete\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "SetValue(\"cmi.location\", \"#/lessons/k7lefkzllb\") -> \"true\" [0]",
+  "SetValue(\"cmi.suspend_data\", \"1.CY5-JKgNMG-gz8SVAaYN9DPxJUBpg30c-ViWwiJE54Rr89lLUXI3qMUf1_AAAAA\") -> \"true\" [0]",
+  "SetValue(\"cmi.location\", \"#/lessons/i62w6c84ji\") -> \"true\" [0]",
+  "SetValue(\"cmi.suspend_data\", \"1.CY5m4vFzXfWAz8SVAaYN9DPxJUBpg30c-ViWwiJE54Rr89lLUXI3qMUf1_AAAAA\") -> \"true\" [0]",
+  "SetValue(\"cmi.session_time\", \"PT20S\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "SetValue(\"cmi.session_time\", \"PT20S\") -> \"true\" [0]",
+  "SetValue(\"cmi.exit\", \"suspend\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "Terminate(\"\") -> \"true\" [0]"
+]

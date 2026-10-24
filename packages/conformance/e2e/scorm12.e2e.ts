@@ -2,7 +2,8 @@
 // lesson completed, the course closed, relaunched, resumed at the right lesson, and the quiz passed.
 import type { Course } from "@course-suite/format";
 import { PROJECT_ID } from "@course-suite/format/test/courses";
-import { expect, type Frame, test } from "@playwright/test";
+import { RESUME_DELAY_MS } from "@course-suite/player-blocks";
+import { expect, type Frame, type Page, test } from "@playwright/test";
 import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
 import type { ScormCall } from "../src/test-lms.js";
 import { STORED, scorm12Package } from "../test/blocks.js";
@@ -68,6 +69,15 @@ const sets = (trace: ScormCall[]) =>
 const outline = (sco: Frame, name: string) =>
   sco.getByRole("navigation", { name: "Course contents" }).getByRole("link", { name });
 
+/**
+ * Stops the course's timers until the learner path moves them, so whether the debounced resume write
+ * is still pending at exit is decided by the test, not by how busy the machine is.
+ */
+const pauseClock = async (page: Page) => {
+  await page.clock.install({ time: new Date("2026-01-05T09:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-01-05T09:00:01Z"));
+};
+
 test("[standards:R2] [standards:R7] [standards:R9] [rise:R1] [rise:R2] [rise:R7] [rise:R8] [rise:R10] a learner completes a lesson, closes, relaunches, resumes at that lesson and passes", async ({
   browser,
 }) => {
@@ -76,6 +86,8 @@ test("[standards:R2] [standards:R7] [standards:R9] [rise:R1] [rise:R2] [rise:R7]
   // First visit: begin, finish the first lesson, open the second, close the course frame.
   const first = await runPackage(pkg, {
     browser,
+    // The debounced resume write is still pending when the frame closes, so the exit path makes it.
+    prepare: pauseClock,
     drive: async (sco, page) => {
       await sco.getByRole("link", { name: "Begin course" }).click();
       await expect(sco.getByRole("heading", { level: 1 })).toHaveText("Why compost");
@@ -177,6 +189,38 @@ test("[standards:R2] [standards:R7] [standards:R9] [rise:R1] [rise:R2] [rise:R7]
     exit: "",
     score: { raw: "100", min: "0", max: "100" },
   });
+});
+
+test("[standards:R7] [standards:R9] [rise:R3] when the resume write went out before the course closed, the exit saves time and exit value and commits once", async ({
+  browser,
+}) => {
+  const run = await runPackage(await scorm12Package(course), {
+    browser,
+    prepare: pauseClock,
+    drive: async (sco, page) => {
+      await sco.getByRole("link", { name: "Begin course" }).click();
+      await expect(sco.getByRole("heading", { level: 1 })).toHaveText("Why compost");
+      await outline(sco, "Greens and browns").click();
+      await expect(sco.getByRole("heading", { level: 1 })).toHaveText("Greens and browns");
+      // The debounced resume write fires, so nothing is pending when the frame closes.
+      await page.clock.runFor(RESUME_DELAY_MS);
+      await closeSco(page);
+    },
+  });
+  expect(run.pageErrors).toEqual([]);
+  expect(run.finished).toBe(true);
+  expect(
+    calls(run.trace)
+      .slice(-5)
+      .map(([method, element]) => `${method} ${element}`),
+  ).toEqual([
+    "LMSSetValue cmi.suspend_data",
+    "LMSSetValue cmi.core.session_time",
+    "LMSSetValue cmi.core.exit",
+    "LMSCommit ",
+    "LMSFinish ",
+  ]);
+  expect(run.cmi.suspend_data).toMatch(/^1\./);
 });
 
 test("[standards:R15] [standards:P-14] a review-mode launch makes zero LMSSetValue calls", async ({

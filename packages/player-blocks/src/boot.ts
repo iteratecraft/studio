@@ -7,8 +7,10 @@ import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
   createMemoryAdapter,
   createScorm12Adapter,
+  createScorm2004Adapter,
   createXapiAdapter,
   findScorm12Api,
+  findScorm2004Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
@@ -147,9 +149,15 @@ function boot(): void {
         adapter,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // An LRS state document has room; anything else, a preview too, gets the strictest cap
-        // (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2 package would.
-        resumeCap: data.standard === "xapi" ? RESUME_CAPS.xapi : RESUME_CAPS.scorm12,
+        // SCORM 2004 (4th edition) and an LRS state document have their own caps. Anything else, a
+        // preview too, gets the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
+        // package would.
+        resumeCap:
+          data.standard === "xapi"
+            ? RESUME_CAPS.xapi
+            : data.standard === "scorm2004"
+              ? RESUME_CAPS.scorm2004
+              : RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
           if (adapter === memory) hooks.adapter = memory;
@@ -173,6 +181,10 @@ function boot(): void {
 
 /** The adapter for the standard the package was published for, or undefined when none is there. */
 function connect(data: CourseData): TrackingAdapter | undefined {
+  if (data.standard === "scorm2004") {
+    const api = findScorm2004Api(window);
+    return api && createScorm2004Adapter(api);
+  }
   if (data.standard === "scorm12") {
     const api = findScorm12Api(window);
     return api && createScorm12Adapter(api);
