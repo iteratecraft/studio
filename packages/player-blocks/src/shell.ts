@@ -56,16 +56,25 @@ export function startShell(
   };
 
   const setOpen = (open: boolean) => {
+    // Focus inside the outline as it hides would be lost; the button that opens it takes it.
+    const refocus = !open && outline.contains(document.activeElement);
     outline.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
     toggle.textContent = labels[open ? "outline.hide" : "outline.show"];
     root.classList.toggle("outline-open", open);
+    if (refocus) toggle.focus();
   };
   setOpen(wide.matches);
   wide.addEventListener("change", () => setOpen(wide.matches));
   toggle.addEventListener("click", () => setOpen(toggle.getAttribute("aria-expanded") !== "true"));
   outline.addEventListener("click", (event) => {
-    if (!wide.matches && (event.target as Element).closest("a")) setOpen(false);
+    if (!wide.matches && (event.target as Element).closest("a[href]")) setOpen(false);
+  });
+  // On a narrow screen the open outline covers the content, so tabbing out of it closes it and the
+  // focused control is never hidden behind it (WCAG 2.4.11).
+  outline.addEventListener("focusout", (event) => {
+    const next = event.relatedTarget as Node | null;
+    if (!wide.matches && next && !outline.contains(next) && next !== toggle) setOpen(false);
   });
   root.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !wide.matches && !outline.hidden) {
@@ -95,12 +104,25 @@ export function startShell(
     for (const page of pages) {
       const entry = links.get(page.id);
       if (!entry) continue;
-      const status = progress.status(page);
-      // A locked lesson is not a link in the outline, and says why (UI-BLOCKS-R26).
-      if (status === "locked") entry.link.removeAttribute("href");
-      else entry.link.setAttribute("href", pageHash(page.id));
-      entry.link.parentElement?.setAttribute("data-status", status);
-      entry.status.textContent = statusText(status, progress.percent(page), labels);
+      const state = progress.status(page);
+      // A locked lesson stays in the outline as a disabled link whose name says why (UI-BLOCKS-R26,
+      // UI-ACCESSIBILITY-R37); it has no address, so it is not a tab stop.
+      const { link, status } = entry;
+      if (state === "locked") {
+        link.removeAttribute("href");
+        link.removeAttribute("aria-describedby");
+        link.setAttribute("role", "link");
+        link.setAttribute("aria-disabled", "true");
+        link.setAttribute("aria-labelledby", `${link.id} ${status.id}`);
+      } else {
+        link.setAttribute("href", pageHash(page.id));
+        link.setAttribute("aria-describedby", status.id);
+        link.removeAttribute("role");
+        link.removeAttribute("aria-disabled");
+        link.removeAttribute("aria-labelledby");
+      }
+      link.parentElement?.setAttribute("data-status", state);
+      status.textContent = statusText(state, progress.percent(page), labels);
     }
     courseProgress.textContent = formatLabel(labels, "course.progress", {
       percent: progress.coursePercent(),
@@ -390,7 +412,11 @@ function outlineList(
     }
     const statusId = uid("status");
     const status = h("span", { class: "outline-status", id: statusId });
-    const link = h("a", { href: pageHash(entry.id), "aria-describedby": statusId }, entry.title);
+    const link = h(
+      "a",
+      { id: uid("page"), href: pageHash(entry.id), "aria-describedby": statusId },
+      entry.title,
+    );
     links.set(entry.id, { link, status });
     list.append(h("li", {}, link, status));
   }
