@@ -49,6 +49,19 @@ describe("the course data file", () => {
     });
   });
 
+  test("[standards:P-1] carries the standard, package version and media paths the builder fixed", () => {
+    const data = {
+      course,
+      standard: "scorm12" as const,
+      packageVersion: 3,
+      media: { "cover.jpg": "media/cover-small.jpg" },
+    };
+    expect(decodeCourseData(run(courseDataScript(data)))).toEqual(data);
+    const bad = (change: object) => decodeCourseData(run(courseDataScript({ ...data, ...change })));
+    expect(bad({ packageVersion: 1.5 })).toBeUndefined();
+    expect(bad({ standard: 12 })).toBeUndefined();
+  });
+
   test("encodes a course larger than one encoding chunk", () => {
     const big = { ...course, description: "é".repeat(100_000) };
     expect(decodeCourseData(run(courseDataScript({ course: big })))).toEqual({ course: big });
@@ -96,4 +109,10 @@ test("the index page loads the style sheet and the player as a classic script", 
   expect(page).toContain('<script src="player.js"></script>');
   expect(page).not.toMatch(/type="module"/);
   expect(indexPage('"><script>')).toContain('<html lang="script">');
+});
+
+test("the index page names hashed player files", () => {
+  const page = indexPage("en", { script: "player.0a1b2c3d4e.js", style: 'player".css' });
+  expect(page).toContain('<script src="player.0a1b2c3d4e.js"></script>');
+  expect(page).toContain('<link rel="stylesheet" href="player.css">');
 });

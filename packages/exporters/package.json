@@ -11,16 +11,18 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/bundle-player.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@course-suite/format": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*",
     "@xmldom/xmldom": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "rolldown": "1.2.13",
     "vitest": "catalog:"
   }
 }

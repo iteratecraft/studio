@@ -78,6 +78,9 @@ importers:
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
+      '@course-suite/player-blocks':
+        specifier: workspace:*
+        version: link:../player-blocks
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.0
@@ -93,6 +96,9 @@ importers:
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
+      '@course-suite/player-blocks':
+        specifier: workspace:*
+        version: link:../player-blocks
       '@xmldom/xmldom':
         specifier: 'catalog:'
         version: 0.9.12
@@ -100,6 +106,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.1
+      rolldown:
+        specifier: 1.2.13
+        version: 1.2.13
       vitest:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
@@ -134,6 +143,9 @@ importers:
 
   packages/player-blocks-harness:
     dependencies:
+      '@course-suite/exporters':
+        specifier: workspace:*
+        version: link:../exporters
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
@@ -153,9 +165,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.1
-      rolldown:
-        specifier: 1.2.13
-        version: 1.2.13
 
   packages/tracking:
     dependencies:

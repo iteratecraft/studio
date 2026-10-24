@@ -1,38 +1,12 @@
-// Builds a Blocks course package for the dev harness and the player's browser tests: the index page,
-// the player as one classic script (ADR-0003), its style sheet, the course data file and SVG
-// stand-ins for the course's SVG media. The package builder (M1-16) takes this over for exports.
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+// Writes a Blocks course package for the dev harness and the player's browser tests: the player
+// files of the Blocks web output profile (index page, hashed classic script and style sheet, as the
+// package builder ships them), the course data file and SVG stand-ins for the course's SVG media.
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { blocksPlayer } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
 import type { LabelSet } from "@course-suite/labels";
-import { courseDataScript, DATA_FILE, indexPage } from "@course-suite/player-blocks";
-import { build } from "rolldown";
-
-const resolve = (specifier: string) => fileURLToPath(import.meta.resolve(specifier));
-
-let player: Promise<string> | undefined;
-
-/** The player bundled as one self-contained classic script (IIFE), never an ES module. */
-export function bundlePlayer(): Promise<string> {
-  player ??= build({
-    input: resolve("@course-suite/player-blocks/boot"),
-    platform: "browser",
-    write: false,
-    output: { format: "iife" },
-  }).then(({ output }) => {
-    const code = output[0].code;
-    // ADR-0003: shipped scripts never use modules, which Chromium blocks from file://.
-    const module =
-      /<script[^>]*type=["']?module|\bimport\s*\(|\bimport\.meta\b|^\s*(?:import|export)\s/m.exec(
-        code,
-      );
-    if (module)
-      throw new Error(`The player bundle is not a classic script: it contains "${module[0]}"`);
-    return code;
-  });
-  return player;
-}
+import { courseDataScript, DATA_FILE } from "@course-suite/player-blocks";
 
 export interface PackageOptions {
   course: Course;
@@ -42,12 +16,11 @@ export interface PackageOptions {
 /** Writes a course package into `dir`; open `<dir>/index.html` from disk to run it. */
 export async function writePackage(dir: string, { course, labels }: PackageOptions): Promise<void> {
   mkdirSync(join(dir, "media"), { recursive: true });
-  writeFileSync(
-    join(dir, "index.html"),
-    indexPage(course.sourceLanguage ?? labels?.language ?? "en"),
-  );
-  writeFileSync(join(dir, "player.js"), await bundlePlayer());
-  copyFileSync(resolve("@course-suite/player-blocks/player.css"), join(dir, "player.css"));
+  const player = blocksPlayer({ language: course.sourceLanguage ?? labels?.language ?? "en" });
+  for (const [path, data] of player.files) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), data);
+  }
   writeFileSync(join(dir, DATA_FILE), courseDataScript(labels ? { course, labels } : { course }));
   for (const media of course.media) {
     if (media.key.endsWith(".svg")) {

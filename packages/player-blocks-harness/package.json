@@ -10,6 +10,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@course-suite/exporters": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/labels": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
@@ -17,7 +18,6 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
-    "@types/node": "catalog:",
-    "rolldown": "1.2.13"
+    "@types/node": "catalog:"
   }
 }
