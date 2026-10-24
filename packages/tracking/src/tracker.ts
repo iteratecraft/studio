@@ -119,7 +119,10 @@ export interface Tracker {
   report(change: Partial<Status>): void;
   /** Reports one answered question and commits it. */
   recordInteraction(interaction: Interaction): void;
-  /** Ends the session in the order of standards.md rule 7. Later calls do nothing. */
+  /**
+   * Ends the session in the order of standards.md rule 7. Called while `start` is still pending, it
+   * ends the session as soon as it opens. Later calls do nothing.
+   */
   exit(reachedEnd: boolean): void;
 }
 
@@ -133,6 +136,7 @@ export function createTracker(options: TrackerOptions): Tracker {
   let pending: ResumeState | undefined;
   let resumeTimer: unknown;
   let saveTimer: unknown;
+  let exitRequest: boolean | undefined;
 
   const resumeOptions = { packageVersion: options.packageVersion, cap: options.resumeCap };
 
@@ -175,6 +179,8 @@ export function createTracker(options: TrackerOptions): Tracker {
       status = launch.status;
       written = launch.resume;
       if (writes) scheduleSave();
+      // A pagehide while the adapter was initializing: end the session now that it is open.
+      if (exitRequest !== undefined) exit(exitRequest);
       const session: Session = {
         mode: launch.mode,
         status,
@@ -216,27 +222,33 @@ export function createTracker(options: TrackerOptions): Tracker {
       adapter.commit();
     },
 
-    exit(reachedEnd) {
-      if (phase !== "open") return;
-      phase = "closed";
-      clock.clearTimeout(saveTimer);
-      if (!writes) {
-        clock.clearTimeout(resumeTimer);
-        adapter.terminate();
-        return;
-      }
-      // Finishing with no status set marks the course completed (standards.md rule 13).
-      if (reachedEnd && status.completion !== "completed" && status.success === "unknown") {
-        status = { ...status, completion: "completed" };
-        adapter.reportStatus(status);
-      }
-      if (flush()) adapter.commit();
-      adapter.writeSessionTime(sessionTime());
-      adapter.setExit(reachedEnd ? "normal" : "suspend");
-      adapter.commit();
-      adapter.terminate();
-    },
+    exit,
   };
+
+  function exit(reachedEnd: boolean) {
+    if (phase === "starting") {
+      exitRequest ??= reachedEnd;
+      return;
+    }
+    if (phase !== "open") return;
+    phase = "closed";
+    clock.clearTimeout(saveTimer);
+    if (!writes) {
+      clock.clearTimeout(resumeTimer);
+      adapter.terminate();
+      return;
+    }
+    // Finishing with no status set marks the course completed (standards.md rule 13).
+    if (reachedEnd && status.completion !== "completed" && status.success === "unknown") {
+      status = { ...status, completion: "completed" };
+      adapter.reportStatus(status);
+    }
+    if (flush()) adapter.commit();
+    adapter.writeSessionTime(sessionTime());
+    adapter.setExit(reachedEnd ? "normal" : "suspend");
+    adapter.commit();
+    adapter.terminate();
+  }
 }
 
 function sameStatus(a: Status, b: Status): boolean {

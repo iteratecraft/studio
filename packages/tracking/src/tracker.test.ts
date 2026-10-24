@@ -17,7 +17,7 @@ function fakeClock() {
   let now = 0;
   let nextHandle = 0;
   const timers = new Map<number, { at: number; callback: () => void }>();
-  const clock: Clock & { advance(ms: number): void } = {
+  const clock: Clock & { advance(ms: number): void; timers(): number } = {
     now: () => now,
     setTimeout(callback, ms) {
       timers.set(++nextHandle, { at: now + ms, callback });
@@ -26,6 +26,8 @@ function fakeClock() {
     clearTimeout(handle) {
       timers.delete(handle as number);
     },
+    /** Timers still scheduled. */
+    timers: () => timers.size,
     advance(ms) {
       const end = now + ms;
       for (;;) {
@@ -271,6 +273,17 @@ describe("exit", () => {
     tracker.exit(true);
     clock.advance(600_000);
     expect(since(from)).toEqual([]);
+  });
+
+  test("[standards:R7][standards:R9] exit while start is pending ends the session as soon as it opens", async () => {
+    const { clock, methods, tracker } = setup();
+    const started = tracker.start();
+    tracker.exit(false);
+    tracker.exit(true);
+    await started;
+    clock.advance(600_000);
+    expect(methods()).toEqual(["initialize", "writeSessionTime", "setExit", "commit", "terminate"]);
+    expect(clock.timers()).toBe(0);
   });
 
   test("start runs once", async () => {
