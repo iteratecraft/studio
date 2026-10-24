@@ -18,6 +18,11 @@
   --topbar: 56px;
 }
 
+/* Scrolling a control into view keeps it clear of the sticky top bar (WCAG 2.4.11). */
+html {
+  scroll-padding-top: calc(var(--topbar) + 8px);
+}
+
 [hidden] {
   /* biome-ignore lint/complexity/noImportantStyles: controls set their own display; hidden must win. */
   display: none !important;

@@ -128,7 +128,7 @@ test("UI-BLOCKS-R37, R38: with require-passing and no retakes left, the course c
   await expect(page.locator(".quiz")).toContainText("Attempts left: 1");
   await expect(page.locator(".quiz-must-pass")).toHaveText("You need a passing score to go on");
   await expect(page.locator(".outline-progress")).toHaveText("0% done");
-  await expect(outlineLink(page, "After the quiz")).toHaveCount(0);
+  await expect(outlineLink(page, "After the quiz")).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Retake quiz" }).click();
   await page.getByRole("button", { name: "Retake quiz" }).click();
   await answerAll(page, [false, false, false]);

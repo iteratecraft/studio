@@ -174,7 +174,10 @@ test.describe("required knowledge checks", () => {
   }) => {
     await open("#/lessons/lessonone1");
     const nav = outline(page);
-    await expect(nav.getByRole("link", { name: "Second" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Second" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     await expect(nav.locator("[data-status=locked]")).toHaveText([
       "SecondLocked until the earlier lessons are done",
       "ThirdLocked until the earlier lessons are done",
@@ -212,7 +215,7 @@ test("[rise:R14] restricted navigation opens lessons in order and offers no mark
   });
   await open("#/lessons/lessonone1");
   const nav = outline(page);
-  await expect(nav.getByRole("link")).toHaveText(["First"]);
+  await expect(nav.getByRole("link", { disabled: false })).toHaveText(["First"]);
   await expect(page.getByRole("button", { name: "Mark this lesson done" })).toBeHidden();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Second");

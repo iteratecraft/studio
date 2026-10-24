@@ -101,3 +101,87 @@ export const course = (entries: Course["entries"], extra: Partial<Course> = {}):
   media: [],
   ...extra,
 });
+
+const svg = (id: string, key: string) => ({
+  id,
+  key,
+  source: "upload" as const,
+  mimeType: "image/svg+xml",
+  width: 640,
+  height: 360,
+});
+
+/** One lesson with every block kind the player renders, then a short second lesson. */
+export function everyBlockCourse(extra: Partial<Course> = {}): Course {
+  const [, fillIn, matching] = quizQuestions();
+  const text = (id: string, variant: string, item: { title?: string; text?: string }): Block => ({
+    id,
+    category: "text",
+    variant,
+    items: [{ id: `i${id.slice(1)}`, kind: "content", ...item }],
+  });
+  const asCheck = (id: string, question: QuizQuestion): Block => ({
+    id,
+    category: "knowledge-check",
+    variant: question.kind,
+    question: { ...question, id: `q${id.slice(1)}` } as never,
+  });
+  return course(
+    [
+      lesson(
+        "lessonall1",
+        "Every block",
+        text("theading01", "heading", { title: "Before you start" }),
+        text("tsubhead01", "subheading", { title: "What you need" }),
+        paragraph("tparagra01", 'A bin, a <a href="https://example.com/">guide</a> and scraps.'),
+        text("tparahead1", "paragraph-with-heading", {
+          title: "Greens",
+          text: "<p>Wet, fresh scraps.</p>",
+        }),
+        text("tparasub01", "paragraph-with-subheading", {
+          title: "Browns",
+          text: "<p>Dry, woody scraps.</p>",
+        }),
+        {
+          id: "mcentred01",
+          category: "image",
+          variant: "centered",
+          media: [{ key: "bin.svg", alt: "A compost bin with its lid open" }],
+        },
+        {
+          id: "mfullwid01",
+          category: "image",
+          variant: "full-width",
+          media: [{ key: "leaf.svg" }],
+        },
+        check("kchoice001", "Is a heap alive?"),
+        {
+          id: "kmulti0001",
+          category: "knowledge-check",
+          variant: "multiple-response",
+          question: {
+            id: "qmulti0001",
+            kind: "multiple-response",
+            prompt: "<p>Which are greens?</p>",
+            answers: [
+              { id: "apeel00001", text: "Peelings", correct: true },
+              { id: "agrass0001", text: "Grass", correct: true },
+              { id: "acard00001", text: "Cardboard", correct: false },
+            ],
+          },
+        },
+        asCheck("kfillin001", fillIn as QuizQuestion),
+        asCheck("kmatch0001", matching as QuizQuestion),
+        continueBlock("cgateall01", "all-above"),
+        paragraph("tafter0001", "You have seen every block."),
+      ),
+      lesson("lessonnext", "After every block", paragraph("tnext00001", "The end")),
+      quiz("quizall001", "Every question", { timer: { minutes: 5, learnerCanHide: true } }),
+    ],
+    {
+      media: [svg("mediabin01", "bin.svg"), svg("medialeaf1", "leaf.svg")],
+      publish: { standard: "web", exitLink: true },
+      ...extra,
+    },
+  );
+}
