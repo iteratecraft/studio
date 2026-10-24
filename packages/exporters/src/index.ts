@@ -12,7 +12,14 @@ export type {
 } from "./builder.js";
 export { buildPackage, MEDIA_FOLDER, unsafePath } from "./builder.js";
 export type { Problem, Result } from "./result.js";
-export { findModuleCode, findOutboundUrls, isAllowed, NAMESPACE_URIS, urlsIn } from "./scan.js";
+export {
+  findModuleCode,
+  findOutboundUrls,
+  isAllowed,
+  loadsIn,
+  NAMESPACE_URIS,
+  urlsIn,
+} from "./scan.js";
 export type { Scorm12Options } from "./scorm12.js";
 export {
   SCORM12_IDS,

@@ -1,13 +1,16 @@
 // Post-build scan for outbound URLs (ADR-0004): a package may load its own files, the LMS or LRS
-// supplied at launch and endpoints the author configured, and nothing else. This finds absolute and
-// protocol-relative URLs written in the package's text files and reports every one not allowed.
+// supplied at launch and endpoints the author configured, and nothing else. The player's own pages,
+// scripts and styles are read in full; media and other markup only for what a browser loads from
+// them, since namespace names, metadata and text in an SVG or caption file are never fetched.
 //
 // shortcut: a text scan, so a URL assembled at run time or encoded (for example in base64) passes;
 // the no-network browser tests (M1-30) catch what the package actually requests.
 import type { Problem } from "./result.js";
 
-/** Files a browser reads as text. Media and fonts are skipped. */
-const TEXT = /\.(?:html?|xhtml|js|mjs|cjs|css|json|svg|xml|txt|vtt|webmanifest)$/i;
+/** The player's pages, scripts and styles: every URL written in them counts. */
+const CODE = /\.(?:html?|xhtml|js|mjs|cjs|css)$/i;
+/** Markup and styles a browser loads further files from. Captions, text and binary media load nothing. */
+const MARKUP = /\.(?:html?|xhtml|svg|xml|css)$/i;
 const ABSOLUTE = /\b(?:https?|wss?|ftp):\/\/[^\s"'`<>()[\]{}\\]+/gi;
 // `//host/...` only where markup or CSS loads it; elsewhere it is far more often a comment.
 const PROTOCOL_RELATIVE =
@@ -32,6 +35,28 @@ export function urlsIn(text: string): string[] {
     found.push([match.index, match[1] ?? ""]);
   }
   return found.sort((a, b) => a[0] - b[0]).map(([, url]) => url.replace(TRAILING, ""));
+}
+
+const TAG = /<\??([\w.:-]+)([^>]*)>/g;
+const LOAD_ATTRIBUTE = /\s(?:[\w.-]+:)?(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+const CSS_LOAD =
+  /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/gi;
+const EXTERNAL = /^(?:(?:https?|wss?|ftp):)?\/\//i;
+
+/**
+ * Every absolute or protocol-relative URL a browser would fetch for markup or CSS: `href`,
+ * `xlink:href` and `src` values (not on links, which are navigation, ADR-0004), `url()` and `@import`.
+ * `xmlns:*` declarations, metadata and text content are never fetched, so they are not read.
+ */
+export function loadsIn(text: string): string[] {
+  const values: (string | undefined)[] = [];
+  for (const [, name = "", attributes = ""] of text.matchAll(TAG)) {
+    if (/^(?:[\w.-]+:)?a$/i.test(name)) continue;
+    for (const match of attributes.matchAll(LOAD_ATTRIBUTE)) values.push(match[1] ?? match[2]);
+  }
+  for (const match of text.matchAll(CSS_LOAD))
+    values.push(match.slice(1).find((v) => v !== undefined));
+  return values.map((value) => (value ?? "").trim()).filter((value) => EXTERNAL.test(value));
 }
 
 /** True when `url` is `allowed` or lies under it (the next character starts a path, query or fragment). */
@@ -74,16 +99,22 @@ export function findModuleCode(files: Iterable<readonly [string, Uint8Array]>): 
   return problems;
 }
 
-/** One problem per file and URL that is neither allowed nor a namespace name. */
+/**
+ * One problem per file and URL that is neither allowed nor a namespace name. Files in `media` (the
+ * course's media) are read only for what a browser loads from them, never in full.
+ */
 export function findOutboundUrls(
   files: Iterable<readonly [string, Uint8Array]>,
   allowed: readonly string[],
+  media: ReadonlySet<string> = new Set(),
 ): Problem[] {
   const permitted = [...NAMESPACE_URIS, ...allowed];
   const problems: Problem[] = [];
   for (const [path, data] of files) {
-    if (!TEXT.test(path)) continue;
-    for (const url of new Set(urlsIn(utf8.decode(data)))) {
+    const scan =
+      CODE.test(path) && !media.has(path) ? urlsIn : MARKUP.test(path) ? loadsIn : undefined;
+    if (scan === undefined) continue;
+    for (const url of new Set(scan(utf8.decode(data)))) {
       if (isAllowed(url, permitted)) continue;
       problems.push({
         file: path,

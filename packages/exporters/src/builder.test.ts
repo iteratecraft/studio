@@ -143,6 +143,78 @@ describe("buildPackage", () => {
       await problems({ player: lookalike, allowedUrls: ["https://lrs.example.com"] }),
     ).toHaveLength(1);
   });
+
+  // Media as authors' tools save it: an SVG with editor namespaces and RDF metadata, a caption file
+  // whose cue text names a web page. None of these URLs is ever fetched.
+  const editorSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Drawn with a vector editor (http://editor.example.org/) -->
+<svg width="10mm" height="10mm" viewBox="0 0 10 10" version="1.1"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview id="view1" inkscape:zoom="1"/>
+  <metadata><rdf:RDF><cc:Work rdf:about="">
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <cc:license rdf:resource="http://creativecommons.org/licenses/by/4.0/"/>
+  </cc:Work></rdf:RDF></metadata>
+  <a href="https://example.net/more"><text x="1" y="5">See https://example.net/notes</text></a>
+  <use xlink:href="#shape"/><image href="pattern.png" width="1" height="1"/>
+</svg>
+`;
+  const captions =
+    "WEBVTT\n\n00:00.000 --> 00:04.000\nRead more at https://example.org/guide-two\n";
+
+  /** The stub input with extra media files (storage key to text) in the course's media index. */
+  function withMedia(files: Record<string, string>) {
+    const course = stubCourse();
+    for (const [i, key] of Object.keys(files).entries()) {
+      course.media.push({ id: `media1000${i}`, key, source: "upload" });
+    }
+    const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
+    return { course, media };
+  }
+
+  test("publishes an editor-saved SVG: namespace names, metadata, text and links are not loads [standards:R16]", async () => {
+    await expect(built(withMedia({ "drawing.svg": editorSvg }))).resolves.toBeTruthy();
+  });
+
+  test("publishes a caption file whose cue text names a web address [standards:R16]", async () => {
+    await expect(built(withMedia({ "captions.vtt": captions }))).resolves.toBeTruthy();
+  });
+
+  test("rejects media that loads from outside through href, xlink:href, src, url() and @import [standards:R16]", async () => {
+    const svg =
+      '<?xml-stylesheet href="https://cdn.example.net/a.css"?>' +
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
+      '<style>@import "//fonts.example.net/b.css"; rect { fill: url( "https://cdn.example.net/c.svg#g" ) }</style>' +
+      "<image href=\"https://cdn.example.net/d.png\"/><use xlink:href='https://cdn.example.net/e.svg#s'/>" +
+      '<foreignObject><img xmlns="http://www.w3.org/1999/xhtml" src="http://cdn.example.net/f.gif"/></foreignObject>' +
+      "</svg>";
+    const found = (await problems(withMedia({ "loads.svg": svg }))).map((p) => [
+      p.file,
+      p.message.split("'")[1],
+    ]);
+    expect(found).toEqual(
+      [
+        "https://cdn.example.net/a.css",
+        "https://cdn.example.net/d.png",
+        "https://cdn.example.net/e.svg#s",
+        "http://cdn.example.net/f.gif",
+        "//fonts.example.net/b.css",
+        "https://cdn.example.net/c.svg#g",
+      ].map((url) => ["media/loads.svg", url]),
+    );
+  });
+
+  test("still reads the player's own pages, scripts and styles in full [standards:R16]", async () => {
+    const player = withFiles({ "player/notes.js": "// docs: https://tracker.example.net/x\n" });
+    expect(await problems({ player })).toEqual([
+      { file: "player/notes.js", message: expect.stringContaining("tracker.example.net") },
+    ]);
+  });
 });
 
 test("unsafePath accepts plain relative paths only", () => {

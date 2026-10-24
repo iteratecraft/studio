@@ -164,7 +164,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
 
   const shipped = content.map((path) => [path, files.get(path) as Uint8Array] as const);
   const allowed = [...urlsInStrings(course), ...(input.allowedUrls ?? [])];
-  problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed));
+  problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed, collected));
   if (problems.length > 0) return fail(problems);
 
   // The descriptor is checked against the files actually in the package, not the list it was given.
