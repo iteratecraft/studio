@@ -1,6 +1,7 @@
 // A Blocks course published as cmi5, end to end against the test LMS's cmi5 launcher and in-memory
 // LRS (M1-26, M1-27, STD-07): a Normal launch that is closed and resumed and then passes and returns
-// to the LMS, a failed attempt, Browse and Review launches, and a fetch URL that gives no token.
+// to the LMS, a failed attempt, Browse and Review launches, and a fetch URL that gives no token or
+// never answers.
 import type { Course } from "@course-suite/format";
 import { PROJECT_ID } from "@course-suite/format/test/courses";
 import { expect, type Page, test } from "@playwright/test";
@@ -292,6 +293,44 @@ test("[standards:C-1] a fetch URL that gives no token stops reporting, shows the
   expect(run.pageErrors).toEqual([]);
   expect(run.fetches).toEqual([expect.stringMatching(/ 2$/)]);
   expect(run.consoleErrors).toEqual([expect.stringContaining("no session credentials")]);
+  expect(run.lrs.requests).toEqual([]);
+  expect(lines(run.lrs.statements)).toEqual(["launched AU"]);
+});
+
+/** The LRS client's REQUEST_TIMEOUT_MS, shared by the fetch URL POST. */
+const REQUEST_TIMEOUT_MS = 10_000;
+
+test("[standards:C-1] [standards:P-20] a fetch URL that never answers is given up after 10 s: reporting is off, the notice shows and the course runs", async ({
+  browser,
+}) => {
+  let posts = 0;
+  const run = await runXapiPackage(await cmi5Package(course), {
+    browser,
+    prepare: async (page) => {
+      // A page clock the test moves on, so the timeout does not cost real seconds.
+      await page.clock.install();
+      // The LMS takes the POST to the fetch URL and never answers it.
+      await page.route("**/cmi5/fetch/**", () => {
+        posts++;
+      });
+    },
+    drive: async (page) => {
+      await expect.poll(() => posts).toBe(1);
+      // Still on the loading screen, waiting for the credentials.
+      await expect(page.getByRole("link", { name: "Begin course" })).toHaveCount(0);
+      await page.clock.runFor(REQUEST_TIMEOUT_MS);
+      await page.getByRole("link", { name: "Begin course" }).click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Why compost");
+      await expect(page.getByRole("status").filter({ hasText: "cannot be saved" })).toBeVisible();
+    },
+  });
+  expect(run.pageErrors).toEqual([]);
+  expect(run.consoleErrors).toEqual([
+    expect.stringContaining("no session credentials: no answer in time"),
+  ]);
+  // One POST, held by the route, so the test LMS never saw it; no LRS request without credentials.
+  expect(posts).toBe(1);
+  expect(run.fetches).toEqual([]);
   expect(run.lrs.requests).toEqual([]);
   expect(lines(run.lrs.statements)).toEqual(["launched AU"]);
 });

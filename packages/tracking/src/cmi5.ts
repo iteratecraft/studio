@@ -5,7 +5,15 @@
 // what the learner does as cmi5-allowed statements between them. Satisfied is the LMS's to send. It
 // talks only to the fetch URL and the LRS the launch link names (rule 16, ADR-0004).
 import { activityIri } from "@course-suite/format";
-import { createLrs, globalFetch, type Lrs, LrsError, type StateParams } from "./lrs.js";
+import {
+  createLrs,
+  globalFetch,
+  type Lrs,
+  LrsError,
+  RequestTimeout,
+  type StateParams,
+  timedRequest,
+} from "./lrs.js";
 import type { Clock, Launch, Mode, QuestionRef, Status, TrackingAdapter } from "./tracker.js";
 import { systemClock } from "./tracker.js";
 import {
@@ -299,21 +307,33 @@ export function createCmi5Adapter(options: Cmi5AdapterOptions): Cmi5Adapter {
     definition: activities.get(ids.join("/")) ?? { type: XAPI_ACTIVITY_TYPES.module },
   });
 
-  /** POSTs once to the fetch URL for the LRS credentials (cmi5 §8.2). */
+  /**
+   * POSTs once to the fetch URL for the LRS credentials (cmi5 §8.2), given up like an LRS request
+   * after REQUEST_TIMEOUT_MS, so a fetch URL that never answers cannot hold the course on its
+   * loading screen.
+   */
   async function fetchToken(): Promise<string> {
     let status: number | undefined;
     let body: unknown;
+    let timedOut = false;
     try {
-      const answer = await transport(launch.fetch, { method: "POST", headers: {} });
+      const answer = await timedRequest(transport, clock, launch.fetch, {
+        method: "POST",
+        headers: {},
+      });
       status = answer.status;
-      body = JSON.parse(await answer.text());
-    } catch {
+      body = JSON.parse(answer.body);
+    } catch (error) {
       // No answer, or one that is not JSON: reported below.
+      timedOut = error instanceof RequestTimeout;
     }
     const token = isObject(body) ? body["auth-token"] : undefined;
     if (status === 200 && typeof token === "string" && token !== "") return token;
     const reason = isObject(body) && body["error-text"] ? body["error-text"] : status;
-    throw new LrsError(status, `The LMS gave no session credentials: ${reason ?? "no answer"}`);
+    throw new LrsError(
+      status,
+      `The LMS gave no session credentials: ${reason ?? (timedOut ? "no answer in time" : "no answer")}`,
+    );
   }
 
   return {

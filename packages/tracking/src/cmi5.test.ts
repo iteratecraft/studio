@@ -8,6 +8,7 @@ import {
   createCmi5Adapter,
   createTracker,
   type HttpRequest,
+  REQUEST_TIMEOUT_MS,
   RESUME_CAPS,
   readCmi5Launch,
   type Transport,
@@ -236,6 +237,47 @@ describe("session", () => {
     const adapter = createCmi5Adapter({ launch, course, transport, clock: fakeClock() });
     await expect(adapter.initialize()).rejects.toThrow("no session credentials: no");
     adapter.terminate();
+    await settle();
+    expect(lms.requests).toEqual([]);
+  });
+
+  test("[standards:C-1] a fetch URL that never answers is given up after 10 s and aborted: reporting is off and no LRS request is made", async () => {
+    const lms = fakeLms(normal());
+    const asked: HttpRequest[] = [];
+    const transport: Transport = (url, request) => {
+      if (url !== FETCH) return lms.transport(url, request);
+      asked.push(request);
+      return new Promise<never>(() => {});
+    };
+    // A clock whose timers the test runs.
+    const timers: { callback: () => void; ms: number }[] = [];
+    const clock: Clock = {
+      ...fakeClock(),
+      setTimeout: (callback, ms) => timers.push({ callback, ms }),
+      clearTimeout: () => {},
+    };
+    let outcome: unknown;
+    const tracker = createTracker({
+      adapter: createCmi5Adapter({ launch, course, transport, clock }),
+      clock,
+      packageVersion: "1",
+      resumeCap: RESUME_CAPS.xapi,
+    });
+    void tracker.start().then(
+      () => (outcome = "started"),
+      (error: unknown) => (outcome = error),
+    );
+    await settle();
+    expect(outcome).toBeUndefined();
+    expect(asked).toHaveLength(1);
+    // Only the request's own 10-second timer is waiting.
+    expect(timers.map((t) => t.ms)).toEqual([REQUEST_TIMEOUT_MS]);
+    expect(REQUEST_TIMEOUT_MS).toBe(10_000);
+    timers.shift()?.callback();
+    await settle();
+    expect(String(outcome)).toContain("no session credentials: no answer in time");
+    expect((asked[0]?.signal as { aborted?: boolean } | undefined)?.aborted).toBe(true);
+    tracker.exit(false);
     await settle();
     expect(lms.requests).toEqual([]);
   });
