@@ -8,7 +8,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./course.schema.json": "./dist/course.schema.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -16,6 +16,7 @@
     "check:deps": "turbo boundaries",
     "check:clean-room": "node tools/clean-room-guard/guard.ts",
     "report:trace": "node tools/traceability/trace.ts",
+    "format:types": "node tools/format-types/generate.ts",
     "specs:build-copy": "node tools/spec-build-copy/build-copy.ts",
     "check:licences": "node tools/licence-gate/licence-gate.ts"
   },

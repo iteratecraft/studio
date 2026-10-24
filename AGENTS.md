@@ -69,6 +69,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm check:clean-room` | Clean-room and trademark guard (rules and allow-list in `tools/clean-room-guard/clean-room.config.json`) |
 | `pnpm report:trace` | Markdown report of spec rules covered by tagged tests (`--specs <dir>`, default `../specs`, skipped only when the default is absent; `--out <file>`) |
 | `pnpm specs:build-copy --from <dir> --out <dir>` | Build copy of the specs with every URL replaced by a stable id (lead or study team only, see `docs/build-agents.md`) |
+| `pnpm format:types` | Regenerate `packages/format/src/course.ts` from `course.schema.json` after a schema change (a test fails while it is stale) |
 | `pnpm check:licences` | Package licences, production dependency licences and `THIRD_PARTY_NOTICES.md` (`--write` regenerates it) |
 
 Run all of them before you open a PR.

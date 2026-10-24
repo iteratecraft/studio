@@ -1,0 +1,769 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Course",
+  "description": "A Blocks course document: the course content and nothing else (ADR-0002).",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+    "id": { "$ref": "#/$defs/ProjectId" },
+    "kind": {
+      "description": "A full course, or a microlearning course shown one step at a time.",
+      "enum": ["course", "microlearning"]
+    },
+    "title": { "type": "string" },
+    "description": { "$ref": "#/$defs/RichText" },
+    "authors": {
+      "description": "Authors shown to learners (the author byline).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Author" }
+    },
+    "cover": {
+      "description": "Cover image.",
+      "$ref": "#/$defs/MediaRef"
+    },
+    "themeRef": {
+      "description": "Reserved: the theme or brand kit, owned by another container.",
+      "$ref": "#/$defs/ExternalRef"
+    },
+    "labelSet": { "$ref": "#/$defs/LabelSetRef" },
+    "sourceLanguage": { "$ref": "#/$defs/Language" },
+    "languages": {
+      "description": "Reserved: languages the course is translated into.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Language" },
+      "uniqueItems": true
+    },
+    "glossaryRef": {
+      "description": "Reserved: translation glossary, owned by another container.",
+      "$ref": "#/$defs/ExternalRef"
+    },
+    "publish": { "$ref": "#/$defs/PublishSettings" },
+    "entries": {
+      "description": "Ordered course outline.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Entry" }
+    },
+    "media": {
+      "description": "Media index: every media file the document references, by storage key.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/MediaEntry" }
+    },
+    "customBlocks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CustomBlockDocument" }
+    },
+    "createdAt": { "$ref": "#/$defs/Timestamp" },
+    "updatedAt": { "$ref": "#/$defs/Timestamp" },
+    "ext": { "$ref": "#/$defs/Ext" }
+  },
+  "required": ["schemaVersion", "id", "kind", "title", "entries", "media"],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SchemaVersion": {
+      "description": "MAJOR.MINOR. MINOR adds optional fields only; MAJOR is any other change.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "ProjectId": {
+      "description": "Project id: a random version 4 UUID.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "Id": {
+      "description": "Content id, unique within the document: a lowercase letter and 9 lowercase letters or digits.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "EntryRef": {
+      "description": "Id of a lesson or quiz entry in this document.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "QuizRef": {
+      "description": "Id of a quiz entry in this document.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "CategoryRef": {
+      "description": "Id of a category item in the same block.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "CustomBlockRef": {
+      "description": "Id of a custom-block document in this document.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "ExternalId": {
+      "description": "Content id of an object in another container.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{9}$"
+    },
+    "ExternalRef": {
+      "description": "Reference to an object owned by another container (library, question bank, template); never reported as missing.",
+      "type": "object",
+      "properties": {
+        "containerId": { "$ref": "#/$defs/ProjectId" },
+        "id": { "$ref": "#/$defs/ExternalId" }
+      },
+      "required": ["containerId", "id"],
+      "unevaluatedProperties": false
+    },
+    "Ext": {
+      "description": "Extension data, keyed by reverse-DNS namespace; each value is any JSON and is kept verbatim.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$" }
+    },
+    "RichText": {
+      "description": "An HTML fragment.",
+      "type": "string"
+    },
+    "Language": {
+      "description": "BCP 47 language tag.",
+      "type": "string",
+      "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$"
+    },
+    "Token": {
+      "description": "A lowercase kebab-case name.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "Color": {
+      "type": "string",
+      "pattern": "^#[0-9a-f]{6}$"
+    },
+    "Timestamp": {
+      "description": "RFC 3339 date and time in UTC.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "Url": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^https?://[^\\s]+$"
+    },
+    "Percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "StorageKey": {
+      "description": "Key of a media file in the project container.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "VariantKey": {
+      "description": "Key of an optimised variant of a media file in the project container.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "MediaKeyRef": {
+      "description": "Storage key of an entry in the media index.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "MediaEntry": {
+      "description": "One media file in the media index; the bytes live in the project container.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "key": { "$ref": "#/$defs/StorageKey" },
+        "variantKey": { "$ref": "#/$defs/VariantKey" },
+        "mimeType": {
+          "type": "string",
+          "pattern": "^[a-z]+/[a-z0-9.+-]+$"
+        },
+        "width": {
+          "description": "Original width in pixels.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "description": "Original height in pixels.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": { "enum": ["upload", "ai", "stock", "default"] },
+        "aiPrompt": {
+          "description": "Reserved (AI provenance): the prompt that generated this file.",
+          "type": "string"
+        },
+        "licence": {
+          "description": "Reserved: licence of the file, an SPDX id where one exists.",
+          "type": "string"
+        },
+        "attribution": {
+          "description": "Reserved: attribution text the licence requires.",
+          "type": "string"
+        },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "key", "source"],
+      "unevaluatedProperties": false
+    },
+    "MediaRef": {
+      "description": "Use of a media file from the media index.",
+      "type": "object",
+      "properties": {
+        "key": { "$ref": "#/$defs/MediaKeyRef" },
+        "alt": {
+          "description": "Alternative text; empty marks the image as decorative.",
+          "type": "string"
+        }
+      },
+      "required": ["key"],
+      "unevaluatedProperties": false
+    },
+    "Author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "avatar": { "$ref": "#/$defs/MediaRef" }
+      },
+      "required": ["name"],
+      "unevaluatedProperties": false
+    },
+    "LabelSetRef": {
+      "description": "Learner-facing strings: the built-in set for a language, or a set owned by another container.",
+      "type": "object",
+      "properties": {
+        "language": { "$ref": "#/$defs/Language" },
+        "set": { "$ref": "#/$defs/ExternalRef" }
+      },
+      "required": ["language"],
+      "unevaluatedProperties": false
+    },
+    "PublishSettings": {
+      "description": "Default export settings.",
+      "type": "object",
+      "properties": {
+        "standard": { "enum": ["scorm12", "scorm2004", "xapi", "cmi5", "web"] },
+        "scorm2004Edition": { "enum": ["2nd", "3rd", "4th"] },
+        "statusWording": {
+          "description": "Status the LMS records when the course is done, and while it is not.",
+          "type": "object",
+          "properties": {
+            "done": { "enum": ["completed", "passed"] },
+            "notDone": { "enum": ["incomplete", "failed"] }
+          },
+          "required": ["done", "notDone"],
+          "unevaluatedProperties": false
+        },
+        "passingScore": {
+          "description": "Score in percent at or above which the learner passes.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "tracking": {
+          "description": "What decides completion: the completion rule, or the result of one quiz.",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": { "kind": { "const": "completion" } },
+              "required": ["kind"],
+              "unevaluatedProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "quiz" },
+                "quiz": { "$ref": "#/$defs/QuizRef" }
+              },
+              "required": ["kind", "quiz"],
+              "unevaluatedProperties": false
+            }
+          ]
+        },
+        "manifestIdentifier": {
+          "description": "Base identifier of the SCORM manifest.",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$"
+        },
+        "activityId": {
+          "description": "xAPI and cmi5 activity IRI.",
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$"
+        },
+        "lom": { "$ref": "#/$defs/LomMetadata" }
+      },
+      "required": ["standard"],
+      "unevaluatedProperties": false
+    },
+    "LomMetadata": {
+      "description": "Learning Object Metadata written into the package manifest.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "language": { "$ref": "#/$defs/Language" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Entry": {
+      "description": "One entry of the course outline.",
+      "oneOf": [
+        { "$ref": "#/$defs/SectionEntry" },
+        { "$ref": "#/$defs/LessonEntry" },
+        { "$ref": "#/$defs/QuizEntry" }
+      ]
+    },
+    "SectionEntry": {
+      "description": "Section header: groups the lessons below it and holds no blocks.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "section" },
+        "title": { "type": "string" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "title"],
+      "unevaluatedProperties": false
+    },
+    "LessonEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "lesson" },
+        "title": { "type": "string" },
+        "description": { "$ref": "#/$defs/RichText" },
+        "icon": { "$ref": "#/$defs/Token" },
+        "headerImage": { "$ref": "#/$defs/MediaRef" },
+        "author": {
+          "description": "Author shown on this lesson instead of the course authors.",
+          "$ref": "#/$defs/Author"
+        },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Block" }
+        },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "title", "blocks"],
+      "unevaluatedProperties": false
+    },
+    "QuizEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "quiz" },
+        "title": { "type": "string" },
+        "description": { "$ref": "#/$defs/RichText" },
+        "icon": { "$ref": "#/$defs/Token" },
+        "headerImage": { "$ref": "#/$defs/MediaRef" },
+        "author": { "$ref": "#/$defs/Author" },
+        "questions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Question" }
+        },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "title", "questions"],
+      "unevaluatedProperties": false
+    },
+    "Block": {
+      "description": "Block envelope. The shape of variantSettings and items per variant is defined with each block.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "category": {
+          "enum": [
+            "text",
+            "statement",
+            "quote",
+            "list",
+            "image",
+            "gallery",
+            "multimedia",
+            "interactive",
+            "knowledge-check",
+            "chart",
+            "divider",
+            "code",
+            "custom",
+            "survey"
+          ]
+        },
+        "variant": { "$ref": "#/$defs/Token" },
+        "settings": { "$ref": "#/$defs/BlockSettings" },
+        "variantSettings": { "$ref": "#/$defs/VariantSettings" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Item" }
+        },
+        "question": { "$ref": "#/$defs/Question" },
+        "customBlock": { "$ref": "#/$defs/CustomBlockRef" },
+        "media": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MediaRef" }
+        },
+        "link": {
+          "description": "Link to a shared block template or question-bank question.",
+          "type": "object",
+          "properties": {
+            "kind": { "enum": ["template", "bankQuestion"] },
+            "ref": { "$ref": "#/$defs/ExternalRef" }
+          },
+          "required": ["kind", "ref"],
+          "unevaluatedProperties": false
+        },
+        "createdAt": { "$ref": "#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "category", "variant"],
+      "unevaluatedProperties": false
+    },
+    "VariantSettings": {
+      "description": "Settings of one block variant, keyed by camelCase name; each block's own schema narrows them.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" }
+    },
+    "BlockSettings": {
+      "description": "Settings common to every block.",
+      "type": "object",
+      "properties": {
+        "padding": {
+          "type": "object",
+          "properties": {
+            "top": { "type": "integer", "minimum": 0, "maximum": 400 },
+            "bottom": { "type": "integer", "minimum": 0, "maximum": 400 },
+            "linked": { "type": "boolean" }
+          },
+          "required": ["top", "bottom"],
+          "unevaluatedProperties": false
+        },
+        "background": { "$ref": "#/$defs/Background" },
+        "cardStyle": { "$ref": "#/$defs/Token" },
+        "contentWidth": { "enum": ["narrow", "medium", "wide", "full"] },
+        "accentColor": { "$ref": "#/$defs/Color" },
+        "textContrast": { "enum": ["auto", "light", "dark"] },
+        "entranceAnimation": { "type": "boolean" },
+        "narration": { "$ref": "#/$defs/Narration" },
+        "connectToNext": {
+          "description": "Show this block and the next one in the same step (microlearning).",
+          "type": "boolean"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "Background": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "none" } },
+          "required": ["kind"],
+          "unevaluatedProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "color" },
+            "color": { "$ref": "#/$defs/Color" }
+          },
+          "required": ["kind", "color"],
+          "unevaluatedProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "image" },
+            "image": { "$ref": "#/$defs/MediaRef" },
+            "overlay": { "enum": ["light", "dark"] },
+            "opacity": { "$ref": "#/$defs/Percent" }
+          },
+          "required": ["kind", "image"],
+          "unevaluatedProperties": false
+        }
+      ]
+    },
+    "Narration": {
+      "description": "Audio narration of a block (AI provenance is on the media entry).",
+      "type": "object",
+      "properties": {
+        "audio": { "$ref": "#/$defs/MediaRef" },
+        "transcript": { "$ref": "#/$defs/RichText" }
+      },
+      "required": ["audio"],
+      "unevaluatedProperties": false
+    },
+    "Item": {
+      "description": "One record inside a block.",
+      "oneOf": [
+        { "$ref": "#/$defs/ContentItem" },
+        { "$ref": "#/$defs/MarkerItem" },
+        { "$ref": "#/$defs/StepItem" },
+        { "$ref": "#/$defs/FlashcardItem" },
+        { "$ref": "#/$defs/ButtonItem" },
+        { "$ref": "#/$defs/CategoryItem" },
+        { "$ref": "#/$defs/SortingItem" }
+      ]
+    },
+    "ContentItem": {
+      "description": "Title, text and optional media: accordion and tab panels, timeline events, list entries, gallery images.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "content" },
+        "title": { "$ref": "#/$defs/RichText" },
+        "text": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind"],
+      "unevaluatedProperties": false
+    },
+    "MarkerItem": {
+      "description": "Marker on an image, placed by percentage of the image size.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "marker" },
+        "x": { "$ref": "#/$defs/Percent" },
+        "y": { "$ref": "#/$defs/Percent" },
+        "icon": { "$ref": "#/$defs/Token" },
+        "title": { "$ref": "#/$defs/RichText" },
+        "text": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "x", "y"],
+      "unevaluatedProperties": false
+    },
+    "StepItem": {
+      "description": "Process card: an introduction, a numbered step or a summary.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "step" },
+        "role": { "enum": ["intro", "step", "summary"] },
+        "hidden": { "type": "boolean" },
+        "title": { "$ref": "#/$defs/RichText" },
+        "text": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "role"],
+      "unevaluatedProperties": false
+    },
+    "FlashcardItem": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "flashcard" },
+        "front": { "$ref": "#/$defs/CardSide" },
+        "back": { "$ref": "#/$defs/CardSide" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "front", "back"],
+      "unevaluatedProperties": false
+    },
+    "CardSide": {
+      "type": "object",
+      "properties": {
+        "text": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" }
+      },
+      "unevaluatedProperties": false
+    },
+    "ButtonItem": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "button" },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "$ref": "#/$defs/RichText" },
+        "destination": { "$ref": "#/$defs/Destination" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "label", "destination"],
+      "unevaluatedProperties": false
+    },
+    "Destination": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "lesson" },
+            "entry": { "$ref": "#/$defs/EntryRef" }
+          },
+          "required": ["kind", "entry"],
+          "unevaluatedProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "url" },
+            "url": { "$ref": "#/$defs/Url" }
+          },
+          "required": ["kind", "url"],
+          "unevaluatedProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "exit" } },
+          "required": ["kind"],
+          "unevaluatedProperties": false
+        }
+      ]
+    },
+    "CategoryItem": {
+      "description": "Sorting-activity category.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "category" },
+        "title": { "type": "string", "minLength": 1 },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "title"],
+      "unevaluatedProperties": false
+    },
+    "SortingItem": {
+      "description": "Sorting-activity card and the category it belongs in.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "sorting" },
+        "text": { "type": "string", "minLength": 1 },
+        "category": { "$ref": "#/$defs/CategoryRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "text", "category"],
+      "unevaluatedProperties": false
+    },
+    "Question": {
+      "oneOf": [
+        { "$ref": "#/$defs/SingleChoiceQuestion" },
+        { "$ref": "#/$defs/MultipleResponseQuestion" },
+        { "$ref": "#/$defs/FillInQuestion" },
+        { "$ref": "#/$defs/MatchingQuestion" }
+      ]
+    },
+    "SingleChoiceQuestion": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "single-choice" },
+        "prompt": { "$ref": "#/$defs/RichText" },
+        "answers": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/Answer" }
+        },
+        "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "correctFeedback": { "$ref": "#/$defs/RichText" },
+        "incorrectFeedback": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "prompt", "answers"],
+      "unevaluatedProperties": false
+    },
+    "MultipleResponseQuestion": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "multiple-response" },
+        "prompt": { "$ref": "#/$defs/RichText" },
+        "answers": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/Answer" }
+        },
+        "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "correctFeedback": { "$ref": "#/$defs/RichText" },
+        "incorrectFeedback": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "prompt", "answers"],
+      "unevaluatedProperties": false
+    },
+    "FillInQuestion": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "fill-in" },
+        "prompt": { "$ref": "#/$defs/RichText" },
+        "acceptedAnswers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "correctFeedback": { "$ref": "#/$defs/RichText" },
+        "incorrectFeedback": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "prompt", "acceptedAnswers"],
+      "unevaluatedProperties": false
+    },
+    "MatchingQuestion": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "matching" },
+        "prompt": { "$ref": "#/$defs/RichText" },
+        "pairs": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/MatchPair" }
+        },
+        "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "correctFeedback": { "$ref": "#/$defs/RichText" },
+        "incorrectFeedback": { "$ref": "#/$defs/RichText" },
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "prompt", "pairs"],
+      "unevaluatedProperties": false
+    },
+    "FeedbackMode": {
+      "description": "Feedback by correct or incorrect, or per answer choice.",
+      "enum": ["correctness", "perAnswer"]
+    },
+    "Answer": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "text": { "$ref": "#/$defs/RichText" },
+        "correct": { "type": "boolean" },
+        "feedback": { "$ref": "#/$defs/RichText" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "text", "correct"],
+      "unevaluatedProperties": false
+    },
+    "MatchPair": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "prompt": { "$ref": "#/$defs/RichText" },
+        "match": { "$ref": "#/$defs/RichText" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "prompt", "match"],
+      "unevaluatedProperties": false
+    },
+    "CustomBlockDocument": {
+      "description": "Placeholder for a free-form custom-block document; its object tree is defined with custom blocks.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id"],
+      "unevaluatedProperties": false
+    }
+  }
+}
