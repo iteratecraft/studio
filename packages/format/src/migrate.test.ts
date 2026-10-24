@@ -72,16 +72,45 @@ describe("migrate", () => {
     expect(result.ok && result.document.schemaVersion).toBe("1.2");
   });
 
+  test.each([
+    ["an older MINOR than the step's", "1.0", "1.1"],
+    ["a newer MINOR than the step's", "1.1", "1.0"],
+  ])("takes the step that leaves the MAJOR from %s", (_name, version, from) => {
+    const toTwo: Migration = { from, to: "2.0", up: (d) => ({ ...d, moved: true }) };
+    expect(migrate({ schemaVersion: version, title: "t" }, [toTwo], "2.1")).toEqual({
+      ok: true,
+      document: { schemaVersion: "2.1", title: "t", moved: true },
+    });
+  });
+
+  test("prefers the step from the document's exact version", () => {
+    const steps: Migration[] = [
+      { from: "1.0", to: "2.0", up: (d) => ({ ...d, via: "1.0" }) },
+      { from: "1.1", to: "2.0", up: (d) => ({ ...d, via: "1.1" }) },
+    ];
+    const result = migrate({ schemaVersion: "1.1" }, steps, "2.0");
+    expect(result.ok && result.document.via).toBe("1.1");
+  });
+
+  test("relabels within the target's MAJOR rather than take a step past it", () => {
+    const toTwo: Migration = { from: "1.1", to: "2.0", up: (d) => d };
+    expect(migrate({ schemaVersion: "1.0" }, [toTwo], "1.2")).toEqual({
+      ok: true,
+      document: { schemaVersion: "1.2" },
+    });
+  });
+
   test("returns a document at or above the target as it is", () => {
     const newer = { schemaVersion: "1.4", future: true };
     expect(migrate(newer)).toEqual({ ok: true, document: newer });
   });
 
-  test("reports a version with no migration path", () => {
-    expect(migrate({ schemaVersion: "0.7" }, [renameName])).toEqual({
+  test("reports a MAJOR with no step out of it", () => {
+    const toThree: Migration = { from: "2.0", to: "3.0", up: (d) => d };
+    expect(migrate({ schemaVersion: "1.3" }, [toThree], "3.0")).toEqual({
       ok: false,
       errors: [
-        { path: "/schemaVersion", message: "cannot be migrated: no migration from 0.7 to 1.0" },
+        { path: "/schemaVersion", message: "cannot be migrated: no migration from 1.3 to 3.0" },
       ],
     });
   });

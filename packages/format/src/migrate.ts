@@ -39,8 +39,9 @@ export type MigrateResult =
   | { ok: false; errors: ValidationError[] };
 
 /**
- * Brings a document up to `target` by applying `migrations` in order. A document from an older MINOR
- * of the target's MAJOR needs no step: MINOR versions only add optional fields, so it is relabelled.
+ * Brings a document up to `target` by applying `migrations` in order. MINOR versions only add
+ * optional fields, so a document with no step from its exact version takes the step that leaves its
+ * MAJOR, whichever MINOR that step was written from; within the target's MAJOR it is relabelled.
  * A document at or above `target` is returned as it is. The input is never changed.
  */
 export function migrate(
@@ -59,12 +60,17 @@ export function migrate(
   let current = document;
   while (compareVersions(version, goal) < 0) {
     const label = version.join(".");
-    const step = migrations.find((m) => m.from === label);
-    if (!step) {
-      if (version[0] === goal[0])
-        return { ok: true, document: { ...current, schemaVersion: target } };
-      return fail(`cannot be migrated: no migration from ${label} to ${target}`);
+    const [major] = version;
+    const exact = migrations.find((m) => m.from === label);
+    if (!exact && major === goal[0]) {
+      return { ok: true, document: { ...current, schemaVersion: target } };
     }
+    const step =
+      exact ??
+      migrations.find(
+        (m) => parseVersion(m.from)?.[0] === major && (parseVersion(m.to)?.[0] ?? major) > major,
+      );
+    if (!step) return fail(`cannot be migrated: no migration from ${label} to ${target}`);
     const next = parseVersion(step.to);
     if (!next || compareVersions(next, version) <= 0 || compareVersions(next, goal) > 0) {
       throw new Error(`Migration ${step.from} -> ${step.to} does not move forward to ${target}`);

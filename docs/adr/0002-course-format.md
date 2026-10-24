@@ -22,7 +22,12 @@ valid in every standard.
 - The format is defined in **JSON Schema 2020-12**; every schema file declares
   `"$schema": "https://json-schema.org/draft/2020-12/schema"`. TypeScript types are generated from it.
 - Schemas are **closed**: `unevaluatedProperties: false` on every object, except the extension
-  namespace below.
+  namespace `ext` below and, for now, a block's `variantSettings`.
+- `variantSettings` holds the settings of one block variant: camelCase keys, any JSON. It stays open
+  until that variant's block schema exists, because each block defines its own settings in its BLK
+  epic and the block envelope cannot list them before then. Until then the schema does not catch a
+  mistyped setting there. Closing it narrows what validates, so every variant's settings must be
+  closed before the format's first release; after that, closing one is a MAJOR change.
 - JSON Schema cannot check cross-references, so `packages/format` runs a second validation pass in code
   (reference integrity, below). Both passes report errors with a JSON Pointer path.
 
@@ -83,7 +88,8 @@ valid in every standard.
   app, or the plugin that owns a namespace, must expect a dangling or stale reference in its own data:
   it reports it as a validation warning (with its JSON Pointer path) and drops the reference, never
   fails the document.
-- Unknown properties outside `ext` are a validation error, except the newer-MINOR case above.
+- Unknown properties outside `ext` are a validation error, except the newer-MINOR case above and an
+  open `variantSettings` (Schema dialect).
 
 ### Reference integrity
 

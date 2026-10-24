@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "vitest";
 import { generateTypes, readSchema, TYPES_FILE } from "./generate.ts";
 
@@ -32,6 +33,19 @@ test("maps each schema form to its TypeScript type", () => {
   expect(source).toContain("export type Pick = Name | 1;");
   expect(source).toContain("export type Flag = boolean;");
   expect(source).toContain("export type Count = number;");
+});
+
+test("ADR-0002 names every open object of the course schema as an exception to closed schemas", () => {
+  const adr = readFileSync(
+    join(import.meta.dirname, "..", "..", "docs", "adr", "0002-course-format.md"),
+    "utf8",
+  );
+  const closedRule = adr.match(/^- Schemas are \*\*closed\*\*[^\n]*(\n {2}[^\n]*)*/mu)?.[0] ?? "";
+  const open = Object.entries(readSchema().$defs as Record<string, Record<string, unknown>>)
+    .filter(([, s]) => s.type === "object" && s.unevaluatedProperties !== false)
+    .map(([name]) => `\`${name[0]?.toLowerCase()}${name.slice(1)}\``);
+  expect(open).toEqual(["`ext`", "`variantSettings`"]);
+  for (const name of open) expect([name, closedRule.includes(name)]).toEqual([name, true]);
 });
 
 test("refuses a schema form it cannot type", () => {
