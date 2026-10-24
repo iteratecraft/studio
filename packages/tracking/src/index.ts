@@ -1,5 +1,6 @@
 // Tracking core and resume codec (STD-01): standard-neutral status, write schedule and adapter
-// interface, a debug adapter, and the resume payload format every standard's adapter stores.
+// interface, a debug adapter, the resume payload format every standard's adapter stores, and the
+// SCORM 1.2 adapter (STD-04).
 export type {
   AdapterCall,
   KeyValueStorage,
@@ -24,6 +25,14 @@ export {
   RESUME_CAPS,
   RESUME_FORMAT,
 } from "./resume.js";
+export type { Scorm12AdapterOptions, Scorm12Api, ScormWindow } from "./scorm12.js";
+export {
+  API_SEARCH_DEPTH,
+  createScorm12Adapter,
+  findScorm12Api,
+  ScormError,
+  timespan,
+} from "./scorm12.js";
 export type {
   Clock,
   Completion,

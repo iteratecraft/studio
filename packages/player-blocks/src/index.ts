@@ -2,7 +2,7 @@
 // this entry gives builders and tests the package contract: the data file, the index page, the
 // chunk loader, lesson addresses, the progress engine and the player lifecycle.
 export type { PlayerRegistry, TestHooks } from "./boot.js";
-export type { CourseData } from "./data.js";
+export type { CourseData, PlayerFiles } from "./data.js";
 export {
   CHUNK_DIR,
   CHUNK_NAME,

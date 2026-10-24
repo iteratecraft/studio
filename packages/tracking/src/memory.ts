@@ -72,6 +72,7 @@ export function createMemoryAdapter(options: MemoryAdapterOptions = {}): MemoryA
     },
     reportStatus(status) {
       log("reportStatus", status);
+      return true;
     },
     reportInteraction(interaction) {
       log("reportInteraction", interaction);

@@ -24,6 +24,7 @@
   "devDependencies": {
     "@course-suite/exporters": "workspace:*",
     "@course-suite/format": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "vitest": "catalog:"

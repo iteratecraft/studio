@@ -1,10 +1,13 @@
 // Browser entry of the Blocks player, built as one classic script (ADR-0003). It creates the
 // registry the data file and chunks register on, loads the course data with a 10-second timeout
-// (rise.md rule 20), opens the tracking session and starts the shell. A part that fails to load
+// (rise.md rule 20), opens the tracking session with the LMS the package was published for and
+// starts the shell. A part that fails to load
 // shows the error screen with Retry; the error is logged to the console and sent nowhere (ADR-0004).
 import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
   createMemoryAdapter,
+  createScorm12Adapter,
+  findScorm12Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
@@ -38,7 +41,7 @@ export interface TestHooks {
   timeoutMs?: number;
   /** Where the debug adapter keeps the saved state, so that a reload resumes. */
   storage?: KeyValueStorage;
-  /** Set by the player: the debug adapter, with every call it received. */
+  /** Set by the player when no LMS is connected: the debug adapter, with every call it received. */
   adapter?: MemoryAdapter;
   /** Set by the player: every player event so far. */
   events?: TimedEvent[];
@@ -130,20 +133,21 @@ function boot(): void {
       }
       labels = resolveLabels(data.labels);
       document.documentElement.lang = data.course.sourceLanguage ?? data.labels?.language ?? "en";
-      const adapter = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
+      // The standard is fixed at publish (standards.md P-1). Without an LMS interface a Blocks
+      // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
+      // holds the session in memory, and only a test hands it a storage.
+      const api = data.standard === "scorm12" ? findScorm12Api(window) : undefined;
+      const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
       return startRuntime({
         course: data.course,
-        // The debug adapter until the standard adapters land (M1-19 on). It keeps the session in
-        // memory, so web output stores nothing on the device (ADR-0005).
-        adapter,
-        // shortcut: the last edit time stands in for the package version until the package builder
-        // (M1-16) writes one into the data file.
-        packageVersion: data.course.updatedAt ?? "",
+        adapter: api ? createScorm12Adapter(api) : memory,
+        // A preview has no package version; the last edit time stands in for it.
+        packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
         // The strictest cap, so a preview warns as soon as a SCORM 1.2 package would.
         resumeCap: RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
-          hooks.adapter = adapter;
+          if (!api) hooks.adapter = memory;
           const events: TimedEvent[] = [];
           hooks.events = events;
           runtime.on((event) => events.push(event));
