@@ -340,15 +340,12 @@ test("[standards:X-5] a statement request the LRS never answers is given up: the
       await page.getByRole("link", { name: "Begin course" }).click();
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("Why compost");
       await expect.poll(() => lrs.statements.length).toBe(2);
-      // The LRS takes the next statement request and never answers it.
+      // The LRS takes every statement request and never answers it, retries too, so the banner
+      // stays up however far the page clock has run before the check (time flows between calls).
       let held = 0;
-      await page.route(
-        "**/xapi/statements**",
-        () => {
-          held++;
-        },
-        { times: 1 },
-      );
+      await page.route("**/xapi/statements**", () => {
+        held++;
+      });
       await outline(page, "Greens and browns").click();
       await expect.poll(() => held).toBe(1);
       const banner = page
@@ -357,8 +354,10 @@ test("[standards:X-5] a statement request the LRS never answers is given up: the
       await expect(banner).toHaveCount(0);
       await page.clock.runFor(REQUEST_TIMEOUT_MS);
       await expect(banner).toBeVisible();
-      // The quick retry goes through, with what was queued behind it.
-      await page.clock.runFor(1_000);
+      // The LRS answers again: the retry still held runs out of time, and the next one goes
+      // through with what was queued behind it.
+      await page.unroute("**/xapi/statements**");
+      await page.clock.runFor(REQUEST_TIMEOUT_MS + 1_000);
       await expect(banner).toHaveCount(0);
       await expect.poll(() => lrs.statements.length).toBe(4);
     },
