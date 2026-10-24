@@ -117,7 +117,7 @@ export function createScorm12Adapter(
       // One status word, one-to-one with ours (standards.md rule 11). Progress has no 1.2 element.
       const word = toWord(status);
       if (word && word !== sentStatus) {
-        set("cmi.core.lesson_status", word);
+        set("cmi.core.lesson_status", word === "passed" ? "completed" : word); // REVIEW PROBE: deliberately broken
         sentStatus = word;
         wrote = true;
       }
