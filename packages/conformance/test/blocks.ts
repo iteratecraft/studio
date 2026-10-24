@@ -9,6 +9,7 @@ import {
   type Exporter,
   type Standard,
   scorm12Exporter,
+  scorm2004Exporter,
   webExporter,
   xapiExporter,
 } from "@course-suite/exporters";
@@ -36,6 +37,9 @@ const standIn = (key: string) =>
       ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3"/></svg>\n'
       : `stand-in for ${key}\n`,
   );
+
+/** The standards the harness runs every course in. */
+export type ScormStandard = "scorm12" | "scorm2004";
 
 /**
  * Every course of the Blocks conformance corpus (M1-28) when the test-courses checkout is present,
@@ -89,11 +93,19 @@ export async function blocksZip(
 }
 
 /** Builds and reads back a SCORM 1.2 package of `course`. */
-export async function scorm12Package(
+export const scorm12Package = (course: Course, media?: TestCourse["media"]) =>
+  scormPackage(course, scorm12Exporter(), media);
+
+/** Builds and reads back a SCORM 2004 4th edition package of `course`. */
+export const scorm2004Package = (course: Course, media?: TestCourse["media"]) =>
+  scormPackage(course, scorm2004Exporter(), media);
+
+async function scormPackage(
   course: Course,
+  exporter: Exporter,
   media?: TestCourse["media"],
 ): Promise<CoursePackage> {
-  const read = readPackage(await blocksZip(course, scorm12Exporter(), media));
+  const read = readPackage(await blocksZip(course, exporter, media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }

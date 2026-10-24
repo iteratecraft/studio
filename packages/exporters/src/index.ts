@@ -1,4 +1,4 @@
-// Package builder and exporters (STD-02, STD-04, STD-06, STD-07): one pipeline that turns a course into a validated,
+// Package builder and exporters (STD-02, STD-04, STD-05, STD-06, STD-07): one pipeline that turns a course into a validated,
 // reproducible package for a standard, with one exporter plug-in per standard, and the Blocks player
 // files every Blocks package ships (M1-17).
 export { BLOCKS_LAUNCH_PAGE, blocksPlayer, webExporter } from "./blocks.js";
@@ -29,8 +29,10 @@ export {
   SCORM12_MANIFEST,
   SCORM12_SCHEMAS,
   scorm12Exporter,
-  scorm12Identifier,
+  scormIdentifier,
 } from "./scorm12.js";
+export type { Scorm2004Options } from "./scorm2004.js";
+export { SCORM2004_METADATA, SCORM2004_SCHEMAS, scorm2004Exporter } from "./scorm2004.js";
 export type { XapiOptions } from "./xapi.js";
 export { TINCAN_XML, xapiExporter } from "./xapi.js";
 export { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "./zip.js";
