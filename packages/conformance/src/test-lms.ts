@@ -146,13 +146,20 @@ document.getElementById("sco").src = config.launch;
 `;
 }
 
+/**
+ * Starts the test LMS. It serves `pkg`'s files under `/package/`; a package without a descriptor,
+ * such as plain web output, is only served.
+ */
 export async function startTestLms(
-  pkg?: CoursePackage,
+  pkg?: CoursePackage | Pick<CoursePackage, "files">,
   options: TestLmsOptions = {},
 ): Promise<TestLms> {
   const lrs = createMemoryLrs();
-  const version = pkg?.descriptor.kind === "scorm" ? pkg.descriptor.manifest.version : undefined;
-  const page = version && pkg ? hostPage(version, pkg.launchHref, options.cmi) : undefined;
+  const scorm = pkg && "descriptor" in pkg && pkg.descriptor.kind === "scorm" ? pkg : undefined;
+  const page =
+    scorm?.descriptor.kind === "scorm"
+      ? hostPage(scorm.descriptor.manifest.version, scorm.launchHref, options.cmi)
+      : undefined;
   const runtimes = new Map<string, string>();
   for (const name of ["scorm12", "scorm2004"] as const) {
     runtimes.set(`/runtime/${name}.js`, fileURLToPath(import.meta.resolve(`scorm-again/${name}`)));
