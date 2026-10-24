@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { fullCourse, minimalCourse } from "../test/courses.js";
+import { fullCourse, minimalCourse, sampleCourse } from "../test/courses.js";
 import { edit } from "../test/edit.js";
 import { openCourse, serializeCourse } from "./open.js";
 
@@ -9,6 +9,7 @@ describe("round trip", () => {
   test.each([
     ["the minimal course", minimalCourse()],
     ["the full course", fullCourse()],
+    ["the player's sample course", sampleCourse()],
   ])("serialise, open, serialise is byte-identical: %s", (_name, course) => {
     const text = serializeCourse(course);
     const opened = openCourse(text);

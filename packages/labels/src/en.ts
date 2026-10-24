@@ -96,10 +96,12 @@ export const english = {
     "status.loading": "Loading",
     "error.loadFailed": "Part of this course could not load: {part}",
     "error.retry": "Retry",
+    "error.partContent": "course content",
 
     "sr.skipToContent": "Skip to the course content",
     "sr.content": "Course content",
     "sr.outline": "Course contents",
+    "sr.lessonNavigation": "Previous and next lesson",
     "sr.progress": "Course progress: {percent}%",
     "sr.lessonDone": "Lesson done",
     "sr.selected": "Selected",

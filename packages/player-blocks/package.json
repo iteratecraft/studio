@@ -8,12 +8,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./boot": "./dist/boot.js",
+    "./player.css": "./src/player.css"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-suite/format": "workspace:*",
+    "@course-suite/labels": "workspace:*"
   },
   "devDependencies": {
     "vitest": "catalog:"
