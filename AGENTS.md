@@ -18,6 +18,8 @@ You are on the **build team**. You implement from the public specs and open stan
   [docs/build-agents.md](docs/build-agents.md).
 - Course fixtures live in the private `iteratecraft/test-courses` repository and follow its
   provenance policy: only packages we authored, ADL/CATAPULT samples and open-source tool output.
+  Clone it into `test-courses/` at the root of studio (git-ignored) to run the corpus tests; without
+  it they skip.
 
 ## Write the least code that fully works
 
