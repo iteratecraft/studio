@@ -55,13 +55,34 @@ export interface TrackingAdapter {
   writeLocation(location: string): void;
   /** Returns true when it wrote anything the standard stores; the core then commits it. */
   reportStatus(status: Status): boolean;
-  reportInteraction(interaction: Interaction): void;
+  /** `question` names the quiz and question by content id, for standards that report them as activities. */
+  reportInteraction(interaction: Interaction, question?: QuestionRef): void;
+  /**
+   * What the learner does, not only the result, for standards that report it (xAPI, cmi5; standards.md
+   * §4.4). Pages and quizzes are named by content id. SCORM adapters leave these out.
+   */
+  reportEntered?(page: string): void;
+  reportLeft?(page: string): void;
+  reportQuiz?(quiz: string, attempt: QuizAttempt): void;
   /** Time in this session so far, in milliseconds. */
   writeSessionTime(ms: number): void;
   /** `normal` when the learner reached the end, otherwise `suspend` (standards.md rule 8). */
   setExit(exit: "normal" | "suspend"): void;
   commit(): void;
   terminate(): void;
+}
+
+/** A question of a quiz, by content ids. */
+export interface QuestionRef {
+  quiz: string;
+  question: string;
+}
+
+/** One scored quiz attempt. */
+export interface QuizAttempt {
+  /** Percent, 0 to 100. */
+  score: number;
+  passed: boolean;
 }
 
 /** Time and timers, injectable so tests control them. */
@@ -81,7 +102,7 @@ const timers = globalThis as unknown as {
 const logError = (error: unknown) =>
   (globalThis as { console?: { error(error: unknown): void } }).console?.error(error);
 
-const systemClock: Clock = {
+export const systemClock: Clock = {
   now: () => Date.now(),
   setTimeout: (callback, ms) => timers.setTimeout(callback, ms),
   clearTimeout: (handle) => timers.clearTimeout(handle),
@@ -91,7 +112,7 @@ export interface TrackerOptions {
   adapter: TrackingAdapter;
   /** The version of the published package, kept with the resume state. */
   packageVersion: string;
-  /** The target's resume cap in characters (`RESUME_CAPS`, or the configured xAPI cap). */
+  /** The target's resume cap in characters (`RESUME_CAPS`). */
   resumeCap: number;
   clock?: Clock;
   /** Wait after the last state change before writing it (standards.md rule 4). Default 500. */
@@ -126,7 +147,13 @@ export interface Tracker {
   /** Reports a status change and commits it (standards.md rule 6). */
   report(change: Partial<Status>): void;
   /** Reports one answered question and commits it. */
-  recordInteraction(interaction: Interaction): void;
+  recordInteraction(interaction: Interaction, question?: QuestionRef): void;
+  /** A page (lesson or quiz) opened, by content id. */
+  entered(page: string): void;
+  /** The page the learner was on closed. */
+  left(page: string): void;
+  /** A quiz attempt was scored. */
+  quizScored(quiz: string, attempt: QuizAttempt): void;
   /**
    * Ends the session in the order of standards.md rule 7. Called while `start` is still pending, it
    * ends the session as soon as it opens. Later calls do nothing.
@@ -234,10 +261,22 @@ export function createTracker(options: TrackerOptions): Tracker {
       if (call(() => adapter.reportStatus(status))) call(() => adapter.commit());
     },
 
-    recordInteraction(interaction) {
+    recordInteraction(interaction, question) {
       if (!active()) return;
-      call(() => adapter.reportInteraction(interaction));
+      call(() => adapter.reportInteraction(interaction, question));
       call(() => adapter.commit());
+    },
+
+    entered(page) {
+      if (active()) call(() => adapter.reportEntered?.(page));
+    },
+
+    left(page) {
+      if (active()) call(() => adapter.reportLeft?.(page));
+    },
+
+    quizScored(quiz, attempt) {
+      if (active()) call(() => adapter.reportQuiz?.(quiz, attempt));
     },
 
     exit,

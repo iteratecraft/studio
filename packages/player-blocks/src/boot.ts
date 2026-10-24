@@ -7,15 +7,19 @@ import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
   createMemoryAdapter,
   createScorm12Adapter,
+  createXapiAdapter,
   findScorm12Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
+  readXapiLaunch,
+  type TrackingAdapter,
 } from "@course-suite/tracking";
 import {
   CHUNK_DIR,
   CHUNK_NAME,
   CHUNK_TIMEOUT_MS,
+  type CourseData,
   DATA_CHUNK,
   DATA_FILE,
   DATA_TIMEOUT_MS,
@@ -133,21 +137,22 @@ function boot(): void {
       }
       labels = resolveLabels(data.labels);
       document.documentElement.lang = data.course.sourceLanguage ?? data.labels?.language ?? "en";
-      // The standard is fixed at publish (standards.md P-1). Without an LMS interface a Blocks
+      // The standard is fixed at publish (standards.md P-1). Without an LMS or LRS a Blocks
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.
-      const api = data.standard === "scorm12" ? findScorm12Api(window) : undefined;
       const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
+      const adapter = connect(data) ?? memory;
       return startRuntime({
         course: data.course,
-        adapter: api ? createScorm12Adapter(api) : memory,
+        adapter,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // The strictest cap, so a preview warns as soon as a SCORM 1.2 package would.
-        resumeCap: RESUME_CAPS.scorm12,
+        // An LRS state document has room; anything else, a preview too, gets the strictest cap
+        // (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2 package would.
+        resumeCap: data.standard === "xapi" ? RESUME_CAPS.xapi : RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
-          if (!api) hooks.adapter = memory;
+          if (adapter === memory) hooks.adapter = memory;
           const events: TimedEvent[] = [];
           hooks.events = events;
           runtime.on((event) => events.push(event));
@@ -164,6 +169,42 @@ function boot(): void {
       });
     })
     .catch(() => status.remove());
+}
+
+/** The adapter for the standard the package was published for, or undefined when none is there. */
+function connect(data: CourseData): TrackingAdapter | undefined {
+  if (data.standard === "scorm12") {
+    const api = findScorm12Api(window);
+    return api && createScorm12Adapter(api);
+  }
+  if (data.standard !== "xapi") return undefined;
+  // The LRS, learner and registration come from the launch link (standards.md X-1).
+  const launch = readXapiLaunch(new URLSearchParams(location.search), data.lrs);
+  if ("error" in launch) {
+    // One console error and no requests; the course runs without reporting.
+    console.error(`xAPI reporting is off. ${launch.error}`);
+    return undefined;
+  }
+  return createXapiAdapter({
+    launch,
+    course: data.course,
+    onConnection: offline,
+    onError: (error) => {
+      console.error(error);
+      notice();
+    },
+  });
+}
+
+/** The offline banner while statements wait to be sent (standards.md X-5); it goes when they are. */
+function offline(online: boolean): void {
+  if (online) {
+    notices.querySelector(".notice-offline")?.remove();
+    return;
+  }
+  notices.replaceChildren(
+    h("div", { class: "notice notice-offline" }, h("p", {}, labels["notice.offline"])),
+  );
 }
 
 /** The save-failed notice: the course goes on, and the learner may dismiss it (standards.md P-20). */

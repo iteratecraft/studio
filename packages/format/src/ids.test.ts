@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { fullCourse } from "../test/courses.js";
-import { newContentId, newProjectId, withNewProjectId } from "./ids.js";
+import { activityIri, newContentId, newProjectId, withNewProjectId } from "./ids.js";
 import type { Schema } from "./validate.js";
 import { courseSchema, validateCourse } from "./validate.js";
 
@@ -55,5 +55,26 @@ describe("project ids", () => {
     expect({ ...copy, id: course.id }).toEqual(course);
     expect(course).toEqual(fullCourse());
     expect(validateCourse(copy)).toEqual([]);
+  });
+});
+
+describe("activity IRIs", () => {
+  test("[standards:E-16] use the author's IRI, or one from the project id, then content ids", () => {
+    const course = fullCourse();
+    expect(activityIri(course)).toBe("https://example.com/courses/workshop-safety");
+    expect(activityIri(course, "quiz000001", "q00000001")).toBe(
+      "https://example.com/courses/workshop-safety/quiz000001/q00000001",
+    );
+    const trailing = {
+      ...course,
+      publish: { standard: "xapi" as const, activityId: "https://example.com/c/" },
+    };
+    expect(activityIri(trailing)).toBe("https://example.com/c/");
+    expect(activityIri(trailing, "lesson0001")).toBe("https://example.com/c/lesson0001");
+    const generated = { ...course, publish: { standard: "xapi" as const } };
+    expect(activityIri(generated)).toBe(`urn:uuid:${course.id}`);
+    expect(activityIri(generated, "lesson0001")).toBe(`urn:uuid:${course.id}/lesson0001`);
+    // A new project id (save as) gives new IRIs; nothing else changes them.
+    expect(activityIri(withNewProjectId(generated))).not.toBe(activityIri(generated));
   });
 });

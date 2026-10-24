@@ -1,6 +1,23 @@
 // Tracking core and resume codec (STD-01): standard-neutral status, write schedule and adapter
 // interface, a debug adapter, the resume payload format every standard's adapter stores, and the
-// SCORM 1.2 adapter (STD-04).
+// SCORM 1.2 adapter (STD-04), and the xAPI adapter with its LRS client (STD-06).
+
+export type {
+  HttpRequest,
+  HttpResponse,
+  Lrs,
+  LrsOptions,
+  StateParams,
+  Transport,
+} from "./lrs.js";
+export {
+  createLrs,
+  LrsError,
+  MAX_QUEUED_STATEMENTS,
+  OFFLINE_RETRY_MS,
+  RETRY_DELAYS_MS,
+  XAPI_VERSION,
+} from "./lrs.js";
 export type {
   AdapterCall,
   KeyValueStorage,
@@ -38,6 +55,8 @@ export type {
   Completion,
   Launch,
   Mode,
+  QuestionRef,
+  QuizAttempt,
   Session,
   Status,
   Success,
@@ -46,3 +65,14 @@ export type {
   TrackingAdapter,
 } from "./tracker.js";
 export { createTracker } from "./tracker.js";
+export type { Agent, LrsSettings, XapiAdapterOptions, XapiLaunch, XapiVerb } from "./xapi.js";
+export {
+  createXapiAdapter,
+  interactionType,
+  isoDuration,
+  readXapiLaunch,
+  response as xapiResponse,
+  XAPI_ACTIVITY_TYPES,
+  XAPI_STATE_ID,
+  XAPI_VERBS,
+} from "./xapi.js";
