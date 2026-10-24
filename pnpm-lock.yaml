@@ -12,6 +12,9 @@ catalogs:
     '@types/node':
       specifier: 24.19.1
       version: 24.19.1
+    '@xmldom/xmldom':
+      specifier: 0.9.12
+      version: 0.9.12
     turbo:
       specifier: 2.11.7
       version: 2.11.7
@@ -60,7 +63,7 @@ importers:
   packages/conformance:
     dependencies:
       '@xmldom/xmldom':
-        specifier: 0.9.12
+        specifier: 'catalog:'
         version: 0.9.12
       playwright-core:
         specifier: 1.64.0
@@ -69,6 +72,9 @@ importers:
         specifier: 3.4.6
         version: 3.4.6
     devDependencies:
+      '@course-suite/exporters':
+        specifier: workspace:*
+        version: link:../exporters
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
@@ -83,7 +89,17 @@ importers:
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
 
   packages/exporters:
+    dependencies:
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
+      '@xmldom/xmldom':
+        specifier: 'catalog:'
+        version: 0.9.12
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
       vitest:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))

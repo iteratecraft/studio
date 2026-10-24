@@ -17,11 +17,12 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@xmldom/xmldom": "0.9.12",
+    "@xmldom/xmldom": "catalog:",
     "playwright-core": "1.64.0",
     "scorm-again": "3.4.6"
   },
   "devDependencies": {
+    "@course-suite/exporters": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
