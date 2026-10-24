@@ -1,7 +1,18 @@
 // Tracking core and resume codec (STD-01): standard-neutral status, write schedule and adapter
 // interface, a debug adapter, the resume payload format every standard's adapter stores, and the
-// SCORM 1.2 adapter (STD-04), and the xAPI adapter with its LRS client (STD-06).
+// SCORM 1.2 adapter (STD-04), the xAPI adapter with its LRS client (STD-06) and the cmi5 adapter
+// (STD-07).
 
+export type { Cmi5Adapter, Cmi5AdapterOptions, Cmi5Launch, Cmi5Verb, MoveOn } from "./cmi5.js";
+export {
+  CMI5_IRIS,
+  CMI5_LAUNCH_DATA,
+  CMI5_PREFERENCES,
+  CMI5_VERBS,
+  createCmi5Adapter,
+  MOVE_ON,
+  readCmi5Launch,
+} from "./cmi5.js";
 export type {
   HttpRequest,
   HttpResponse,

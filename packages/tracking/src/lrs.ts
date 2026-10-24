@@ -62,6 +62,8 @@ export interface Lrs {
   connect(): Promise<void>;
   /** A state document, or undefined when there is none. Retried like a send; throws `LrsError`. */
   getState(params: StateParams): Promise<string | undefined>;
+  /** An agent profile document (agent, profileId), read like a state document. */
+  getAgentProfile(params: StateParams): Promise<string | undefined>;
   /** Queues a statement; it is sent after every statement queued before it. */
   send(statement: object): void;
   /** Queues a state document; a later write of the same document replaces a pending one. */
@@ -74,7 +76,7 @@ export interface Lrs {
 export type StateParams = Record<string, string>;
 
 // No DOM typings in this package; fetch is global in browsers and Node.
-const globalFetch: Transport = (url, request) =>
+export const globalFetch: Transport = (url, request) =>
   (globalThis as unknown as { fetch: Transport }).fetch(url, {
     ...request,
     cache: "no-store",
@@ -199,6 +201,25 @@ export function createLrs(options: LrsOptions): Lrs {
     ];
   }
 
+  /** A document of the state or agent profile resource; undefined when there is none (404). */
+  async function read(resource: string, params: StateParams): Promise<string | undefined> {
+    for (let failed = 0; ; ) {
+      const [outcome, response] = await request(`${resource}?${query(params)}`, {
+        method: "GET",
+        headers: headers(false),
+      });
+      if (outcome === "sent" && response) return response.text();
+      if (response?.status === 404) return undefined;
+      if (outcome === "refused" || ++failed > RETRY_DELAYS_MS.length) {
+        throw new LrsError(
+          response?.status,
+          `The LRS document ${resource} could not be read: ${response?.status ?? "no answer"}`,
+        );
+      }
+      await wait(failed);
+    }
+  }
+
   return {
     get version() {
       return version;
@@ -220,23 +241,9 @@ export function createLrs(options: LrsOptions): Lrs {
       }
     },
 
-    async getState(params) {
-      for (let failed = 0; ; ) {
-        const [outcome, response] = await request(`activities/state?${query(params)}`, {
-          method: "GET",
-          headers: headers(false),
-        });
-        if (outcome === "sent" && response) return response.text();
-        if (response?.status === 404) return undefined;
-        if (outcome === "refused" || ++failed > RETRY_DELAYS_MS.length) {
-          throw new LrsError(
-            response?.status,
-            `The LRS state could not be read: ${response?.status ?? "no answer"}`,
-          );
-        }
-        await wait(failed);
-      }
-    },
+    getState: (params) => read("activities/state", params),
+
+    getAgentProfile: (params) => read("agents/profile", params),
 
     send(statement) {
       if (closed) return;
