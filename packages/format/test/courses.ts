@@ -283,3 +283,182 @@ export function fullCourse(): Course {
     ext: { "org.example.plugin": { settings: { id: "lesson0001" }, list: [1, "two", null] } },
   };
 }
+
+/**
+ * A small course for the player: a cover, two sections, lessons with the walking-skeleton blocks
+ * (text, heading, image, continue, knowledge checks) and a quiz entry. Its images are SVG files the
+ * player's dev harness writes next to it.
+ */
+export function sampleCourse(): Course {
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "Composting at home",
+    description: "<p>Turn kitchen and garden waste into <strong>rich soil</strong>.</p>",
+    authors: [{ name: "Sam Example" }],
+    cover: { key: "cover.svg", alt: "A garden compost bin beside a vegetable bed" },
+    labelSet: { language: "en" },
+    sourceLanguage: "en",
+    entries: [
+      { id: "sectbasics", kind: "section", title: "The basics" },
+      {
+        id: "lessonwhat",
+        kind: "lesson",
+        title: "What compost is",
+        description: "<p>Why a heap turns waste into soil.</p>",
+        blocks: [
+          {
+            id: "blkheading",
+            category: "text",
+            variant: "heading",
+            items: [{ id: "itmheading", kind: "content", title: "Waste becomes soil" }],
+          },
+          {
+            id: "blkparagrp",
+            category: "text",
+            variant: "paragraph-with-heading",
+            items: [
+              {
+                id: "itmparagrp",
+                kind: "content",
+                title: "Living helpers",
+                text: "<p>Worms, fungi and bacteria break scraps down. They need <em>air</em>, <em>water</em> and a mix of materials.</p>",
+              },
+            ],
+          },
+          {
+            id: "blkimage01",
+            category: "image",
+            variant: "centered",
+            media: [{ key: "compost-bin.svg", alt: "A compost bin cut away to show its layers" }],
+          },
+          { id: "blkcontinu", category: "divider", variant: "continue" },
+          {
+            id: "blkcheck01",
+            category: "knowledge-check",
+            variant: "single-choice",
+            question: {
+              id: "qstneeds01",
+              kind: "single-choice",
+              prompt: "<p>What does a compost heap need to work well?</p>",
+              feedbackMode: "perAnswer",
+              answers: [
+                {
+                  id: "ansairwatr",
+                  text: "Air, water and mixed materials",
+                  correct: true,
+                  feedback: "<p>Yes: the helpers need all three.</p>",
+                },
+                {
+                  id: "anssealed1",
+                  text: "A sealed lid and no water",
+                  correct: false,
+                  feedback: "<p>Without air and water the helpers stop working.</p>",
+                },
+                { id: "ansdryleaf", text: "Only dry leaves", correct: false },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        id: "lessonmix1",
+        kind: "lesson",
+        title: "Greens and browns",
+        blocks: [
+          {
+            id: "blksubhead",
+            category: "text",
+            variant: "subheading",
+            items: [{ id: "itmsubhead", kind: "content", title: "Two kinds of material" }],
+          },
+          {
+            id: "blkpara002",
+            category: "text",
+            variant: "paragraph",
+            items: [
+              {
+                id: "itmpara002",
+                kind: "content",
+                text: "<p>Greens are wet and rich in nitrogen. Browns are dry and rich in carbon.</p><ul><li>Greens: peelings, grass</li><li>Browns: cardboard, leaves</li></ul>",
+              },
+            ],
+          },
+          {
+            id: "blkcheck02",
+            category: "knowledge-check",
+            variant: "multiple-response",
+            question: {
+              id: "qstgreens1",
+              kind: "multiple-response",
+              prompt: "<p>Which of these are greens?</p>",
+              feedbackMode: "correctness",
+              correctFeedback: "<p>Right: both are wet and fresh.</p>",
+              incorrectFeedback: "<p>Look for the wet, fresh materials.</p>",
+              answers: [
+                { id: "anspeeling", text: "Vegetable peelings", correct: true },
+                { id: "ansgrass01", text: "Grass cuttings", correct: true },
+                { id: "anscardbrd", text: "Torn cardboard", correct: false },
+              ],
+            },
+          },
+        ],
+      },
+      { id: "sectpractc", kind: "section", title: "In practice" },
+      {
+        id: "quizcheck1",
+        kind: "quiz",
+        title: "Check what you know",
+        questions: [
+          {
+            id: "qstquiz001",
+            kind: "single-choice",
+            prompt: "<p>Is cardboard a green or a brown?</p>",
+            answers: [
+              { id: "ansbrown01", text: "A brown", correct: true },
+              { id: "ansgreen01", text: "A green", correct: false },
+            ],
+          },
+        ],
+      },
+      {
+        id: "lessoncare",
+        kind: "lesson",
+        title: "Looking after the heap",
+        blocks: [
+          {
+            id: "blkpara003",
+            category: "text",
+            variant: "paragraph",
+            items: [
+              {
+                id: "itmpara003",
+                kind: "content",
+                text: "<p>Turn the heap every few weeks and keep it as damp as a wrung-out sponge.</p>",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    media: [
+      {
+        id: "mediacover",
+        key: "cover.svg",
+        source: "upload",
+        mimeType: "image/svg+xml",
+        width: 1200,
+        height: 600,
+      },
+      {
+        id: "mediabin01",
+        key: "compost-bin.svg",
+        source: "upload",
+        mimeType: "image/svg+xml",
+        width: 640,
+        height: 360,
+      },
+    ],
+  };
+}

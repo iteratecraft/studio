@@ -4,12 +4,14 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./course.schema.json": "./dist/course.schema.json"
+    "./course.schema.json": "./dist/course.schema.json",
+    "./test/courses": "./test/courses.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
