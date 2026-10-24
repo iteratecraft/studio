@@ -14,11 +14,11 @@ export const newId = (prefix: string) => `${prefix}${String(++next).padStart(9, 
 
 export const text = (): Block => ({ id: newId("t"), category: "text", variant: "paragraph" });
 
-export const continueBlock = (completion?: "above" | "all-above"): Block => ({
+export const continueBlock = (completionType?: "block-above" | "all-above"): Block => ({
   id: newId("c"),
   category: "divider",
   variant: "continue",
-  ...(completion ? { variantSettings: { completion } } : {}),
+  ...(completionType ? { variantSettings: { completionType } } : {}),
 });
 
 export function question(): SingleChoiceQuestion {

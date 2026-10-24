@@ -82,7 +82,7 @@ test("UI-BLOCKS-R44: a continue block with a requirement stays inactive, with it
         "lessonone1",
         "First",
         check("kcheckone1", "Is a heap alive?"),
-        continueBlock("cgateone01", "above"),
+        continueBlock("cgateone01", "block-above"),
         paragraph("tparaone01", "Behind the gate"),
       ),
     ]),
@@ -102,6 +102,36 @@ test("UI-BLOCKS-R44: a continue block with a requirement stays inactive, with it
   await expect(page.getByText("Finish the activities above to go on")).toBeHidden();
   await gate.click();
   await expect(page.getByText("Behind the gate")).toBeVisible();
+});
+
+test("[rise:R13] UI-BLOCKS-R44: the author's button label and hint text replace the label set's", async ({
+  write,
+  open,
+  page,
+}) => {
+  await write({
+    course: course([
+      lesson(
+        "lessonone1",
+        "First",
+        check("kcheckone1", "Is a heap alive?"),
+        continueBlock("cgateone01", "block-above", {
+          buttonLabel: "On to the heap",
+          hintText: "Answer the question above first.",
+        }),
+        paragraph("tparaone01", "Behind the gate"),
+      ),
+    ]),
+  });
+  await open("#/lessons/lessonone1");
+  const gate = page.getByRole("button", { name: "On to the heap" });
+  await expect(gate).toHaveAttribute("aria-disabled", "true");
+  await expect(gate).toHaveAccessibleDescription("Answer the question above first.");
+  await expect(page.getByText("Finish the activities above to go on")).toHaveCount(0);
+  await page.getByRole("radio", { name: "Yes" }).check();
+  await page.getByRole("button", { name: "Check answer" }).click();
+  await expect(gate).not.toHaveAttribute("aria-disabled");
+  await expect(page.getByText("Answer the question above first.")).toBeHidden();
 });
 
 test.describe("required knowledge checks", () => {

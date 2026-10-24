@@ -129,17 +129,28 @@ function imageBlock(block: Block, { course }: BlockContext): HTMLElement | undef
 /** Path of a media file in the package, relative to the index page. */
 export const mediaUrl = (key: string) => `media/${encodeURIComponent(key)}`;
 
+/** A plain-text setting the author typed, when it is set and not blank. */
+function authoredText(block: Block, name: string): string | undefined {
+  const value = block.variantSettings?.[name];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
 /**
  * A continue block: holds back the blocks below until pressed, and stays inactive with a hint
- * while its requirement is not met (rise.md rule 13; UI-BLOCKS-R43, R44).
+ * while its requirement is not met (rise.md rule 13 and §3 G; UI-BLOCKS-R43, R44). The author's
+ * button label and hint text win over the label set's.
  */
 function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElement {
   const hintId = uid("hint");
-  const button = h("button", { type: "button", class: "continue" }, labels["lesson.continue"]);
+  const button = h(
+    "button",
+    { type: "button", class: "continue" },
+    authoredText(block, "buttonLabel") ?? labels["lesson.continue"],
+  );
   const hint = h(
     "p",
     { class: "continue-hint", id: hintId, hidden: true },
-    labels["lesson.continueLocked"],
+    authoredText(block, "hintText") ?? labels["lesson.continueLocked"],
   );
   lesson?.watch(() => {
     const ready = lesson.continueReady(block);

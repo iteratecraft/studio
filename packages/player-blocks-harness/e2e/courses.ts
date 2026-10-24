@@ -16,11 +16,17 @@ export const paragraph = (id: string, text: string): Block => ({
   items: [{ id: `i${id.slice(1)}`, kind: "content", text: `<p>${text}</p>` }],
 });
 
-export const continueBlock = (id: string, completion?: "above" | "all-above"): Block => ({
+export const continueBlock = (
+  id: string,
+  completionType?: "block-above" | "all-above",
+  text: { buttonLabel?: string; hintText?: string } = {},
+): Block => ({
   id,
   category: "divider",
   variant: "continue",
-  ...(completion ? { variantSettings: { completion } } : {}),
+  ...(completionType || text.buttonLabel || text.hintText
+    ? { variantSettings: { ...(completionType ? { completionType } : {}), ...text } }
+    : {}),
 });
 
 /** A single-choice knowledge check whose right answer is "Yes". */

@@ -39,12 +39,15 @@ jobs:
       # fixture change reaches studio only through a reviewed bump of `ref` here. A checkout step,
       # not a git submodule, so a clone of studio never needs access to the fixtures repository.
       # Not enabled yet: that repository is private, so this step needs a read-only token in the
-      # TEST_COURSES_TOKEN secret (a fine-grained token with Contents: read on test-courses only),
-      # and no test reads fixtures yet. Enable it with the first test that does.
+      # TEST_COURSES_TOKEN secret (a fine-grained token with Contents: read on test-courses only).
+      # Until then the Blocks corpus tests (packages/conformance/src/corpus.test.ts, M1-28) find no
+      # checkout at test-courses/ and skip with a message. Once the secret exists, uncomment the
+      # step: `pnpm test` then validates every corpus course, and Turborepo hashes
+      # test-courses/blocks into the conformance test task, so a `ref` bump reruns it.
       # - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       #   with:
       #     repository: iteratecraft/test-courses
-      #     ref: 80b974773ddeb93ea3851ff0e9d0381dbaf4b253
+      #     ref: d75b1bcf690ec846dc4e6145d90769dea8e02b92
       #     path: test-courses
       #     token: ${{ secrets.TEST_COURSES_TOKEN }}
       #     persist-credentials: false

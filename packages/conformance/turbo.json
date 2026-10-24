@@ -3,6 +3,9 @@
   "extends": ["//"],
   "tags": ["engine", "test-only"],
   "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/test-courses/blocks/**"]
+    },
     "test:e2e": {
       "inputs": [
         "$TURBO_DEFAULT$",
