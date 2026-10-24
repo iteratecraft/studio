@@ -143,6 +143,71 @@ describe("buildPackage", () => {
       await problems({ player: lookalike, allowedUrls: ["https://lrs.example.com"] }),
     ).toHaveLength(1);
   });
+
+  describe("media", () => {
+    // Written by hand in the shape an SVG editor saves: editor namespaces, a DTD address and RDF
+    // licence metadata, none of which a browser fetches.
+    const editorSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Saved from https://editor.example.net/ -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
+   viewBox="0 0 10 10" sodipodi:docname="bench.svg">
+  <metadata><rdf:RDF><cc:Work rdf:about="">
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <cc:license rdf:resource="http://creativecommons.org/licenses/by/4.0/"/>
+  </cc:Work></rdf:RDF></metadata>
+  <text x="1" y="5">See http://example.org/source</text>
+  <rect width="10" height="10" style="fill:url(#shade)"/>
+</svg>
+`;
+    const captions = `WEBVTT
+
+00:00.000 --> 00:04.000
+Read more at https://example.org/guide
+`;
+
+    function withMedia(files: Record<string, string>) {
+      const course = stubCourse();
+      course.media.push(
+        ...Object.keys(files).map((key, index) => ({
+          id: `media1000${index}`,
+          key,
+          source: "upload" as const,
+        })),
+      );
+      const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
+      return { course, media };
+    }
+
+    test("publishes an editor-saved SVG and a caption file that mention web addresses [standards:R16]", async () => {
+      await expect(
+        built(withMedia({ "bench.svg": editorSvg, "talk.vtt": captions })),
+      ).resolves.toBeTruthy();
+    });
+
+    test("rejects media that loads an outside address [standards:R16]", async () => {
+      const svg = `<?xml-stylesheet href="https://styles.example.net/a.css"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<style>@import "//fonts.example.net/b.css"; rect { fill: url('https://img.example.net/c.png') }</style>
+<image xlink:href="https://img.example.net/d.png"/>
+<image href='//img.example.net/e.png'/>
+</svg>
+`;
+      expect(
+        (await problems(withMedia({ "remote.svg": svg }))).map((p) => p.message.split(",")[0]),
+      ).toEqual([
+        "names 'https://styles.example.net/a.css'",
+        "names 'https://img.example.net/d.png'",
+        "names '//img.example.net/e.png'",
+        "names '//fonts.example.net/b.css'",
+        "names 'https://img.example.net/c.png'",
+      ]);
+    });
+  });
 });
 
 test("unsafePath accepts plain relative paths only", () => {

@@ -1,6 +1,7 @@
 // Post-build scan for outbound URLs (ADR-0004): a package may load its own files, the LMS or LRS
 // supplied at launch and endpoints the author configured, and nothing else. This finds absolute and
-// protocol-relative URLs written in the package's text files and reports every one not allowed.
+// protocol-relative URLs written in the player's text files, and the URLs the author's media makes a
+// browser load, and reports every one not allowed.
 //
 // shortcut: a text scan, so a URL assembled at run time or encoded (for example in base64) passes;
 // the no-network browser tests (M1-30) catch what the package actually requests.
@@ -32,6 +33,28 @@ export function urlsIn(text: string): string[] {
     found.push([match.index, match[1] ?? ""]);
   }
   return found.sort((a, b) => a[0] - b[0]).map(([, url]) => url.replace(TRAILING, ""));
+}
+
+// In media only what a browser loads counts: attribute values that load or link (`href`, `xlink:href`,
+// `src` ...), `<?xml-stylesheet?>`, CSS `url()` and `@import`. Namespace declarations, RDF metadata,
+// a DOCTYPE's DTD address, comments and text such as caption cues are never fetched.
+const COMMENT = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g;
+const TAG = /<(?:[A-Za-z]|\?xml-stylesheet\b)(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
+const LOAD_ATTRIBUTE =
+  /\s(?:[\w-]+:)?(?:href|src|srcset|poster|action|data|background)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+const CSS_LOAD = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^\s"')]+))|@import\s+["']([^"']*)["']/gi;
+const OUTSIDE = /^(?:(?:https?|wss?|ftp):)?\/\//i;
+
+/** Every absolute or protocol-relative URL a browser would load from the media file `text`, in order. */
+export function loadedUrlsIn(text: string): string[] {
+  const code = text.replace(COMMENT, "");
+  const values: string[] = [];
+  for (const tag of code.match(TAG) ?? []) {
+    for (const match of tag.matchAll(LOAD_ATTRIBUTE)) values.push(match.slice(1).join(""));
+  }
+  for (const match of code.matchAll(CSS_LOAD)) values.push(match.slice(1).join(""));
+  // A `srcset` holds several URLs, each followed by an optional size.
+  return values.flatMap((value) => value.split(/[\s,]+/)).filter((url) => OUTSIDE.test(url));
 }
 
 /** True when `url` is `allowed` or lies under it (the next character starts a path, query or fragment). */
@@ -74,16 +97,21 @@ export function findModuleCode(files: Iterable<readonly [string, Uint8Array]>): 
   return problems;
 }
 
-/** One problem per file and URL that is neither allowed nor a namespace name. */
+/**
+ * One problem per file and URL that is neither allowed nor a namespace name. In the `media` paths
+ * (the author's media files) only URLs a browser loads count; every other text file is scanned whole.
+ */
 export function findOutboundUrls(
   files: Iterable<readonly [string, Uint8Array]>,
   allowed: readonly string[],
+  media: ReadonlySet<string> = new Set(),
 ): Problem[] {
   const permitted = [...NAMESPACE_URIS, ...allowed];
   const problems: Problem[] = [];
   for (const [path, data] of files) {
     if (!TEXT.test(path)) continue;
-    for (const url of new Set(urlsIn(utf8.decode(data)))) {
+    const text = utf8.decode(data);
+    for (const url of new Set(media.has(path) ? loadedUrlsIn(text) : urlsIn(text))) {
       if (isAllowed(url, permitted)) continue;
       problems.push({
         file: path,
