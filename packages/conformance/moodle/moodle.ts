@@ -72,7 +72,8 @@ export async function launch(page: Page, { cmid }: Activity): Promise<Frame> {
 /** Leaves with the player's exit button: Moodle opens the course page and the SCO's frame unloads. */
 export async function exitActivity(page: Page): Promise<void> {
   await page.getByRole("link", { name: "Exit activity" }).click();
-  await page.waitForURL(/\/course\/view\.php/);
+  // Not until "load": a module script of Moodle's course page can keep that from ever firing.
+  await page.waitForURL(/\/course\/view\.php/, { waitUntil: "domcontentloaded" });
 }
 
 /**

@@ -29,7 +29,10 @@ switch ($action) {
 
     case 'upload':
         $learner = $DB->get_record('user', ['username' => LEARNER['username']], '*', MUST_EXIST);
-        $course = $generator->create_course(['fullname' => $argument]);
+        $course = $generator->create_course([
+            'fullname' => $argument,
+            'shortname' => 'cs-' . random_string(12),
+        ]);
         $generator->enrol_user($learner->id, $course->id, 'student');
         $draft = file_get_unused_draft_itemid();
         get_file_storage()->create_file_from_string([
