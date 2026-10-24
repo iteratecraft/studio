@@ -71,6 +71,8 @@ test("a continue block renders a full-width button labelled from the label set",
 test.describe("single-choice knowledge check", () => {
   test.beforeEach(async ({ open, page }) => {
     await open("#/lessons/lessonwhat");
+    // The check sits below a continue block, which holds it back until pressed.
+    await page.getByRole("button", { name: "Continue" }).click();
     await expect(
       page.getByRole("group", { name: "What does a compost heap need to work well?" }),
     ).toBeVisible();

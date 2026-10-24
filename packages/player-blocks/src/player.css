@@ -498,3 +498,270 @@ h3.block-heading {
   border: 2px solid var(--wrong);
   border-radius: 8px;
 }
+
+/* Progress, gates, quizzes and notices (ENG-05, ENG-06a). */
+.block:focus {
+  outline: none;
+}
+
+.outline-progress {
+  margin: -8px 12px 12px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.outline-list li {
+  position: relative;
+}
+
+.outline-status {
+  display: block;
+  margin: -8px 12px 6px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.outline-status:empty {
+  display: none;
+}
+
+.outline-list a:not([href]) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+[data-status="done"] > .outline-status {
+  color: var(--correct);
+  font-weight: 600;
+}
+
+[data-status="failed"] > .outline-status {
+  color: var(--wrong);
+  font-weight: 600;
+}
+
+.outline-exit {
+  margin: 16px 12px 0;
+  padding: 8px 14px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.continue[aria-disabled="true"] {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.continue-hint,
+.check-notice {
+  margin: 8px 0 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.check-notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  text-align: left;
+}
+
+.locked-notice {
+  max-width: 760px;
+  margin: 32px auto 0;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.locked-notice p:first-child {
+  margin-top: 0;
+}
+
+.lesson-actions {
+  max-width: 760px;
+  margin: 32px auto 0;
+}
+
+.mark-done {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.page-link.is-locked {
+  margin-top: 0;
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.page-link.is-locked .page-link-label {
+  color: var(--muted);
+}
+
+.page-link-reason {
+  font-size: 0.875rem;
+}
+
+.fill-in input,
+.match select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.fill-in,
+.match {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.fill-in input {
+  flex: 1 1 240px;
+}
+
+.match label {
+  flex: 1 1 200px;
+}
+
+.match select {
+  flex: 1 1 200px;
+  max-width: 100%;
+}
+
+.fill-in.is-correct,
+.match.is-correct {
+  border: 2px solid var(--correct);
+}
+
+.fill-in.is-wrong,
+.match.is-wrong {
+  border: 2px solid var(--wrong);
+}
+
+.accepted-title {
+  margin-bottom: 0;
+  font-weight: 600;
+}
+
+.quiz {
+  max-width: 760px;
+  margin: 32px auto 0;
+}
+
+.quiz-heading {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+}
+
+.quiz-heading:focus {
+  outline: none;
+}
+
+.quiz-score {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.quiz-outcome {
+  font-weight: 700;
+}
+
+.quiz-outcome.is-correct {
+  color: var(--correct);
+}
+
+.quiz-outcome.is-wrong,
+.quiz-must-pass {
+  color: var(--wrong);
+}
+
+.quiz .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.timer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: -8px 0 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-toggle {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.time-up {
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 24px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+}
+
+.time-up::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--wrong);
+  background: #fdf0ef;
+}
+
+.notice p:first-child {
+  margin: 0;
+}
+
+.notice-dismiss {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.goodbye {
+  max-width: 640px;
+  margin: 64px auto;
+  text-align: center;
+}

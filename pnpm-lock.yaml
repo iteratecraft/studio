@@ -105,6 +105,9 @@ importers:
       '@course-suite/labels':
         specifier: workspace:*
         version: link:../labels
+      '@course-suite/tracking':
+        specifier: workspace:*
+        version: link:../tracking
     devDependencies:
       vitest:
         specifier: 'catalog:'
@@ -121,6 +124,9 @@ importers:
       '@course-suite/player-blocks':
         specifier: workspace:*
         version: link:../player-blocks
+      '@course-suite/tracking':
+        specifier: workspace:*
+        version: link:../tracking
     devDependencies:
       '@playwright/test':
         specifier: 'catalog:'

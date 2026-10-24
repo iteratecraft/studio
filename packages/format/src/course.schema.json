@@ -38,6 +38,21 @@
       "$ref": "#/$defs/ExternalRef"
     },
     "publish": { "$ref": "#/$defs/PublishSettings" },
+    "navigation": {
+      "description": "How learners move through the course. Every setting is optional; the default is given with each.",
+      "type": "object",
+      "properties": {
+        "restricted": {
+          "description": "Lessons open only in order, each once the one before it is done; turns off learner mark-done. Default false; any quiz with skip-ahead turns it on.",
+          "type": "boolean"
+        },
+        "learnerMarkDone": {
+          "description": "While navigation is free, learners may mark an unfinished lesson (not a quiz) done. Default false.",
+          "type": "boolean"
+        }
+      },
+      "unevaluatedProperties": false
+    },
     "entries": {
       "description": "Ordered course outline.",
       "type": "array",
@@ -287,7 +302,11 @@
           "maxLength": 2048,
           "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$"
         },
-        "lom": { "$ref": "#/$defs/LomMetadata" }
+        "lom": { "$ref": "#/$defs/LomMetadata" },
+        "exitLink": {
+          "description": "Show an exit-course link in the course menu. Default false.",
+          "type": "boolean"
+        }
       },
       "required": ["standard"],
       "unevaluatedProperties": false

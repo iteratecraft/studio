@@ -11,7 +11,6 @@ import { expect, test, type Visit } from "./fixture.ts";
 declare global {
   interface Window {
     blocksPlayer: { load(name: string): Promise<unknown> };
-    blocksPlayerTestHooks?: { timeoutMs: number };
     ran?: string[];
   }
 }

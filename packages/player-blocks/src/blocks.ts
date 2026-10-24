@@ -1,14 +1,30 @@
-// Walking-skeleton block renderers (M1-10): text, heading, image, continue and the choice knowledge
-// checks. Each renderer reads one block of the course document and returns its element, or
-// undefined for a block it cannot show; other block families arrive with their own epics.
-import type { Block, ContentItem, Course, Question } from "@course-suite/format";
+// Walking-skeleton block renderers (M1-10): text, heading, image, continue and the knowledge checks.
+// Each renderer reads one block of the course document and returns its element, or undefined for a
+// block it cannot show; other block families arrive with their own epics.
+import type { Block, ContentItem, Course, Response } from "@course-suite/format";
 import { isCorrect } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
+import { requiresCorrect } from "./progress.js";
+import { feedback, questionView } from "./question.js";
+
+/** What a lesson page gives its blocks: progress, gates and saved answers. */
+export interface LessonHooks {
+  /** Whether a continue block may be pressed now (UI-BLOCKS-R44). */
+  continueReady(block: Block): boolean;
+  pressContinue(block: Block): void;
+  /** A knowledge check was answered. */
+  answered(block: Block, response: Response, correct: boolean): void;
+  /** The saved response to a question, to show again on return. */
+  saved(questionId: string): Response | undefined;
+  /** Runs `update` now and after every progress change. */
+  watch(update: () => void): void;
+}
 
 export interface BlockContext {
   course: Course;
   labels: Labels;
+  lesson?: LessonHooks;
 }
 
 type Renderer = (block: Block, context: BlockContext) => HTMLElement | undefined;
@@ -21,11 +37,11 @@ const RENDERERS: Record<string, Renderer> = {
   "text/subheading": (block, { labels }) => headingBlock(block, labels, 3),
   "image/centered": (block, context) => imageBlock(block, context),
   "image/full-width": (block, context) => imageBlock(block, context),
-  // Renders only; holding back the blocks below until it is pressed comes with the progress engine.
-  "divider/continue": (_block, { labels }) =>
-    h("button", { type: "button", class: "continue" }, labels["lesson.continue"]),
-  "knowledge-check/single-choice": (block, { labels }) => choiceCheck(block.question, labels),
-  "knowledge-check/multiple-response": (block, { labels }) => choiceCheck(block.question, labels),
+  "divider/continue": continueBlock,
+  "knowledge-check/single-choice": check,
+  "knowledge-check/multiple-response": check,
+  "knowledge-check/fill-in": check,
+  "knowledge-check/matching": check,
 };
 
 /** The block in its frame (padding and content width from the block settings), or undefined. */
@@ -114,110 +130,95 @@ function imageBlock(block: Block, { course }: BlockContext): HTMLElement | undef
 export const mediaUrl = (key: string) => `media/${encodeURIComponent(key)}`;
 
 /**
- * A single-choice or multiple-response knowledge check, answered locally (blocks-interactions.md
- * UI-BLOCKS-R20, R23, R24). Reveal is on and retries are unlimited, the defaults of the block.
+ * A continue block: holds back the blocks below until pressed, and stays inactive with a hint
+ * while its requirement is not met (rise.md rule 13; UI-BLOCKS-R43, R44).
  */
-function choiceCheck(question: Question | undefined, labels: Labels): HTMLElement | undefined {
-  if (question?.kind !== "single-choice" && question?.kind !== "multiple-response")
-    return undefined;
-  const multiple = question.kind === "multiple-response";
-  const promptId = uid("prompt");
+function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElement {
   const hintId = uid("hint");
-  const choices = question.answers.map((answer) => {
-    const id = uid("choice");
-    const input = h("input", {
-      type: multiple ? "checkbox" : "radio",
-      name: promptId,
-      value: answer.id,
-      id,
-    });
-    const marks = h("span", { class: "marks" });
-    const row = h(
-      "div",
-      { class: "choice" },
-      input,
-      h("label", { for: id }, richText(answer.text, labels), marks),
-    );
-    return { answer, input, marks, row };
-  });
+  const button = h("button", { type: "button", class: "continue" }, labels["lesson.continue"]);
   const hint = h(
     "p",
-    { class: "hint", id: hintId },
-    labels[multiple ? "question.chooseAll" : "question.chooseOne"],
+    { class: "continue-hint", id: hintId, hidden: true },
+    labels["lesson.continueLocked"],
   );
-  const feedback = h("div", { class: "feedback", tabindex: -1, hidden: true });
-  const check = h("button", { type: "submit", class: "button" }, labels["question.check"]);
+  lesson?.watch(() => {
+    const ready = lesson.continueReady(block);
+    hint.hidden = ready;
+    if (ready) {
+      button.removeAttribute("aria-disabled");
+      button.removeAttribute("aria-describedby");
+    } else {
+      button.setAttribute("aria-disabled", "true");
+      button.setAttribute("aria-describedby", hintId);
+    }
+  });
+  button.addEventListener("click", () => {
+    if (lesson?.continueReady(block)) lesson.pressContinue(block);
+  });
+  return h("div", { class: "continue-block" }, button, hint);
+}
+
+/**
+ * A knowledge check, answered locally (UI-BLOCKS-R20, R23 to R25). Reveal is on and retries are
+ * unlimited, the defaults of the block. A required check says so above itself.
+ */
+function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | undefined {
+  const question = block.question;
+  if (!question || block.variant !== question.kind) return undefined;
+  const view = questionView(question, labels);
+  const result = h("div", { class: "feedback", tabindex: -1, hidden: true });
+  const submit = h("button", { type: "submit", class: "button" }, labels["question.check"]);
   const retry = h(
     "button",
     { type: "button", class: "button", hidden: true },
     labels["question.tryAgain"],
   );
-
   const form = h(
     "form",
     { class: "check", novalidate: true },
-    h(
-      "fieldset",
-      { "aria-labelledby": promptId, "aria-describedby": hintId },
-      h("div", { class: "prompt", id: promptId }, richText(question.prompt, labels)),
-      hint,
-      h("div", { class: "choices" }, ...choices.map((choice) => choice.row)),
-    ),
-    feedback,
-    h("div", { class: "actions" }, check, retry),
+    requiresCorrect(block)
+      ? h("p", { class: "check-notice" }, labels["question.mustAnswer"])
+      : undefined,
+    view.element,
+    result,
+    h("div", { class: "actions" }, submit, retry),
   );
+
+  const show = (response: Response) => {
+    const correct = isCorrect(question, response);
+    view.lock("all");
+    result.className = `feedback ${correct ? "is-correct" : "is-wrong"}`;
+    result.replaceChildren(...feedback(question, response, correct, labels));
+    result.hidden = false;
+    submit.hidden = true;
+    retry.hidden = correct; // UI-BLOCKS-R24: only after a wrong answer
+    return correct;
+  };
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const chosen = choices.filter((choice) => choice.input.checked).map((choice) => choice.answer);
-    if (chosen.length === 0) {
-      hint.classList.add("is-needed");
-      choices[0]?.input.focus();
+    const response = view.response();
+    if (response === undefined) {
+      view.needAnswer();
       return;
     }
-    const ids = chosen.map((answer) => answer.id);
-    const correct = isCorrect(question, multiple ? ids : ids[0]);
-    for (const { answer, input, marks, row } of choices) {
-      input.disabled = true;
-      const selected = input.checked;
-      row.classList.toggle("is-selected", selected);
-      row.classList.toggle("is-correct", answer.correct);
-      row.classList.toggle("is-wrong", selected && !answer.correct);
-      marks.replaceChildren(
-        ...(selected ? [h("span", { class: "mark mark-chosen" }, labels["quiz.yourAnswer"])] : []),
-        ...(answer.correct
-          ? [h("span", { class: "mark mark-correct" }, labels["quiz.correctAnswer"])]
-          : []),
-      );
-    }
-    // The outcome word first, then the author's text (UI-BLOCKS-R23).
-    const own =
-      question.feedbackMode === "perAnswer" && !multiple ? chosen[0]?.feedback : undefined;
-    const text = own ?? (correct ? question.correctFeedback : question.incorrectFeedback);
-    feedback.className = `feedback ${correct ? "is-correct" : "is-wrong"}`;
-    feedback.replaceChildren(
-      h("p", { class: "outcome" }, labels[correct ? "question.correct" : "question.incorrect"]),
-      text ? richText(text, labels) : "",
-    );
-    feedback.hidden = false;
-    check.hidden = true;
-    retry.hidden = correct; // UI-BLOCKS-R24: only after a wrong answer
-    hint.classList.remove("is-needed");
-    feedback.focus();
+    const correct = show(response);
+    result.focus();
+    lesson?.answered(block, response, correct);
   });
 
   retry.addEventListener("click", () => {
-    for (const { input, marks, row } of choices) {
-      input.disabled = false;
-      input.checked = false;
-      row.classList.remove("is-selected", "is-correct", "is-wrong");
-      marks.replaceChildren();
-    }
-    feedback.hidden = true;
-    feedback.replaceChildren();
+    result.hidden = true;
+    result.replaceChildren();
     retry.hidden = true;
-    check.hidden = false;
-    choices[0]?.input.focus();
+    submit.hidden = false;
+    view.reset();
   });
+
+  const saved = lesson?.saved(question.id);
+  if (saved !== undefined) {
+    view.fill(saved);
+    show(saved);
+  }
   return form;
 }
