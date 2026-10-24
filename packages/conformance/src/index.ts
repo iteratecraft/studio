@@ -1,3 +1,4 @@
+export * from "./corpus.js";
 export * from "./memory-lrs.js";
 export * from "./package.js";
 export * from "./result.js";

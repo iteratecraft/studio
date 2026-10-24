@@ -10,7 +10,8 @@ import { afterEach, describe, expect, test } from "vitest";
 const repoRoot = join(import.meta.dirname, "..", "..");
 const turboBin = createRequire(import.meta.url).resolve("turbo");
 const LAYER_TAGS = ["format", "engine", "ui", "app"];
-const NOT_COPIED = new Set(["node_modules", ".git", ".turbo", "dist"]);
+// test-courses: the fixtures checkout (M1-28), which these checks never read.
+const NOT_COPIED = new Set(["node_modules", ".git", ".turbo", "dist", "test-courses"]);
 const TIMEOUT_MS = 60_000;
 
 const copies: string[] = [];
