@@ -4,9 +4,9 @@
 import { readFileSync } from "node:fs";
 import type { Course } from "@course-suite/format";
 import { plainText } from "@course-suite/format";
-import { DOMParser, type Element } from "@xmldom/xmldom";
 import type { DescribeInput, Exporter, PackageFile } from "./builder.js";
 import { fail, ok, type Problem, type Result } from "./result.js";
+import { checkSco, elements, esc, ISO_DURATION, only, parseXml, problemsIn } from "./xml.js";
 
 export const SCORM12_MANIFEST = "imsmanifest.xml";
 /** The ADL SCORM 1.2 schema set, shipped unchanged (THIRD_PARTY_NOTICES.md). */
@@ -32,11 +32,11 @@ export interface Scorm12Options {
 }
 
 /**
- * The manifest identifier: the author's base identifier (or one derived from the project id, so it
- * stays the same on every republish), then `_` and the package version (rise.md §4 "Published
- * SCORM 1.2 package", standards.md E-6).
+ * The manifest identifier of every SCORM edition: the author's base identifier (or one derived from
+ * the project id, so it stays the same on every republish), then `_` and the package version
+ * (rise.md §4 "Published SCORM 1.2 package", standards.md E-6).
  */
-export function scorm12Identifier(course: Course, packageVersion: number): string {
+export function scormIdentifier(course: Course, packageVersion: number): string {
   return `${course.publish?.manifestIdentifier ?? `course-${course.id}`}_${packageVersion}`;
 }
 
@@ -60,10 +60,7 @@ function schemas(): PackageFile[] {
 function describe(input: DescribeInput, options: Scorm12Options): Result<PackageFile[]> {
   const { course, packageVersion, launchPage, files } = input;
   const time = options.typicalLearningTime;
-  if (
-    time !== undefined &&
-    !/^P(?!$)(\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/.test(time)
-  ) {
+  if (time !== undefined && !ISO_DURATION.test(time)) {
     return fail([
       {
         file: SCORM12_MANIFEST,
@@ -84,7 +81,7 @@ function describe(input: DescribeInput, options: Scorm12Options): Result<Package
 
   const lines = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<manifest identifier="${esc(scorm12Identifier(course, packageVersion))}" version="${packageVersion}"` +
+    `<manifest identifier="${esc(scormIdentifier(course, packageVersion))}" version="${packageVersion}"` +
       ` xmlns="${NS.imscp}" xmlns:adlcp="${NS.adlcp}" xmlns:imsmd="${NS.imsmd}" xmlns:xsi="${NS.xsi}"` +
       ` xsi:schemaLocation="${NS.imscp} imscp_rootv1p1p2.xsd ${NS.imsmd} imsmd_rootv1p2p1.xsd ${NS.adlcp} adlcp_rootv1p2.xsd">`,
     `  <metadata>`,
@@ -153,125 +150,37 @@ function describe(input: DescribeInput, options: Scorm12Options): Result<Package
  */
 function check(files: ReadonlyMap<string, Uint8Array>): Problem[] {
   const problems: Problem[] = [];
-  const add = (element: Element | undefined, message: string, attribute?: string) => {
-    const path = element && pathOf(element) + (attribute ? `/@${attribute}` : "");
-    const line = element?.lineNumber;
-    problems.push({
-      file: SCORM12_MANIFEST,
-      ...(path && { path }),
-      ...(line !== undefined && { line }),
-      message,
-    });
-  };
+  const add = problemsIn(SCORM12_MANIFEST, problems);
   for (const name of SCORM12_SCHEMAS) {
     if (!files.has(name))
       problems.push({ file: name, message: "is a SCORM 1.2 schema file but is missing" });
   }
   const bytes = files.get(SCORM12_MANIFEST);
   if (!bytes) return [...problems, { file: SCORM12_MANIFEST, message: "is missing" }];
-
-  let root: Element | null;
-  try {
-    const parser = new DOMParser({
-      onError: (level, message) => {
-        if (level !== "warning") throw new Error(message);
-      },
-    });
-    root = parser.parseFromString(
-      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-      "text/xml",
-    ).documentElement;
-  } catch (error) {
-    add(
-      undefined,
-      `is not well-formed UTF-8 XML: ${error instanceof Error ? error.message : error}`,
-    );
+  const root = parseXml(bytes);
+  if ("error" in root) {
+    add(undefined, root.error);
     return problems;
   }
-  if (root?.namespaceURI !== NS.imscp || root.localName !== "manifest") {
-    add(root ?? undefined, `must be a <manifest> in the ${NS.imscp} namespace`);
+  if (root.namespaceURI !== NS.imscp || root.localName !== "manifest") {
+    add(root, `must be a <manifest> in the ${NS.imscp} namespace`);
     return problems;
   }
   if (!root.getAttribute("identifier")) add(root, "is missing identifier", "identifier");
   const version = only(only(root, NS.imscp, "metadata", add), NS.imscp, "schemaversion", add);
   if (version && version.textContent?.trim() !== "1.2") add(version, "must be 1.2");
 
-  const organization = only(
-    only(root, NS.imscp, "organizations", add),
-    NS.imscp,
-    "organization",
+  const { item } = checkSco(
+    root,
+    { imscp: NS.imscp, adlcp: NS.adlcp, scormType: "scormtype" },
+    files,
+    new Set([SCORM12_MANIFEST, ...SCORM12_SCHEMAS]),
     add,
   );
-  const item = only(organization, NS.imscp, "item", add);
-  const resource = only(only(root, NS.imscp, "resources", add), NS.imscp, "resource", add);
-  if (
-    item &&
-    resource &&
-    item.getAttribute("identifierref") !== resource.getAttribute("identifier")
-  ) {
-    add(item, "must reference the SCO resource", "identifierref");
-  }
-  if (item?.getAttribute("isvisible") === "false") add(item, "must be visible", "isvisible");
   const mastery = item && elements(item, NS.adlcp, "masteryscore")[0];
   const score = Number(mastery?.textContent);
   if (mastery && !(mastery.textContent?.trim() && score >= 0 && score <= 100)) {
     add(mastery, "must be a number from 0 to 100");
   }
-  if (!resource) return problems;
-  if (resource.getAttributeNS(NS.adlcp, "scormtype") !== "sco") {
-    add(resource, "must be marked adlcp:scormtype 'sco'", "scormtype");
-  }
-  if (resource.getAttribute("type") !== "webcontent") add(resource, "must be webcontent", "type");
-  const href = resource.getAttribute("href") ?? "";
-  if (!files.has(href)) add(resource, `launches '${href}', which is not in the package`, "href");
-
-  const listed = new Set<string>();
-  for (const file of elements(resource, NS.imscp, "file")) {
-    const path = file.getAttribute("href") ?? "";
-    if (!files.has(path)) add(file, `lists '${path}', which is not in the package`, "href");
-    listed.add(path);
-  }
-  const descriptor = new Set<string>([SCORM12_MANIFEST, ...SCORM12_SCHEMAS]);
-  for (const path of files.keys()) {
-    if (!listed.has(path) && !descriptor.has(path)) {
-      add(resource, `does not list '${path}', which is in the package`);
-    }
-  }
   return problems;
 }
-
-function elements(parent: Element, namespace: string, localName: string): Element[] {
-  return Array.from(parent.childNodes).filter(
-    (node): node is Element =>
-      node.nodeType === 1 &&
-      (node as Element).namespaceURI === namespace &&
-      (node as Element).localName === localName,
-  );
-}
-
-/** The one child element named `localName`, or undefined after reporting why there is not one. */
-function only(
-  parent: Element | undefined,
-  namespace: string,
-  localName: string,
-  add: (element: Element, message: string) => void,
-): Element | undefined {
-  if (!parent) return undefined;
-  const found = elements(parent, namespace, localName);
-  if (found.length !== 1) add(found[1] ?? parent, `must contain exactly one <${localName}>`);
-  return found[0];
-}
-
-/** `manifest/resources/resource/file[3]`; an index appears only when siblings share a name. */
-function pathOf(element: Element): string {
-  const parts: string[] = [];
-  for (let el: Element | null = element; el?.nodeType === 1; el = el.parentNode as Element | null) {
-    const parent = el.parentNode as Element | null;
-    const same =
-      parent?.nodeType === 1 ? elements(parent, el.namespaceURI ?? "", el.localName ?? "") : [el];
-    parts.unshift(same.length > 1 ? `${el.localName}[${same.indexOf(el) + 1}]` : `${el.localName}`);
-  }
-  return parts.join("/");
-}
-
-const esc = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

@@ -171,7 +171,12 @@ describe("canonical form", () => {
 
 describe("size caps", () => {
   test("the caps per target", () => {
-    expect(RESUME_CAPS).toEqual({ scorm12: 4_096, scorm2004_2nd: 4_000, scorm2004: 64_000 });
+    expect(RESUME_CAPS).toEqual({
+      scorm12: 4_096,
+      scorm2004_2nd: 4_000,
+      scorm2004: 64_000,
+      xapi: 32_000,
+    });
   });
 
   test("a payload never exceeds the cap, over 2,000 random states and caps", () => {

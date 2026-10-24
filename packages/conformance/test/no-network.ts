@@ -165,35 +165,45 @@ export async function outboundRequests(
       }
       const base = pathToFileURL(join(dir, "/")).href;
       allowed = [base];
-      await visitTwice(browser, `${base}${launchHref}`, run.course, seen);
+      await visitTwice(browser, () => `${base}${launchHref}`, run.course, seen);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   } else if (pkg?.descriptor.kind === "scorm") {
     allowed = await inTestLms({ ...pkg, files }, run.course, browser, seen);
-  } else if (pkg === undefined || pkg.descriptor.kind === "tincan") {
+  } else {
+    // Plain web output, xAPI and cmi5 are served by the test LMS.
     const lms = await startTestLms(pkg ? { ...pkg, files } : { files });
     try {
       const base = `${lms.origin}/package/`;
-      // An xAPI package is launched with the LRS in its query (standards.md X-1).
-      const query = pkg
-        ? `${launchHref.includes("?") ? "&" : "?"}${new URLSearchParams({
-            endpoint: lms.xapiEndpoint,
-            auth: `Basic ${btoa("learner:secret")}`,
-            actor: JSON.stringify({ mbox: "mailto:learner@example.com", name: "Learner" }),
-            registration: "6fa9a1d3-0b6e-4c55-9d6a-2f0b8f5e2d41",
-          })}`
-        : "";
-      allowed = pkg ? [base, lms.xapiEndpoint] : [base];
-      await visitTwice(browser, `${base}${launchHref}${query}`, run.course, seen);
+      const sep = launchHref.includes("?") ? "&" : "?";
+      // An xAPI package is launched with the LRS in its query (standards.md X-1). A cmi5 AU gets a
+      // fresh launch from the test LMS's cmi5 launcher each time, since its fetch URL works once.
+      const query = (): string =>
+        pkg === undefined
+          ? ""
+          : `${sep}${new URLSearchParams(
+              pkg.descriptor.kind === "cmi5"
+                ? lms.cmi5Launch()
+                : {
+                    endpoint: lms.xapiEndpoint,
+                    auth: `Basic ${btoa("learner:secret")}`,
+                    actor: JSON.stringify({ mbox: "mailto:learner@example.com", name: "Learner" }),
+                    registration: "6fa9a1d3-0b6e-4c55-9d6a-2f0b8f5e2d41",
+                  },
+            )}`;
+      // A cmi5 AU also asks the LMS's one-time fetch URL for its token, and may go back to its
+      // returnURL; both are on the test LMS.
+      allowed =
+        pkg === undefined
+          ? [base]
+          : pkg.descriptor.kind === "cmi5"
+            ? [base, lms.xapiEndpoint, `${lms.origin}/cmi5/`]
+            : [base, lms.xapiEndpoint];
+      await visitTwice(browser, () => `${base}${launchHref}${query()}`, run.course, seen);
     } finally {
       await lms.close();
     }
-  } else {
-    throw new Error(
-      `The no-network suite cannot launch a ${pkg.descriptor.kind} package over http yet; ` +
-        "give test/no-network.ts a launch for it",
-    );
   }
 
   const outside = seen
@@ -202,14 +212,14 @@ export async function outboundRequests(
   return [...new Set([...outside, ...internet.hits.map((hit) => `left the machine: ${hit}`)])];
 }
 
-/** Opens `url`, walks the course, closes the window, then opens it again and resumes. */
-async function visitTwice(browser: Browser, url: string, course: Course, seen: Seen[]) {
+/** Opens `url()`, walks the course, closes the window, then opens a new `url()` and resumes. */
+async function visitTwice(browser: Browser, url: () => string, course: Course, seen: Seen[]) {
   const context = await browser.newContext();
   watch(context, seen);
   try {
     for (const first of [true, false]) {
       const page = await context.newPage();
-      await page.goto(url);
+      await page.goto(url());
       if (first) await walkCourse(page, course);
       else await revisit(page);
       await page.close({ runBeforeUnload: true });

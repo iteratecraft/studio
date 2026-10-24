@@ -171,6 +171,31 @@ describe("check:licences", () => {
         "devDependencies",
         "packages/tracking: devDependency dep-gpl-dev may be bundled into courses",
       ],
+      // axe-core (MPL-2.0) is approved only as a devDependency of a test-only package (M1-29).
+      [
+        "MPL in a course-shipped package",
+        "packages/player-blocks",
+        "dep-mpl",
+        "MPL-2.0",
+        "dependencies",
+        "MPL-2.0 is not a reviewed licence",
+      ],
+      [
+        "an MPL devDependency in a course-shipped package",
+        "packages/player-blocks",
+        "dep-mpl-dev",
+        "MPL-2.0",
+        "devDependencies",
+        "packages/player-blocks: devDependency dep-mpl-dev may be bundled into courses",
+      ],
+      [
+        "MPL as a production dependency of a test-only package",
+        "packages/player-blocks-harness",
+        "dep-mpl-prod",
+        "MPL-2.0",
+        "dependencies",
+        "MPL-2.0 is not a reviewed licence",
+      ],
       [
         "an LGPL peerDependency in a course-shipped package",
         "packages/tracking",
@@ -193,11 +218,12 @@ describe("check:licences", () => {
     expect(result.status).not.toBe(0);
   });
 
-  test("accepts LGPL in an app, a permissive OR choice and a reviewed exception", {
+  test("accepts LGPL in an app, MPL test tooling in a test-only package, a permissive OR choice and a reviewed exception", {
     timeout: TIMEOUT_MS,
   }, () => {
     const dir = copyRepo();
     addDependency(dir, "apps/desktop", "dep-lgpl", "LGPL-2.1-or-later");
+    addDependency(dir, "packages/player-blocks-harness", "dep-mpl", "MPL-2.0", "devDependencies");
     addDependency(dir, "packages/format", "dep-or", "(MIT OR GPL-3.0-only)");
     addDependency(dir, "apps/web", "dep-gpl", "GPL-3.0-only");
     writeExceptions(dir, [
