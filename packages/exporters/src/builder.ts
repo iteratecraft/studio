@@ -1,0 +1,215 @@
+// The package builder (STD-02): validates the course, collects the player, the course data and the
+// media, lets the exporter for the chosen standard write its descriptor, checks the result and zips
+// it. Same course, player, media and options always give the same bytes.
+import type { Course, PublishSettings } from "@course-suite/format";
+import { validateCourse } from "@course-suite/format";
+import { fail, ok, type Problem, type Result } from "./result.js";
+import { findModuleCode, findOutboundUrls, urlsIn } from "./scan.js";
+import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "./zip.js";
+
+export type Standard = PublishSettings["standard"];
+
+export interface PackageFile {
+  /** Package path: relative, forward slashes, such as `index.html` or `media/cover.jpg`. */
+  path: string;
+  data: Uint8Array;
+}
+
+/**
+ * What the player gives the builder. The player package provides it from its own build; the
+ * builder adds the course data and media beside these files and never changes them.
+ */
+export interface PlayerBundle {
+  /** Every file the player ships, by package path: pages, classic scripts (ADR-0003), styles, fonts. */
+  files: ReadonlyMap<string, Uint8Array>;
+  /** Package path of the page that boots the player, among `files`. Every standard launches it. */
+  launchPage: string;
+  /** The course data as a classic script the player loads by script tag (ADR-0003), and its path. */
+  courseDataScript(data: CourseData): PackageFile;
+}
+
+/** Everything the player needs about this course, fixed at publish. */
+export interface CourseData {
+  /** The course, without `ext` data (ADR-0002, "Extension namespace"). */
+  course: Course;
+  /** The standard the package was built for (standards.md P-1). */
+  standard: Standard;
+  packageVersion: number;
+  /** Package path of each media file, by the storage key of its media index entry. */
+  media: Record<string, string>;
+}
+
+/** What an exporter is given to write its descriptor. */
+export interface DescribeInput {
+  course: Course;
+  packageVersion: number;
+  launchPage: string;
+  /** Every content file: the player, the course data and the media, sorted. */
+  files: readonly string[];
+}
+
+/** The plug-in point for one standard: SCORM 1.2, SCORM 2004, xAPI, cmi5 or web. */
+export interface Exporter {
+  standard: Standard;
+  /** The files the standard adds at the package root (descriptor, schemas), never listed as content. */
+  describe(input: DescribeInput): Result<PackageFile[]>;
+  /** Problems in a finished package's descriptor: invalid, or not matching the package's files. */
+  check(files: ReadonlyMap<string, Uint8Array>): Problem[];
+}
+
+export interface BuildInput {
+  course: Course;
+  player: PlayerBundle;
+  exporter: Exporter;
+  /** The bytes of a media file in the project container, by storage key; undefined when missing. */
+  media(key: string): Uint8Array | undefined | Promise<Uint8Array | undefined>;
+  /** A whole number from 1, raised by the app for every published update (rise.md §4). */
+  packageVersion: number;
+  /**
+   * Addresses the package may name besides those in the course (ADR-0004 rows 2 and 3), such as an
+   * LRS endpoint set in the publish settings. Each one also allows every URL under it.
+   */
+  allowedUrls?: readonly string[];
+}
+
+export interface BuiltPackage {
+  zip: Uint8Array;
+  /** Every file in the package, sorted. */
+  files: string[];
+}
+
+export const MEDIA_FOLDER = "media";
+
+/** Validates and builds a package. Every problem found is reported, not only the first. */
+export async function buildPackage(input: BuildInput): Promise<Result<BuiltPackage>> {
+  const { course, player, exporter, packageVersion } = input;
+  const courseProblems: Problem[] = validateCourse(course).map((error) => ({
+    file: "course",
+    path: error.path,
+    message: error.message,
+  }));
+  if (!Number.isSafeInteger(packageVersion) || packageVersion < 1) {
+    courseProblems.push({ file: "", message: "the package version must be a whole number from 1" });
+  }
+  if (courseProblems.length > 0) return fail(courseProblems);
+
+  const problems: Problem[] = [];
+  const files = new Map<string, Uint8Array>();
+  const keys = new Map<string, string>();
+  const add = (path: string, data: Uint8Array) => {
+    const unsafe = unsafePath(path);
+    const key = path.normalize("NFC").toLowerCase();
+    const clash = keys.get(key);
+    if (unsafe) problems.push({ file: path, message: unsafe });
+    else if (clash !== undefined) {
+      problems.push({ file: path, message: `has the same name as '${clash}' (ignoring case)` });
+    } else {
+      keys.set(key, path);
+      files.set(path, data);
+    }
+  };
+
+  for (const [path, data] of player.files) add(path, data);
+  if (!player.files.has(player.launchPage)) {
+    problems.push({
+      file: player.launchPage,
+      message: "is the player's launch page but is missing",
+    });
+  }
+
+  // Asset collector: every media index entry, as its optimised variant when it has one.
+  const media: Record<string, string> = {};
+  const collected = new Set<string>();
+  for (const entry of course.media) {
+    const key = entry.variantKey ?? entry.key;
+    const path = `${MEDIA_FOLDER}/${key}`;
+    media[entry.key] = path;
+    if (collected.has(path)) continue;
+    collected.add(path);
+    const data = await input.media(key);
+    if (data === undefined) {
+      problems.push({ file: path, message: `is missing from the project (media file '${key}')` });
+    } else add(path, data);
+  }
+
+  const data = player.courseDataScript({
+    course: withoutExt(course),
+    standard: exporter.standard,
+    packageVersion,
+    media,
+  });
+  add(data.path, data.data);
+
+  const content = [...files.keys()].sort();
+  const described = exporter.describe({
+    course,
+    packageVersion,
+    launchPage: player.launchPage,
+    files: content,
+  });
+  if (!described.ok) return fail([...problems, ...described.problems]);
+  for (const file of described.value) add(file.path, file.data);
+
+  if (files.size > ZIP_MAX_ENTRIES) {
+    problems.push({
+      file: "",
+      message: `has ${files.size} files; the limit is ${ZIP_MAX_ENTRIES}`,
+    });
+  }
+  for (const [path, bytes] of files) {
+    if (bytes.length > ZIP_MAX_BYTES) {
+      problems.push({ file: path, message: `is larger than ${ZIP_MAX_BYTES} bytes` });
+    }
+  }
+
+  const shipped = content.map((path) => [path, files.get(path) as Uint8Array] as const);
+  const allowed = [...urlsInStrings(course), ...(input.allowedUrls ?? [])];
+  problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed));
+  if (problems.length > 0) return fail(problems);
+
+  // The descriptor is checked against the files actually in the package, not the list it was given.
+  const checked = exporter.check(files);
+  if (checked.length > 0) return fail(checked);
+
+  let zip: Uint8Array;
+  try {
+    zip = writeZip([...files].map(([name, bytes]) => ({ name, data: bytes })));
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return fail([{ file: "", message: error.message }]);
+  }
+  return ok({ zip, files: [...files.keys()].sort() });
+}
+
+const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
+
+/** Why `path` cannot be a package path on every OS and in every LMS, or undefined when it can. */
+export function unsafePath(path: string): string | undefined {
+  for (const segment of path.split("/")) {
+    if (!/^[A-Za-z0-9._~-]+$/.test(segment)) {
+      return "needs a relative path of letters, digits and . _ ~ - separated by /";
+    }
+    if (/^\.+$/.test(segment)) return "has a '.' or '..' path segment";
+    if (segment.endsWith(".")) return "has a segment ending in a dot";
+    if (RESERVED.test(segment)) return `uses the reserved Windows device name '${segment}'`;
+  }
+  return undefined;
+}
+
+/** A copy of `value` without `ext` properties, except inside open `variantSettings` data. */
+function withoutExt<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withoutExt) as T;
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "ext")
+      .map(([key, item]) => [key, key === "variantSettings" ? item : withoutExt(item)]),
+  ) as T;
+}
+
+/** URLs the author wrote anywhere in the course: links, embeds, rich text (ADR-0004 row 3). */
+function urlsInStrings(value: unknown): string[] {
+  if (typeof value === "string") return urlsIn(value);
+  if (typeof value !== "object" || value === null) return [];
+  return Object.values(value).flatMap(urlsInStrings);
+}
