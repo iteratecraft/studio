@@ -17,7 +17,10 @@ const PROTOCOL_RELATIVE =
   /(?:\b(?:src|href|action|poster|srcset|data)\s*=\s*["']?|\burl\(\s*["']?|@import\s+["'])(\/\/[^\s"'`<>()\\]+)/gi;
 const TRAILING = /[.,;:!?]+$/;
 
-/** XML and DOM namespace names: identifiers that player code uses, never fetched. */
+/**
+ * XML and DOM namespace names, and the xAPI vocabulary (verb and activity type IRIs) in statements:
+ * identifiers that player code uses, never fetched.
+ */
 export const NAMESPACE_URIS: readonly string[] = [
   "http://www.w3.org/1999/xhtml",
   "http://www.w3.org/2000/svg",
@@ -25,6 +28,9 @@ export const NAMESPACE_URIS: readonly string[] = [
   "http://www.w3.org/1998/Math/MathML",
   "http://www.w3.org/XML/1998/namespace",
   "http://www.w3.org/2000/xmlns/",
+  "http://adlnet.gov/expapi/verbs/",
+  "http://adlnet.gov/expapi/activities/",
+  "http://activitystrea.ms/schema/1.0/",
 ];
 
 /** Every absolute or protocol-relative URL in `text`, in order of appearance. */
