@@ -61,7 +61,7 @@ function anyState(random: Random, size = 4): ResumeState {
     answers: record(random, size, () => {
       const kind = int(random, 2);
       if (kind === 0) return random() < 0.5 ? anyId(random) : anyText(random);
-      if (kind === 1) return many(random, 4, () => anyId(random));
+      if (kind === 1) return set(random, 4);
       return record(random, 4, () => anyId(random)) ?? {};
     }),
     draws: record(random, 2, () => many(random, size, () => anyId(random))),
@@ -129,6 +129,23 @@ describe("canonical form", () => {
       done: ["aaaaaaaaaa", "bbbbbbbbbb"],
     };
     expect(encode(a)).toBe(encode(b));
+  });
+
+  test("[standards:R4] the same answers give the same payload whatever order they were given in", () => {
+    const a: ResumeState = {
+      answers: {
+        match00001: { pair000002: "pair000001", pair000001: "pair000002" },
+        multi00001: ["answer0002", "answer0001", "answer0002"],
+      },
+    };
+    const b: ResumeState = {
+      answers: {
+        multi00001: ["answer0001", "answer0002"],
+        match00001: { pair000001: "pair000002", pair000002: "pair000001" },
+      },
+    };
+    expect(encode(a)).toBe(encode(b));
+    expect(decodeResume(encode(a))).toMatchObject({ state: b });
   });
 
   test("empty parts and numbers that cannot be stored are left out", () => {

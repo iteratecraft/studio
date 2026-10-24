@@ -178,7 +178,7 @@ function canonical(state: ResumeState): ResumeState {
   if (state.language !== undefined) out.language = state.language;
   set(out, "done", state.done && sortedSet(state.done));
   set(out, "visited", mapValues(state.visited, sortedSet));
-  set(out, "answers", state.answers);
+  set(out, "answers", mapValues(state.answers, canonicalResponse));
   set(out, "draws", state.draws);
   set(
     out,
@@ -202,11 +202,22 @@ function set(out: Record<string, unknown>, key: string, value: unknown) {
     if (value.length > 0) out[key] = value;
     return;
   }
-  const entries = Object.entries(value as object).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  if (entries.length > 0) out[key] = Object.fromEntries(entries);
+  const sorted = sortedRecord(value as Record<string, unknown>);
+  if (Object.keys(sorted).length > 0) out[key] = sorted;
 }
 
 const sortedSet = (ids: readonly string[]) => [...new Set(ids)].sort();
+
+const sortedRecord = <T>(record: Readonly<Record<string, T>>): Record<string, T> =>
+  Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+
+/** A multiple-response list is a set and matching pairs are keyed, so answer order is not kept. */
+const canonicalResponse = (response: Response): Response =>
+  typeof response === "string"
+    ? response
+    : isList(response)
+      ? sortedSet(response)
+      : sortedRecord(response);
 
 function mapValues<T, U>(
   record: Readonly<Record<string, T>> | undefined,
