@@ -15,6 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@course-suite/format": "workspace:*"
+  },
   "devDependencies": {
     "vitest": "catalog:"
   }
