@@ -7,6 +7,7 @@
 // can differ from the standard's, so golden traces assert call order and results up to the finish.
 // The SCO is same-origin with the host page and can rewrite window.__trace and window.__done, so a
 // trace is only as trustworthy as the package: fine for packages we author, not proof for others.
+// When the host page is itself framed, it also posts each call to its parent as it is made.
 // For a cmi5 package it is also a minimal cmi5 launcher (standards.md S-6, test subset): it writes
 // LMS.LaunchData and the learner's preferences, records launched and hands out one-time fetch URLs.
 // shortcut: no abandoned, waived or satisfied statements and no move-on evaluation; the server's
@@ -183,7 +184,10 @@ const wrapped = {};
 for (const method of config.methods) {
   wrapped[method] = (...args) => {
     const result = String(api[method](...args));
-    trace.push({ method, args: args.map(String), result, errorCode: String(api[config.lastError]()) });
+    const call = { method, args: args.map(String), result, errorCode: String(api[config.lastError]()) };
+    trace.push(call);
+    // A page that frames the host page, such as the M1 demo's trace panel, sees each call live.
+    if (window.parent !== window) window.parent.postMessage({ scormCall: call }, "*");
     if (method === config.finish && result === "true") window.__done = true;
     return result;
   };
