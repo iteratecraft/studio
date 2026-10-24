@@ -54,6 +54,21 @@ export function relaunchCmi(cmi: CmiData): CmiData {
   };
 }
 
+/**
+ * The CMI data an LMS gives the next launch of a SCORM 2004 SCO after `cmi`: entry "resume" after a
+ * suspend, and the completion and success status, bookmark, score and suspend data kept.
+ */
+export function relaunchCmi2004(cmi: CmiData): CmiData {
+  return {
+    entry: cmi.exit === "suspend" ? "resume" : "",
+    completion_status: cmi.completion_status,
+    success_status: cmi.success_status,
+    location: cmi.location,
+    score: cmi.score,
+    suspend_data: cmi.suspend_data,
+  };
+}
+
 export async function runPackage(
   pkg: CoursePackage,
   options: RunOptions = {},

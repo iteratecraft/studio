@@ -7,15 +7,19 @@ import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
   createMemoryAdapter,
   createScorm12Adapter,
+  createScorm2004Adapter,
   findScorm12Api,
+  findScorm2004Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
+  type TrackingAdapter,
 } from "@course-suite/tracking";
 import {
   CHUNK_DIR,
   CHUNK_NAME,
   CHUNK_TIMEOUT_MS,
+  type CourseData,
   DATA_CHUNK,
   DATA_FILE,
   DATA_TIMEOUT_MS,
@@ -136,18 +140,19 @@ function boot(): void {
       // The standard is fixed at publish (standards.md P-1). Without an LMS interface a Blocks
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.
-      const api = data.standard === "scorm12" ? findScorm12Api(window) : undefined;
+      const lms = lmsAdapter(data.standard);
       const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
       return startRuntime({
         course: data.course,
-        adapter: api ? createScorm12Adapter(api) : memory,
+        adapter: lms ?? memory,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // The strictest cap, so a preview warns as soon as a SCORM 1.2 package would.
-        resumeCap: RESUME_CAPS.scorm12,
+        // SCORM 2004 packages are 4th edition (64,000 characters). Anything else gets the strictest
+        // cap, so a preview warns as soon as a SCORM 1.2 package would.
+        resumeCap: data.standard === "scorm2004" ? RESUME_CAPS.scorm2004 : RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
-          if (!api) hooks.adapter = memory;
+          if (!lms) hooks.adapter = memory;
           const events: TimedEvent[] = [];
           hooks.events = events;
           runtime.on((event) => events.push(event));
@@ -164,6 +169,19 @@ function boot(): void {
       });
     })
     .catch(() => status.remove());
+}
+
+/** The adapter for the LMS interface of the package's standard, when the LMS offers one. */
+function lmsAdapter(standard: CourseData["standard"]): TrackingAdapter | undefined {
+  if (standard === "scorm2004") {
+    const api = findScorm2004Api(window);
+    return api && createScorm2004Adapter(api);
+  }
+  if (standard === "scorm12") {
+    const api = findScorm12Api(window);
+    return api && createScorm12Adapter(api);
+  }
+  return undefined;
 }
 
 /** The save-failed notice: the course goes on, and the learner may dismiss it (standards.md P-20). */
