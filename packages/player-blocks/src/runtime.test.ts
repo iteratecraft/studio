@@ -120,6 +120,24 @@ describe("Blocks tracking profile", () => {
     ]);
   });
 
+  test("[standards:X-2] each page change closes the page left and opens the new one, for standards that report them", async () => {
+    const [one, two] = pages() as LessonEntry[];
+    const { runtime, adapter } = await setup(course([one as LessonEntry, two as LessonEntry]));
+    const start = adapter.calls.length;
+    runtime.enter(one as LessonEntry);
+    runtime.enter(one as LessonEntry);
+    runtime.enter(two as LessonEntry);
+    const activity = adapter.calls
+      .slice(start)
+      .filter((call) => call.method === "reportEntered" || call.method === "reportLeft")
+      .map((call) => [call.method, ...call.args]);
+    expect(activity).toEqual([
+      ["reportEntered", one?.id],
+      ["reportLeft", one?.id],
+      ["reportEntered", two?.id],
+    ]);
+  });
+
   test("[standards:R3] the start button reports the course started, once", async () => {
     const { runtime, calls, events } = await setup(course(pages()));
     expect(calls("reportStatus")).toHaveLength(0);
@@ -185,6 +203,8 @@ describe("completion model", () => {
     };
     runtime.begin();
     attempt(1);
+    // Each scored attempt, passed or not by the quiz's own passing score.
+    expect(calls("reportQuiz").at(-1)?.args).toEqual([entry.id, { score: 25, passed: false }]);
     expect(calls("reportStatus").at(-1)?.args[0]).toEqual({
       completion: "incomplete",
       success: "failed",
@@ -234,6 +254,11 @@ describe("completion model", () => {
         { type: "choice", weighting: 1, result: "incorrect", id: `${entry.title}_${prompt}_2` },
       ].map((interaction) => ({ ...interaction, id: interaction.id.replaceAll(" ", "_") })),
     );
+    // Standards that report questions as activities get their stable ids too.
+    expect(calls("reportInteraction")[0]?.args[1]).toEqual({
+      quiz: entry.id,
+      question: question.id,
+    });
   });
 });
 
@@ -246,7 +271,9 @@ describe("session end", () => {
     clock.advance(5);
     runtime.exit("exit");
     runtime.exit("page-hide");
+    // The page closes first, for standards that report it (standards.md §4.4).
     expect(adapter.calls.slice(start).map((call) => call.method)).toEqual([
+      "reportLeft",
       "writeResume",
       "commit",
       "writeSessionTime",

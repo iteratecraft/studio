@@ -18,6 +18,7 @@
   "dependencies": {
     "@course-suite/format": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
+    "@course-suite/tracking": "workspace:*",
     "@xmldom/xmldom": "catalog:"
   },
   "devDependencies": {

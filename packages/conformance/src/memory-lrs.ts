@@ -1,13 +1,30 @@
-// An in-memory xAPI LRS for tests (standards.md S-5, test subset): the statements resource and the
-// activity state resource. It keeps everything in memory and checks no credentials.
-// shortcut: no activity or agent profiles, no statement queries beyond statementId, no voiding,
-// no attachments and no auth; the full LRS (S-5) is server work and is tested with T-3.
+// An in-memory xAPI LRS for tests (standards.md S-5, test subset): the about, statements, activity
+// state and agent profile resources, for xAPI 1.0.3 and 2.0. It checks every statement against the rules of
+// the version the request names (xapi-statement.ts), can require one Authorization value, answers
+// cross-origin requests (a course opened from disk or another host), and logs every request.
+// shortcut: no activity profiles, agent profiles by profileId only, no statement queries beyond
+// statementId, no voiding and no attachments; the full LRS (S-5) is server work and is tested with T-3.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { statementProblems, type XapiVersion } from "./xapi-statement.js";
 
 export interface StoredDocument {
   contentType: string;
   body: string;
+}
+
+export interface MemoryLrsOptions {
+  /** Versions the about resource lists and requests may name. Default 1.0.3 and 2.0.0. */
+  versions?: string[];
+  /** When set, every request but `about` must carry this Authorization header. */
+  auth?: string;
+}
+
+export interface LrsRequest {
+  method: string;
+  /** Resource below the endpoint, such as `statements` or `activities/state`. */
+  resource: string;
+  status: number;
 }
 
 export interface MemoryLrs {
@@ -15,12 +32,20 @@ export interface MemoryLrs {
   statements: Record<string, unknown>[];
   /** State documents keyed by `stateKey(...)`. */
   state: Map<string, StoredDocument>;
+  /** Agent profile documents keyed by `profileKey(...)`. */
+  profiles: Map<string, StoredDocument>;
+  /** Every request, in the order they were answered. */
+  requests: LrsRequest[];
+  /** Requests received and not answered yet. */
+  readonly pending: number;
   /** Serves a request whose path, below the xAPI endpoint, is `resource` (e.g. `statements`). */
   handle(request: IncomingMessage, response: ServerResponse, resource: string): Promise<void>;
 }
 
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
-const VERSION = /^(1\.0(\.\d+)?|2\.0(\.\d+)?)$/;
+/** `1.0` or `2.0` from a version such as `1.0.3`. */
+const family = (version: string) =>
+  /^(1\.0|2\.0)(\.\d+)?$/.exec(version)?.[1] as XapiVersion | undefined;
 
 export function stateKey(params: URLSearchParams): string {
   return JSON.stringify(
@@ -28,22 +53,56 @@ export function stateKey(params: URLSearchParams): string {
   );
 }
 
-export function createMemoryLrs(): MemoryLrs {
+export function profileKey(params: URLSearchParams): string {
+  return JSON.stringify(["agent", "profileId"].map((k) => params.get(k)));
+}
+
+export function createMemoryLrs(options: MemoryLrsOptions = {}): MemoryLrs {
+  const versions = options.versions ?? ["1.0.3", "2.0.0"];
   const statements: Record<string, unknown>[] = [];
   const state = new Map<string, StoredDocument>();
+  const profiles = new Map<string, StoredDocument>();
+  const requests: LrsRequest[] = [];
+  let pending = 0;
 
   async function handle(request: IncomingMessage, response: ServerResponse, resource: string) {
+    pending++;
+    try {
+      await serve(request, response, resource);
+    } finally {
+      pending--;
+      requests.push({ method: request.method ?? "GET", resource, status: response.statusCode });
+    }
+  }
+
+  async function serve(request: IncomingMessage, response: ServerResponse, resource: string) {
     const url = new URL(request.url ?? "/", "http://lrs");
+    const asked = family(String(request.headers["x-experience-api-version"] ?? ""));
+    const spoken = versions.find((v) => family(v) === asked);
+    // Any origin may call, as a course opened from disk or another host does.
+    response.setHeader("Access-Control-Allow-Origin", "*");
+    response.setHeader("Access-Control-Expose-Headers", "X-Experience-API-Version");
     const send = (status: number, body?: unknown) => {
       response.statusCode = status;
-      response.setHeader("X-Experience-API-Version", "1.0.3");
+      response.setHeader("X-Experience-API-Version", spoken ?? versions[0] ?? "1.0.3");
       if (body === undefined) return void response.end();
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(body));
     };
-    if (resource === "about") return send(200, { version: ["1.0.3", "2.0.0"] });
-    if (!VERSION.test(String(request.headers["x-experience-api-version"] ?? ""))) {
-      return send(400, { error: "X-Experience-API-Version header is missing or unknown" });
+    if (request.method === "OPTIONS") {
+      response.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+      response.setHeader(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, X-Experience-API-Version",
+      );
+      return send(204);
+    }
+    if (resource === "about") return send(200, { version: versions });
+    if (!asked || !spoken) {
+      return send(400, { error: "X-Experience-API-Version header is missing or not supported" });
+    }
+    if (options.auth !== undefined && request.headers.authorization !== options.auth) {
+      return send(401, { error: "unknown credentials" });
     }
     const body = await readBody(request);
     if (body === undefined) return send(413, { error: `body is larger than ${MAX_BODY_BYTES}` });
@@ -71,6 +130,8 @@ export function createMemoryLrs(): MemoryLrs {
       for (const statement of batch) {
         if (!isStatement(statement))
           return send(400, { error: "statement needs actor, verb, object" });
+        const problems = statementProblems(statement, asked);
+        if (problems.length > 0) return send(400, { error: problems.join("; ") });
         if (method === "PUT" && statement.id !== undefined && statement.id !== id) {
           return send(400, { error: "statement id differs from the statementId parameter" });
         }
@@ -78,7 +139,12 @@ export function createMemoryLrs(): MemoryLrs {
         if (accepted.some((s) => s.id === statementId)) {
           return send(400, { error: `statement ${statementId} appears twice in the batch` });
         }
-        if (statements.some((s) => s.id === statementId)) {
+        // The same statement again is a no-op; another one under a stored id is a conflict (xAPI
+        // 1.0.3 Part Three 2.1). Statements are compared as sent: our client resends them unchanged.
+        const existing = statements.find((s) => s.id === statementId);
+        if (existing) {
+          const { stored: _, ...sent } = existing;
+          if (JSON.stringify(sent) === JSON.stringify({ ...statement, id: statementId })) continue;
           return send(409, { error: `statement ${statementId} already exists` });
         }
         accepted.push({ ...statement, id: statementId, stored: new Date().toISOString() });
@@ -131,10 +197,38 @@ export function createMemoryLrs(): MemoryLrs {
       state.set(key, { contentType, body });
       return send(204);
     }
+    if (resource === "agents/profile") {
+      const params = url.searchParams;
+      if (!params.get("agent") || !params.get("profileId")) {
+        return send(400, { error: "agent and profileId are required" });
+      }
+      const key = profileKey(params);
+      if (method === "GET") {
+        const document = profiles.get(key);
+        if (!document) return send(404);
+        response.setHeader("Content-Type", document.contentType);
+        return void response.end(document.body);
+      }
+      if (method !== "PUT") return send(405);
+      profiles.set(key, {
+        contentType: request.headers["content-type"] ?? "application/octet-stream",
+        body,
+      });
+      return send(204);
+    }
     return send(404);
   }
 
-  return { statements, state, handle };
+  return {
+    statements,
+    state,
+    profiles,
+    requests,
+    get pending() {
+      return pending;
+    },
+    handle,
+  };
 }
 
 function isStatement(value: unknown): value is Record<string, unknown> {

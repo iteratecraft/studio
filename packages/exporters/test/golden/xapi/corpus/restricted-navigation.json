@@ -1,0 +1,222 @@
+{
+  "statements": [
+    {
+      "id": "<statement 1>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "mbox": "mailto:learner@example.org"
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/attempted",
+        "display": {
+          "en-US": "attempted"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/course",
+          "name": {
+            "en": "Using a Fire Extinguisher"
+          },
+          "description": {
+            "en": "Lessons in a fixed order. Pass the readiness check to skip the practice lessons."
+          }
+        }
+      },
+      "result": {
+        "completion": false
+      },
+      "context": {
+        "registration": "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab",
+        "language": "en"
+      },
+      "timestamp": "2026-01-05T09:00:01.000Z"
+    },
+    {
+      "id": "<statement 2>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "mbox": "mailto:learner@example.org"
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/experienced",
+        "display": {
+          "en-US": "experienced"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73/k7lefkzllb",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Know your extinguisher"
+          }
+        }
+      },
+      "context": {
+        "registration": "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ]
+        },
+        "language": "en"
+      },
+      "timestamp": "2026-01-05T09:00:01.000Z"
+    },
+    {
+      "id": "<statement 3>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "mbox": "mailto:learner@example.org"
+      },
+      "verb": {
+        "id": "http://activitystrea.ms/schema/1.0/leave",
+        "display": {
+          "en-US": "left"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73/k7lefkzllb",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Know your extinguisher"
+          }
+        }
+      },
+      "result": {
+        "duration": "PT0.1S"
+      },
+      "context": {
+        "registration": "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ]
+        },
+        "language": "en"
+      },
+      "timestamp": "2026-01-05T09:00:01.100Z"
+    },
+    {
+      "id": "<statement 4>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "mbox": "mailto:learner@example.org"
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/experienced",
+        "display": {
+          "en-US": "experienced"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73/i62w6c84ji",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Readiness check"
+          }
+        }
+      },
+      "context": {
+        "registration": "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ]
+        },
+        "language": "en"
+      },
+      "timestamp": "2026-01-05T09:00:01.100Z"
+    },
+    {
+      "id": "<statement 5>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "mbox": "mailto:learner@example.org"
+      },
+      "verb": {
+        "id": "http://activitystrea.ms/schema/1.0/leave",
+        "display": {
+          "en-US": "left"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73/i62w6c84ji",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Readiness check"
+          }
+        }
+      },
+      "result": {
+        "duration": "PT19.9S"
+      },
+      "context": {
+        "registration": "6f2a3b40-0c1d-4e5f-8a9b-0123456789ab",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:dddf4eb4-2256-4e4a-b45a-5c0040edfb73"
+            }
+          ]
+        },
+        "language": "en"
+      },
+      "timestamp": "2026-01-05T09:00:21.000Z"
+    }
+  ],
+  "state": {
+    "course-state": {
+      "language": "en",
+      "status": {
+        "completion": "incomplete",
+        "success": "unknown",
+        "progress": 0.2
+      },
+      "location": "#/lessons/i62w6c84ji",
+      "resume": "1.CY5m4vFzXfWAz8SVAaYN9DPxJUBpg30c-ViWwiJE54Rr89lLUXI3qMUf1_AAAAA",
+      "totalTimeMs": 20000
+    }
+  }
+}

@@ -3,6 +3,7 @@
 // base64 of its UTF-8 JSON, on the player's registry, so the package opens from disk without CORS.
 import type { Course, PublishSettings } from "@course-suite/format";
 import type { LabelSet } from "@course-suite/labels";
+import type { LrsSettings } from "@course-suite/tracking";
 
 /** What the course data file hands to the player. The package builder fills in every field. */
 export interface CourseData {
@@ -13,6 +14,8 @@ export interface CourseData {
   standard?: PublishSettings["standard"];
   /** The published package's version, kept with the saved state (rise.md rule 12). */
   packageVersion?: number;
+  /** xAPI: the LRS the author set, used only when the launch link names none (standards.md E-17). */
+  lrs?: LrsSettings;
   /** Package path of each media file, by storage key. */
   media?: Record<string, string>;
 }
@@ -61,7 +64,12 @@ function isCourseData(value: unknown): value is CourseData {
   const labels = isObject(value) ? value.labels : undefined;
   const standard = isObject(value) ? value.standard : undefined;
   const version = isObject(value) ? value.packageVersion : undefined;
+  const lrs = isObject(value) ? value.lrs : undefined;
   return (
+    (lrs === undefined ||
+      (isObject(lrs) &&
+        typeof lrs.endpoint === "string" &&
+        (lrs.auth === undefined || typeof lrs.auth === "string"))) &&
     (labels === undefined || (isObject(labels) && isObject(labels.labels))) &&
     (standard === undefined || typeof standard === "string") &&
     (version === undefined || Number.isSafeInteger(version)) &&

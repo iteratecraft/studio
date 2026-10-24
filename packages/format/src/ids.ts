@@ -33,6 +33,16 @@ export function withNewProjectId(course: Course): Course {
   return { ...course, id: newProjectId() };
 }
 
+/**
+ * The xAPI and cmi5 activity IRI of the course, or of an entry or question in it (standards.md E-16):
+ * the author's `publish.activityId`, or `urn:uuid:` and the project id; then `/` and each content id.
+ * Built only from stable ids, so every republish keeps them and a text edit never changes them.
+ */
+export function activityIri(course: Course, ...ids: string[]): string {
+  const base = course.publish?.activityId ?? `urn:uuid:${course.id}`;
+  return ids.length === 0 ? base : [base.replace(/\/+$/, ""), ...ids].join("/");
+}
+
 function randomChars(alphabet: string, count: number): string {
   // Bytes at or above the largest multiple of the alphabet size are dropped, so no character is
   // more likely than another.

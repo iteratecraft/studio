@@ -160,6 +160,8 @@ export interface PublishSettings {
   manifestIdentifier?: string;
   /** xAPI and cmi5 activity IRI. */
   activityId?: string;
+  /** cmi5: what the LMS waits for before it counts the course as done. Default Passed when a quiz decides the result, otherwise Completed. */
+  moveOn?: "Passed" | "Completed" | "CompletedAndPassed" | "CompletedOrPassed" | "NotApplicable";
   lom?: LomMetadata;
   /** Show an exit-course link in the course menu. Default false. */
   exitLink?: boolean;

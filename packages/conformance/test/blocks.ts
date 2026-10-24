@@ -5,9 +5,13 @@ import { join } from "node:path";
 import {
   blocksPlayer,
   buildPackage,
+  cmi5Exporter,
   type Exporter,
+  type Standard,
   scorm12Exporter,
+  scorm2004Exporter,
   webExporter,
+  xapiExporter,
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
 import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
@@ -34,11 +38,18 @@ const standIn = (key: string) =>
       : `stand-in for ${key}\n`,
   );
 
+/** The standards the harness runs every course in. */
+export type ScormStandard = "scorm12" | "scorm2004";
+
 /**
  * Every course of the Blocks conformance corpus (M1-28) when the test-courses checkout is present,
- * otherwise the format's test fixtures, all published as SCORM 1.2 (standards.md P-1).
+ * otherwise the format's test fixtures, all published to `standard` (standards.md P-1).
  */
-export function standardsCourses(): TestCourse[] {
+export function standardsCourses(standard: Standard = "scorm12"): TestCourse[] {
+  const publish = (course: Course): Course => ({
+    ...course,
+    publish: { ...course.publish, standard },
+  });
   const corpus = join(TEST_COURSES, "blocks");
   if (existsSync(corpus)) {
     return readdirSync(corpus, { withFileTypes: true })
@@ -50,7 +61,7 @@ export function standardsCourses(): TestCourse[] {
         const course = JSON.parse(readFileSync(join(dir, "course.json"), "utf8")) as Course;
         return {
           name: `corpus/${folder}`,
-          course: asScorm12(course),
+          course: publish(course),
           media: (key) => {
             const file = join(dir, "media", key);
             return existsSync(file) ? readFileSync(file) : undefined;
@@ -59,15 +70,10 @@ export function standardsCourses(): TestCourse[] {
       });
   }
   return [
-    { name: "fixtures/sample", course: asScorm12(sampleCourse()), media: standIn },
-    { name: "fixtures/full", course: asScorm12(fullCourse()), media: standIn },
+    { name: "fixtures/sample", course: publish(sampleCourse()), media: standIn },
+    { name: "fixtures/full", course: publish(fullCourse()), media: standIn },
   ];
 }
-
-const asScorm12 = (course: Course): Course => ({
-  ...course,
-  publish: { ...course.publish, standard: "scorm12" },
-});
 
 /** Builds `course` with the Blocks player and returns the zip. */
 export async function blocksZip(
@@ -87,11 +93,40 @@ export async function blocksZip(
 }
 
 /** Builds and reads back a SCORM 1.2 package of `course`. */
-export async function scorm12Package(
+export const scorm12Package = (course: Course, media?: TestCourse["media"]) =>
+  scormPackage(course, scorm12Exporter(), media);
+
+/** Builds and reads back a SCORM 2004 4th edition package of `course`. */
+export const scorm2004Package = (course: Course, media?: TestCourse["media"]) =>
+  scormPackage(course, scorm2004Exporter(), media);
+
+async function scormPackage(
+  course: Course,
+  exporter: Exporter,
+  media?: TestCourse["media"],
+): Promise<CoursePackage> {
+  const read = readPackage(await blocksZip(course, exporter, media));
+  if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
+  return read.value;
+}
+
+/** Builds and reads back an xAPI package of `course`. */
+export async function xapiPackage(
+  course: Course,
+  media?: TestCourse["media"],
+  exporter = xapiExporter(),
+): Promise<CoursePackage> {
+  const read = readPackage(await blocksZip(course, exporter, media));
+  if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
+  return read.value;
+}
+
+/** Builds and reads back a cmi5 package of `course`. */
+export async function cmi5Package(
   course: Course,
   media?: TestCourse["media"],
 ): Promise<CoursePackage> {
-  const read = readPackage(await blocksZip(course, scorm12Exporter(), media));
+  const read = readPackage(await blocksZip(course, cmi5Exporter(), media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }

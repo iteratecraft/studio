@@ -5,17 +5,26 @@
 // shows the error screen with Retry; the error is logged to the console and sent nowhere (ADR-0004).
 import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
+  type Cmi5Adapter,
+  createCmi5Adapter,
   createMemoryAdapter,
   createScorm12Adapter,
+  createScorm2004Adapter,
+  createXapiAdapter,
   findScorm12Api,
+  findScorm2004Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
+  readCmi5Launch,
+  readXapiLaunch,
+  type TrackingAdapter,
 } from "@course-suite/tracking";
 import {
   CHUNK_DIR,
   CHUNK_NAME,
   CHUNK_TIMEOUT_MS,
+  type CourseData,
   DATA_CHUNK,
   DATA_FILE,
   DATA_TIMEOUT_MS,
@@ -58,6 +67,8 @@ const errorScreen = h("div", { class: "load-error", role: "alert", hidden: true 
 // The notice slot: a live region in place from the start, so a notice is announced and never blocks.
 const notices = h("div", { class: "notices", role: "status" });
 let shell: HTMLElement | undefined;
+/** The cmi5 session, which may name a page to return to when it ends (standards.md C-8). */
+let cmi5: Cmi5Adapter | undefined;
 
 const player: PlayerRegistry = {
   register(name, value) {
@@ -133,37 +144,122 @@ function boot(): void {
       }
       labels = resolveLabels(data.labels);
       document.documentElement.lang = data.course.sourceLanguage ?? data.labels?.language ?? "en";
-      // The standard is fixed at publish (standards.md P-1). Without an LMS interface a Blocks
+      // The standard is fixed at publish (standards.md P-1). Without an LMS or LRS a Blocks
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.
-      const api = data.standard === "scorm12" ? findScorm12Api(window) : undefined;
       const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
+      const adapter = connect(data) ?? memory;
       return startRuntime({
         course: data.course,
-        adapter: api ? createScorm12Adapter(api) : memory,
+        adapter,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // The strictest cap, so a preview warns as soon as a SCORM 1.2 package would.
-        resumeCap: RESUME_CAPS.scorm12,
+        // SCORM 2004 (4th edition) and an LRS state document have their own caps. Anything else, a
+        // preview too, gets the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
+        // package would.
+        resumeCap:
+          data.standard === "xapi" || data.standard === "cmi5"
+            ? RESUME_CAPS.xapi
+            : data.standard === "scorm2004"
+              ? RESUME_CAPS.scorm2004
+              : RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
-          if (!api) hooks.adapter = memory;
+          if (adapter === memory) hooks.adapter = memory;
           const events: TimedEvent[] = [];
           hooks.events = events;
           runtime.on((event) => events.push(event));
         }
+        const returnUrl = safeUrl(cmi5?.returnUrl);
         runtime.on((event) => {
           if (event.type === "save-failed") notice();
+          // After the session has ended, back to the LMS (standards.md C-8).
+          if (event.type === "exit" && returnUrl) setTimeout(() => location.assign(returnUrl));
         });
         if (runtime.saveFailed) notice();
         // Page-hide, not unload, so mobile browsers and a removed frame still save (standards.md rule 9).
         window.addEventListener("pagehide", () => runtime.exit("page-hide"));
         shell = h("div", { class: "player" });
         root.replaceChildren(notices, shell, errorScreen);
-        startShell(shell, data.course, labels, runtime);
+        // An LMS that names a page to return to gets an exit button to go back by.
+        const course = returnUrl
+          ? {
+              ...data.course,
+              publish: { standard: "cmi5" as const, ...data.course.publish, exitLink: true },
+            }
+          : data.course;
+        startShell(shell, course, labels, runtime);
       });
     })
     .catch(() => status.remove());
+}
+
+/** The adapter for the standard the package was published for, or undefined when none is there. */
+function connect(data: CourseData): TrackingAdapter | undefined {
+  if (data.standard === "scorm2004") {
+    const api = findScorm2004Api(window);
+    return api && createScorm2004Adapter(api);
+  }
+  if (data.standard === "scorm12") {
+    const api = findScorm12Api(window);
+    return api && createScorm12Adapter(api);
+  }
+  if (data.standard === "cmi5") {
+    // The LRS, learner, registration and fetch URL come from the LMS's launch link (standards.md C-1).
+    const launch = readCmi5Launch(new URLSearchParams(location.search));
+    if ("error" in launch) {
+      console.error(`cmi5 reporting is off. ${launch.error}`);
+      return undefined;
+    }
+    cmi5 = createCmi5Adapter({
+      launch,
+      course: data.course,
+      onConnection: offline,
+      onError: saveError,
+    });
+    return cmi5;
+  }
+  if (data.standard !== "xapi") return undefined;
+  // The LRS, learner and registration come from the launch link (standards.md X-1).
+  const launch = readXapiLaunch(new URLSearchParams(location.search), data.lrs);
+  if ("error" in launch) {
+    // One console error and no requests; the course runs without reporting.
+    console.error(`xAPI reporting is off. ${launch.error}`);
+    return undefined;
+  }
+  return createXapiAdapter({
+    launch,
+    course: data.course,
+    onConnection: offline,
+    onError: saveError,
+  });
+}
+
+/** The LRS refused a request for good: the console has the details, the learner gets the notice. */
+function saveError(error: unknown): void {
+  console.error(error);
+  notice();
+}
+
+/** `url` when it is an http or https address, so a launch-data value cannot run script. */
+function safeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return /^https?:$/.test(new URL(url, location.href).protocol) ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The offline banner while statements wait to be sent (standards.md X-5); it goes when they are. */
+function offline(online: boolean): void {
+  if (online) {
+    notices.querySelector(".notice-offline")?.remove();
+    return;
+  }
+  notices.replaceChildren(
+    h("div", { class: "notice notice-offline" }, h("p", {}, labels["notice.offline"])),
+  );
 }
 
 /** The save-failed notice: the course goes on, and the learner may dismiss it (standards.md P-20). */

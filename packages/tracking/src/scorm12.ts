@@ -2,6 +2,7 @@
 // 1 to 4): finds the LMS's `API` object and turns the tracking core's calls into SCORM 1.2 calls in
 // the order LMSs expect. The core decides when to write; this decides what each write looks like.
 import type { Interaction } from "@course-suite/format";
+import { cut, findApi, type ScormWindow, scormWriter } from "./scorm.js";
 import type { Launch, Mode, Status, TrackingAdapter } from "./tracker.js";
 
 /** The SCORM 1.2 run-time API an LMS puts on a window as `API`. Every value is a string. */
@@ -15,71 +16,18 @@ export interface Scorm12Api {
   LMSGetErrorString(code: string): string;
 }
 
-/** The part of a browser window API discovery reads. */
-export interface ScormWindow {
-  API?: unknown;
-  parent?: ScormWindow | null;
-  opener?: ScormWindow | null;
-}
-
-/** How many parent windows discovery climbs from each start window (standards.md P-3). */
-export const API_SEARCH_DEPTH = 10;
-
 /**
  * The LMS's SCORM 1.2 API: on the window or one of its parents, then on the window that opened it
  * or one of that window's parents (standards.md P-3). Undefined when there is none.
  */
-export function findScorm12Api(win: ScormWindow): Scorm12Api | undefined {
-  const climb = (start: ScormWindow | null | undefined) => {
-    let current = start;
-    for (let depth = 0; current && depth <= API_SEARCH_DEPTH; depth++) {
-      try {
-        if (isApi(current.API)) return current.API;
-        if (!current.parent || current.parent === current) return undefined;
-        current = current.parent;
-      } catch {
-        // A window from another origin: the API cannot be there or above it.
-        return undefined;
-      }
-    }
-    return undefined;
-  };
-  let opener: ScormWindow | null | undefined;
-  try {
-    opener = topOf(win).opener;
-  } catch {
-    opener = undefined;
-  }
-  return climb(win) ?? climb(opener);
-}
-
-function topOf(win: ScormWindow): ScormWindow {
-  let current = win;
-  for (let depth = 0; depth < API_SEARCH_DEPTH; depth++) {
-    const parent = current.parent;
-    if (!parent || parent === current) break;
-    current = parent;
-  }
-  return current;
-}
+export const findScorm12Api = (win: ScormWindow): Scorm12Api | undefined =>
+  findApi(win, "API", isApi);
 
 const isApi = (value: unknown): value is Scorm12Api =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as Partial<Scorm12Api>).LMSInitialize === "function" &&
   typeof (value as Partial<Scorm12Api>).LMSSetValue === "function";
-
-/** A SCORM call that the LMS refused. */
-export class ScormError extends Error {
-  constructor(
-    readonly call: string,
-    readonly code: string,
-    detail: string,
-  ) {
-    super(`SCORM 1.2 ${call} failed: ${code}${detail ? ` ${detail}` : ""}`);
-    this.name = "ScormError";
-  }
-}
 
 export interface Scorm12AdapterOptions {
   /**
@@ -103,35 +51,22 @@ export function createScorm12Adapter(
   options: Scorm12AdapterOptions = {},
 ): TrackingAdapter {
   const bookmark = options.bookmark ?? true;
-  const retry = new Map<string, string>();
-  let errors: ScormError[] = [];
+  const writer = scormWriter({
+    setName: "LMSSetValue",
+    setValue: (element, value) => api.LMSSetValue(element, value),
+    lastError: () => api.LMSGetLastError(),
+    errorString: (code) => api.LMSGetErrorString(code),
+  });
+  const { set, raise } = writer;
   let sentStatus: string | undefined;
   let sentScore: string | undefined;
   let interactions: number | undefined;
 
-  const error = (call: string) => {
-    const code = api.LMSGetLastError();
-    return new ScormError(call, code, api.LMSGetErrorString(code));
-  };
   const get = (element: string) => api.LMSGetValue(element);
-  const set = (element: string, value: string) => {
-    if (api.LMSSetValue(element, value) === "true") {
-      retry.delete(element);
-      return;
-    }
-    retry.set(element, value);
-    errors.push(error(`LMSSetValue(${element})`));
-  };
-  /** Throws the first refusal of the calls just made. */
-  const raise = () => {
-    const [first] = errors;
-    errors = [];
-    if (first) throw first;
-  };
 
   return {
     initialize(): Launch {
-      if (api.LMSInitialize("") !== "true") throw error("LMSInitialize");
+      if (api.LMSInitialize("") !== "true") throw writer.error("LMSInitialize");
       // Launch order of standards.md rule 2 and rise.md rule 1. Review mode writes nothing (rule 15).
       const mode = toMode(get("cmi.core.lesson_mode"));
       if (mode === "browse") set("cmi.core.lesson_status", "browsed");
@@ -151,7 +86,7 @@ export function createScorm12Adapter(
         if (location) launch.location = location;
       }
       // A refused launch write stays queued and is sent again at the first commit, which reports it.
-      errors = [];
+      writer.forget();
       return launch;
     },
 
@@ -162,7 +97,7 @@ export function createScorm12Adapter(
 
     writeLocation(location) {
       if (!bookmark) return;
-      set("cmi.core.lesson_location", cut(location));
+      set("cmi.core.lesson_location", cut(location, MAX_TEXT));
       raise();
     },
 
@@ -197,10 +132,13 @@ export function createScorm12Adapter(
       set(`${n}.id`, interaction.id);
       set(`${n}.type`, interaction.type);
       set(`${n}.weighting`, String(interaction.weighting));
-      set(`${n}.student_response`, cut(responseText(interaction.type, interaction.response)));
+      set(
+        `${n}.student_response`,
+        cut(responseText(interaction.type, interaction.response), MAX_TEXT),
+      );
       set(`${n}.result`, interaction.result === "correct" ? "correct" : "wrong");
       patterns(interaction).forEach((pattern, i) => {
-        set(`${n}.correct_responses.${i}.pattern`, cut(pattern));
+        set(`${n}.correct_responses.${i}.pattern`, cut(pattern, MAX_TEXT));
       });
       raise();
     },
@@ -218,13 +156,13 @@ export function createScorm12Adapter(
 
     commit() {
       // Writes the LMS refused before go again first (standards.md P-20).
-      for (const [element, value] of [...retry]) set(element, value);
-      if (api.LMSCommit("") !== "true") errors.push(error("LMSCommit"));
+      writer.retry();
+      if (api.LMSCommit("") !== "true") writer.refused("LMSCommit");
       raise();
     },
 
     terminate() {
-      if (api.LMSFinish("") !== "true") throw error("LMSFinish");
+      if (api.LMSFinish("") !== "true") throw writer.error("LMSFinish");
     },
   };
 }
@@ -282,11 +220,4 @@ function patterns(interaction: Interaction): string[] {
   // Each accepted answer of a fill-in is a correct pattern of its own.
   if (interaction.type === "fill-in") return interaction.correctResponse;
   return [responseText(interaction.type, interaction.correctResponse)];
-}
-
-/** At most 255 UTF-16 units, never splitting a surrogate pair. */
-function cut(text: string): string {
-  if (text.length <= MAX_TEXT) return text;
-  const end = /[\uD800-\uDBFF]/.test(text[MAX_TEXT - 1] ?? "") ? MAX_TEXT - 1 : MAX_TEXT;
-  return text.slice(0, end);
 }

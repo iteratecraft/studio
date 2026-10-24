@@ -74,8 +74,17 @@ export function createMemoryAdapter(options: MemoryAdapterOptions = {}): MemoryA
       log("reportStatus", status);
       return true;
     },
-    reportInteraction(interaction) {
-      log("reportInteraction", interaction);
+    reportInteraction(interaction, question) {
+      log("reportInteraction", interaction, ...(question ? [question] : []));
+    },
+    reportEntered(page) {
+      log("reportEntered", page);
+    },
+    reportLeft(page) {
+      log("reportLeft", page);
+    },
+    reportQuiz(quiz, attempt) {
+      log("reportQuiz", quiz, attempt);
     },
     writeSessionTime(ms) {
       log("writeSessionTime", ms);
