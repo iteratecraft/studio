@@ -199,13 +199,21 @@ document.getElementById("sco").src = config.launch;
 `;
 }
 
+/**
+ * Starts the test LMS. It serves `pkg`'s files under `/package/`; a package without a descriptor,
+ * such as plain web output, is only served.
+ */
 export async function startTestLms(
-  pkg?: CoursePackage,
+  pkg?: CoursePackage | Pick<CoursePackage, "files">,
   options: TestLmsOptions = {},
 ): Promise<TestLms> {
   const lrs = options.lrs ?? createMemoryLrs(options.lrsOptions);
-  const version = pkg?.descriptor.kind === "scorm" ? pkg.descriptor.manifest.version : undefined;
-  const page = version && pkg ? hostPage(version, pkg.launchHref, options.cmi) : undefined;
+  // Plain web output has no descriptor: it is only served.
+  const described = pkg && "descriptor" in pkg ? pkg : undefined;
+  const version =
+    described?.descriptor.kind === "scorm" ? described.descriptor.manifest.version : undefined;
+  const page =
+    version && described ? hostPage(version, described.launchHref, options.cmi) : undefined;
   const runtimes = new Map<string, string>();
   for (const name of ["scorm12", "scorm2004"] as const) {
     runtimes.set(`/runtime/${name}.js`, fileURLToPath(import.meta.resolve(`scorm-again/${name}`)));
@@ -280,8 +288,8 @@ export async function startTestLms(
   const returnUrl = `${origin}/cmi5/return`;
 
   function cmi5Launch(options: Cmi5LaunchOptions = {}): Record<string, string> {
-    if (pkg?.descriptor.kind !== "cmi5") throw new Error("cmi5Launch needs a cmi5 package");
-    const au = pkg.descriptor.course.children.find((node) => node.kind === "au");
+    if (described?.descriptor.kind !== "cmi5") throw new Error("cmi5Launch needs a cmi5 package");
+    const au = described.descriptor.course.children.find((node) => node.kind === "au");
     if (!au) throw new Error("cmi5Launch launches a course with one AU at its root");
     const { actor, registration, activityId } = TEST_CMI5;
     const agent = JSON.stringify(actor);
@@ -331,7 +339,7 @@ export async function startTestLms(
         extensions: {
           ...contextTemplate.extensions,
           [`${CMI5}/context/extensions/launchmode`]: launchMode,
-          [`${CMI5}/context/extensions/launchurl`]: `${origin}/package/${pkg.launchHref}`,
+          [`${CMI5}/context/extensions/launchurl`]: `${origin}/package/${described.launchHref}`,
           [`${CMI5}/context/extensions/moveon`]: moveOn,
           ...(mastery != null && { [`${CMI5}/context/extensions/masteryscore`]: mastery }),
         },

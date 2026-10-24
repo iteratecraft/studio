@@ -78,6 +78,9 @@ importers:
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
+      '@course-suite/labels':
+        specifier: workspace:*
+        version: link:../labels
       '@course-suite/player-blocks':
         specifier: workspace:*
         version: link:../player-blocks
