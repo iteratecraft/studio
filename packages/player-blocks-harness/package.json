@@ -1,0 +1,22 @@
+{
+  "name": "@course-suite/player-blocks-harness",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node src/build.ts",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@course-suite/format": "workspace:*",
+    "@course-suite/labels": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "rolldown": "1.2.13"
+  }
+}
