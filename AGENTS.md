@@ -74,7 +74,8 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm format:types` | Regenerate `packages/format/src/course.ts` from `course.schema.json` after a schema change (a test fails while it is stale) |
 | `pnpm check:licences` | Package licences, production dependency licences and `THIRD_PARTY_NOTICES.md` (`--write` regenerates it) |
 
-Run all of them before you open a PR.
+Run all of them before you open a PR. The Moodle end-to-end tests (`moodle:up`, `test:moodle`) need
+Docker and run in their own CI job; see [docs/ci.md](docs/ci.md).
 
 ## Pull requests
 
