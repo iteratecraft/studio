@@ -67,6 +67,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm lint` | Biome lint and format check, including the rule against hard-coded learner text in `packages/player-*` (`tools/lint/`; `pnpm exec biome check --write .` fixes formatting) |
 | `pnpm test` | Vitest unit tests |
 | `pnpm test:e2e` | Playwright browser tests (first run: `pnpm --filter @course-suite/web exec playwright install --only-shell chromium`) |
+| `pnpm demo:m1` | Builds the sample and corpus courses in every output into `demo/` and serves them in the local test LMS with a live call and statement panel (M1-31); prints the address, Ctrl+C stops it |
 | `pnpm check:deps` | Dependency-direction and licence-layer check |
 | `pnpm check:clean-room` | Clean-room and trademark guard (rules and allow-list in `tools/clean-room-guard/clean-room.config.json`) |
 | `pnpm report:trace` | Markdown report of spec rules covered by tagged tests (`--specs <dir>`, default `../specs`, skipped only when the default is absent; `--out <file>`) |

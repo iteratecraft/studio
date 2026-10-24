@@ -6,7 +6,11 @@
     "test": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/test-courses/blocks/**"]
     },
+    "typecheck": {
+      "dependsOn": ["^build", "build"]
+    },
     "test:e2e": {
+      "dependsOn": ["^build", "build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/exporters/test/golden/**",
