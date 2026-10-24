@@ -4,7 +4,9 @@
 // compared with the golden trace committed under packages/exporters/test/golden. Any call added,
 // removed, reordered or changed in value fails, and the failure shows the diff. The same courses
 // built as xAPI walk the same path against the in-memory LRS; their golden is the statements the
-// LRS stored, in order, and the state document it holds (STD-06).
+// LRS stored, in order, and the state document it holds (STD-06). Built as cmi5 they launch from the
+// test LMS's cmi5 launcher; their golden is the statements the AU sent and the state documents of
+// the AU (STD-07).
 //
 // Regenerate the goldens after an intended change with `UPDATE_GOLDEN=1 pnpm test:e2e`, and review the
 // diff like code: it is what every LMS will see.
@@ -19,13 +21,20 @@ import {
 } from "@course-suite/player-blocks";
 import { expect, type Frame, type Page, test } from "@playwright/test";
 import { closeSco, runPackage } from "../src/run-package.js";
-import { firstRead, runXapiPackage } from "../src/run-xapi.js";
+import { firstRead, runXapiPackage, type XapiRun } from "../src/run-xapi.js";
 import type { ScormCall } from "../src/test-lms.js";
 import { statementProblems } from "../src/xapi-statement.js";
-import { ROOT, scorm12Package, standardsCourses, xapiPackage } from "../test/blocks.js";
+import {
+  cmi5Package,
+  ROOT,
+  scorm12Package,
+  standardsCourses,
+  xapiPackage,
+} from "../test/blocks.js";
 
 const GOLDEN = join(ROOT, "packages", "exporters", "test", "golden", "scorm12");
 const XAPI_GOLDEN = join(ROOT, "packages", "exporters", "test", "golden", "xapi");
+const CMI5_GOLDEN = join(ROOT, "packages", "exporters", "test", "golden", "cmi5");
 /** Any fixed time: the trace holds only times relative to the launch. */
 const START = new Date("2026-01-05T09:00:00Z");
 
@@ -90,6 +99,31 @@ for (const { name, course, media } of standardsCourses()) {
   });
 }
 
+/**
+ * What the LRS holds after a run, for a golden: statements with numbered ids and no stored time
+ * (after checking each is valid in xAPI 1.0.3 and 2.0 and none repeats), and the state documents by
+ * stateId, with the test LMS's origin, which changes every run, as `<lms>`.
+ */
+function lrsGolden(run: XapiRun, statements: Record<string, unknown>[]) {
+  for (const statement of statements) {
+    expect(statementProblems(statement, "1.0")).toEqual([]);
+    expect(statementProblems(statement, "2.0")).toEqual([]);
+  }
+  const ids = statements.map((statement) => statement.id);
+  expect(new Set(ids).size).toBe(ids.length);
+  const numbered = statements.map(({ stored: _, ...statement }) => ({
+    ...statement,
+    id: `<statement ${ids.indexOf(statement.id) + 1}>`,
+  }));
+  const state = Object.fromEntries(
+    [...run.lrs.state].map(([key, document]) => [
+      JSON.parse(key).at(-1),
+      JSON.parse(document.body.replaceAll(run.origin, "<lms>")),
+    ]),
+  );
+  return { statements: numbered, state };
+}
+
 for (const { name, course, media } of standardsCourses("xapi")) {
   test(`[standards:X-2] [standards:X-3] [standards:X-4] [standards:X-6] [standards:R16] ${name}: as xAPI, launch, start, lesson change, timed save and closing match the golden statements and state`, async ({
     browser,
@@ -104,24 +138,29 @@ for (const { name, course, media } of standardsCourses("xapi")) {
     expect(
       run.lrs.requests.filter((request) => request.status >= 300 && !firstRead(request)),
     ).toEqual([]);
-    // Every statement is valid in xAPI 1.0.3 and 2.0 (STD-06).
-    for (const statement of run.lrs.statements) {
-      expect(statementProblems(statement, "1.0")).toEqual([]);
-      expect(statementProblems(statement, "2.0")).toEqual([]);
-    }
-    // Statement ids are random: the golden numbers them, after checking that none repeats.
-    const ids = run.lrs.statements.map((statement) => statement.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    const statements = run.lrs.statements.map(({ stored: _, ...statement }) => ({
-      ...statement,
-      id: `<statement ${ids.indexOf(statement.id) + 1}>`,
-    }));
-    const state = Object.fromEntries(
-      [...run.lrs.state].map(([key, document]) => [
-        JSON.parse(key).at(-1),
-        JSON.parse(document.body),
-      ]),
+    matchGolden(join(XAPI_GOLDEN, `${name}.json`), lrsGolden(run, run.lrs.statements));
+  });
+}
+
+for (const { name, course, media } of standardsCourses("cmi5")) {
+  test(`[standards:C-1] [standards:C-6] [standards:C-7] [standards:C-8] [standards:C-9] [standards:R16] ${name}: as cmi5, launch, start, lesson change, timed save and closing match the golden statements and state`, async ({
+    browser,
+  }) => {
+    const run = await runXapiPackage(await cmi5Package(course, media), {
+      browser,
+      prepare: freezeClock,
+      drive: (page) => walk(course, page, page),
+    });
+    expect(run.pageErrors).toEqual([]);
+    expect(run.consoleErrors).toEqual([]);
+    expect(run.fetches).toEqual([expect.stringMatching(/ token$/)]);
+    expect(
+      run.lrs.requests.filter((request) => request.status >= 300 && !firstRead(request)),
+    ).toEqual([]);
+    // The LMS's launched statement has the real time; the golden holds what the AU sent.
+    const fromAu = run.lrs.statements.filter(
+      (statement) => !String((statement.verb as { id: string }).id).endsWith("/launched"),
     );
-    matchGolden(join(XAPI_GOLDEN, `${name}.json`), { statements, state });
+    matchGolden(join(CMI5_GOLDEN, `${name}.json`), lrsGolden(run, fromAu));
   });
 }

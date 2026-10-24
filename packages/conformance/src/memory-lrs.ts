@@ -1,9 +1,9 @@
-// An in-memory xAPI LRS for tests (standards.md S-5, test subset): the about, statements and
-// activity state resources, for xAPI 1.0.3 and 2.0. It checks every statement against the rules of
+// An in-memory xAPI LRS for tests (standards.md S-5, test subset): the about, statements, activity
+// state and agent profile resources, for xAPI 1.0.3 and 2.0. It checks every statement against the rules of
 // the version the request names (xapi-statement.ts), can require one Authorization value, answers
 // cross-origin requests (a course opened from disk or another host), and logs every request.
-// shortcut: no activity or agent profiles, no statement queries beyond statementId, no voiding and
-// no attachments; the full LRS (S-5) is server work and is tested with T-3.
+// shortcut: no activity profiles, agent profiles by profileId only, no statement queries beyond
+// statementId, no voiding and no attachments; the full LRS (S-5) is server work and is tested with T-3.
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { statementProblems, type XapiVersion } from "./xapi-statement.js";
@@ -32,6 +32,8 @@ export interface MemoryLrs {
   statements: Record<string, unknown>[];
   /** State documents keyed by `stateKey(...)`. */
   state: Map<string, StoredDocument>;
+  /** Agent profile documents keyed by `profileKey(...)`. */
+  profiles: Map<string, StoredDocument>;
   /** Every request, in the order they were answered. */
   requests: LrsRequest[];
   /** Requests received and not answered yet. */
@@ -51,10 +53,15 @@ export function stateKey(params: URLSearchParams): string {
   );
 }
 
+export function profileKey(params: URLSearchParams): string {
+  return JSON.stringify(["agent", "profileId"].map((k) => params.get(k)));
+}
+
 export function createMemoryLrs(options: MemoryLrsOptions = {}): MemoryLrs {
   const versions = options.versions ?? ["1.0.3", "2.0.0"];
   const statements: Record<string, unknown>[] = [];
   const state = new Map<string, StoredDocument>();
+  const profiles = new Map<string, StoredDocument>();
   const requests: LrsRequest[] = [];
   let pending = 0;
 
@@ -190,12 +197,32 @@ export function createMemoryLrs(options: MemoryLrsOptions = {}): MemoryLrs {
       state.set(key, { contentType, body });
       return send(204);
     }
+    if (resource === "agents/profile") {
+      const params = url.searchParams;
+      if (!params.get("agent") || !params.get("profileId")) {
+        return send(400, { error: "agent and profileId are required" });
+      }
+      const key = profileKey(params);
+      if (method === "GET") {
+        const document = profiles.get(key);
+        if (!document) return send(404);
+        response.setHeader("Content-Type", document.contentType);
+        return void response.end(document.body);
+      }
+      if (method !== "PUT") return send(405);
+      profiles.set(key, {
+        contentType: request.headers["content-type"] ?? "application/octet-stream",
+        body,
+      });
+      return send(204);
+    }
     return send(404);
   }
 
   return {
     statements,
     state,
+    profiles,
     requests,
     get pending() {
       return pending;

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   blocksPlayer,
   buildPackage,
+  cmi5Exporter,
   type Exporter,
   type Standard,
   scorm12Exporter,
@@ -104,6 +105,16 @@ export async function xapiPackage(
   exporter = xapiExporter(),
 ): Promise<CoursePackage> {
   const read = readPackage(await blocksZip(course, exporter, media));
+  if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
+  return read.value;
+}
+
+/** Builds and reads back a cmi5 package of `course`. */
+export async function cmi5Package(
+  course: Course,
+  media?: TestCourse["media"],
+): Promise<CoursePackage> {
+  const read = readPackage(await blocksZip(course, cmi5Exporter(), media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }
