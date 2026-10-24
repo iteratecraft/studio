@@ -1,7 +1,8 @@
 // A local test LMS (standards.md S-1, T-6): one HTTP server on 127.0.0.1 that serves a SCORM host
 // page, the package's files from memory and an in-memory xAPI LRS. The host page puts the
 // scorm-again (MIT) run-time API on window.API (SCORM 1.2) or window.API_1484_11 (SCORM 2004),
-// launches the SCO in a frame and records every API call, in order, on window.__trace.
+// launches the SCO in a frame and records every API call, in order, on window.__trace. It can start
+// from stored CMI data and hands back what the LMS holds, so a test can relaunch a SCO.
 // The trace records what scorm-again answered. After LMSFinish (1.2) its results and error codes
 // can differ from the standard's, so golden traces assert call order and results up to the finish.
 // The SCO is same-origin with the host page and can rewrite window.__trace and window.__done, so a
@@ -93,10 +94,22 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
-function hostPage(version: ScormVersion, launchHref: string): string {
+/**
+ * CMI data the LMS holds before the launch, in scorm-again's JSON shape: for SCORM 1.2 for example
+ * `{ core: { lesson_mode: "review" } }`, or the `cmi` a previous run returned plus
+ * `core.entry: "resume"` to relaunch it.
+ */
+export type CmiData = Record<string, unknown>;
+
+export interface TestLmsOptions {
+  /** CMI data loaded into the API before the SCO launches. */
+  cmi?: CmiData;
+}
+
+function hostPage(version: ScormVersion, launchHref: string, cmi: CmiData = {}): string {
   const api = API[version];
   // JSON is valid JavaScript; escaping '<' keeps a launch href from closing the script element.
-  const config = JSON.stringify({ ...api, launch: `/package/${launchHref}` }).replaceAll(
+  const config = JSON.stringify({ ...api, launch: `/package/${launchHref}`, cmi }).replaceAll(
     "<",
     "\\u003c",
   );
@@ -111,6 +124,7 @@ import { ${api.className} as Api } from "/runtime/${api.runtime}.js";
 const config = ${config};
 // logLevel 5 silences the runtime; lmsCommitUrl stays false, so commits stay in memory.
 const api = new Api({ logLevel: 5, autocommit: false });
+api.loadFromJSON(config.cmi);
 const trace = [];
 const wrapped = {};
 for (const method of config.methods) {
@@ -123,6 +137,7 @@ for (const method of config.methods) {
 }
 window.__trace = trace;
 window.__done = false;
+window.__cmi = () => JSON.parse(JSON.stringify(api.cmi));
 window[config.global] = wrapped;
 document.getElementById("sco").src = config.launch;
 </script>
@@ -131,10 +146,13 @@ document.getElementById("sco").src = config.launch;
 `;
 }
 
-export async function startTestLms(pkg?: CoursePackage): Promise<TestLms> {
+export async function startTestLms(
+  pkg?: CoursePackage,
+  options: TestLmsOptions = {},
+): Promise<TestLms> {
   const lrs = createMemoryLrs();
   const version = pkg?.descriptor.kind === "scorm" ? pkg.descriptor.manifest.version : undefined;
-  const page = version && pkg ? hostPage(version, pkg.launchHref) : undefined;
+  const page = version && pkg ? hostPage(version, pkg.launchHref, options.cmi) : undefined;
   const runtimes = new Map<string, string>();
   for (const name of ["scorm12", "scorm2004"] as const) {
     runtimes.set(`/runtime/${name}.js`, fileURLToPath(import.meta.resolve(`scorm-again/${name}`)));

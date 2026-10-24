@@ -1,0 +1,21 @@
+[
+  "LMSInitialize(\"\") -> \"true\" [0]",
+  "LMSGetValue(\"cmi.core.lesson_mode\") -> \"normal\" [0]",
+  "LMSGetValue(\"cmi.core.lesson_status\") -> \"not attempted\" [0]",
+  "LMSSetValue(\"cmi.core.lesson_status\", \"incomplete\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.exit\", \"suspend\") -> \"true\" [0]",
+  "LMSGetValue(\"cmi.suspend_data\") -> \"\" [0]",
+  "LMSGetValue(\"cmi.core.lesson_location\") -> \"\" [0]",
+  "LMSSetValue(\"cmi.core.lesson_status\", \"incomplete\") -> \"true\" [0]",
+  "LMSCommit(\"\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.lesson_location\", \"#/lessons/lessonwhat\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.suspend_data\", \"1.CY6AdEKOMkBgBoB0Qo4yQGSDynmHW7FEHlRlEPNGoPKkZbQbBweVWVg0HTAAAAA\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.lesson_location\", \"#/lessons/lessonmix1\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.suspend_data\", \"1.CY6AdEKNT3rg0A6IUanvXFQDohRqe9ccHlPFr5C5IPKrKwdQyQeVdhQCEDoB0Qo4yQGSDynmHW7FEHlRlEPNGoPKkZbQbBweVWVg0HTAAAAA\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.session_time\", \"0000:00:20.00\") -> \"true\" [0]",
+  "LMSCommit(\"\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.session_time\", \"0000:00:20.00\") -> \"true\" [0]",
+  "LMSSetValue(\"cmi.core.exit\", \"suspend\") -> \"true\" [0]",
+  "LMSCommit(\"\") -> \"true\" [0]",
+  "LMSFinish(\"\") -> \"true\" [0]"
+]
