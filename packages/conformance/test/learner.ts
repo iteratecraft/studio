@@ -5,7 +5,7 @@
 import type { Course, LessonEntry, Question, QuizEntry } from "@course-suite/format";
 import { plainText } from "@course-suite/format";
 import { english } from "@course-suite/labels";
-import { pageHash, pagesOf } from "@course-suite/player-blocks";
+import { type Page as CoursePage, pageHash, pagesOf } from "@course-suite/player-blocks";
 import { expect, type Frame, type Locator, type Page } from "@playwright/test";
 
 /** The page or the LMS frame the course runs in. */
@@ -156,7 +156,12 @@ async function takeQuiz(frame: CourseFrame, quiz: QuizEntry) {
 /** A first visit: begin, then every lesson and quiz in course order. */
 export async function walkCourse(frame: CourseFrame, course: Course): Promise<void> {
   await frame.getByRole("link", { name: label["course.begin"] }).click();
-  for (const page of pagesOf(course)) {
+  await walkPages(frame, pagesOf(course));
+}
+
+/** Opens each of `pages` in turn and does what it asks: lessons worked through, quizzes taken. */
+export async function walkPages(frame: CourseFrame, pages: readonly CoursePage[]): Promise<void> {
+  for (const page of pages) {
     await frame.evaluate(`location.hash = ${JSON.stringify(pageHash(page.id))}`);
     await expect(frame.locator("h1")).toHaveText(page.title);
     // A lesson still locked by a quiz says so; the learner moves on.
