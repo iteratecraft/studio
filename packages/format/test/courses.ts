@@ -160,13 +160,16 @@ export function fullCourse(): Course {
               exclude: ["bankques02"],
               pool: [
                 {
-                  id: "bankques01",
-                  kind: "single-choice",
-                  prompt: "<p>Who may remove a guard?</p>",
-                  answers: [
-                    { id: "answer0005", text: "A trained fitter", correct: true },
-                    { id: "answer0006", text: "Anyone", correct: false },
-                  ],
+                  bankQuestion: "bankques01",
+                  question: {
+                    id: "pooled0001",
+                    kind: "single-choice",
+                    prompt: "<p>Who may remove a guard?</p>",
+                    answers: [
+                      { id: "answer0005", text: "A trained fitter", correct: true },
+                      { id: "answer0006", text: "Anyone", correct: false },
+                    ],
+                  },
                 },
               ],
             },
@@ -227,19 +230,25 @@ export function fullCourse(): Course {
             count: 1,
             pool: [
               {
-                id: "bankques03",
-                kind: "fill-in",
-                prompt: "<p>Name the part that holds the work.</p>",
-                acceptedAnswers: ["chuck"],
+                bankQuestion: "bankques03",
+                question: {
+                  id: "pooled0002",
+                  kind: "fill-in",
+                  prompt: "<p>Name the part that holds the work.</p>",
+                  acceptedAnswers: ["chuck"],
+                },
               },
               {
-                id: "bankques04",
-                kind: "single-choice",
-                prompt: "<p>Is a loose sleeve safe near the chuck?</p>",
-                answers: [
-                  { id: "answer0007", text: "No", correct: true },
-                  { id: "answer0008", text: "Yes", correct: false },
-                ],
+                bankQuestion: "bankques04",
+                question: {
+                  id: "pooled0003",
+                  kind: "single-choice",
+                  prompt: "<p>Is a loose sleeve safe near the chuck?</p>",
+                  answers: [
+                    { id: "answer0007", text: "No", correct: true },
+                    { id: "answer0008", text: "Yes", correct: false },
+                  ],
+                },
               },
             ],
           },

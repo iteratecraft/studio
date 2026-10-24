@@ -68,6 +68,12 @@ describe("checking a response", () => {
     ["a correct choice listed twice", multiple(), ["answer0003", "answer0004", "answer0003"], true],
     ["only some of the correct choices", multiple(), ["answer0003"], false],
     [
+      "no choices for an invalid question with no correct answer",
+      { ...multiple(), answers: [{ id: "answer0005", text: "Gloves", correct: false }] },
+      [],
+      false,
+    ],
+    [
       "the correct choices and a wrong one",
       multiple(),
       ["answer0003", "answer0004", "answer0005"],
@@ -217,14 +223,14 @@ describe("drawing questions", () => {
   test("a draw takes its count from the pool, in place of the draw", () => {
     const settings = { shuffleQuestions: false };
     const ids = drawAttempt({ ...quiz(), settings }, sequence(0.99)).map((q) => q.id);
-    expect(ids).toEqual(["question02", "question03", "question04", "bankques03"]);
+    expect(ids).toEqual(["question02", "question03", "question04", "pooled0002"]);
   });
 
   test("a draw without a count takes the whole pool in random order", () => {
     const draw = { ...(quiz().questions[3] as Parameters<typeof drawFrom>[0]) };
     delete draw.count;
-    expect(drawFrom(draw, sequence(0)).map((q) => q.id)).toEqual(["bankques04", "bankques03"]);
-    expect(drawFrom(draw, sequence(0.99)).map((q) => q.id)).toEqual(["bankques03", "bankques04"]);
+    expect(drawFrom(draw, sequence(0)).map((q) => q.id)).toEqual(["pooled0003", "pooled0002"]);
+    expect(drawFrom(draw, sequence(0.99)).map((q) => q.id)).toEqual(["pooled0002", "pooled0003"]);
   });
 
   test("a count larger than the pool takes the whole pool", () => {
@@ -235,8 +241,8 @@ describe("drawing questions", () => {
   test("shuffled questions are the same questions in another order", () => {
     const ids = drawAttempt(quiz(), sequence(0)).map((q) => q.id);
     expect(ids).toHaveLength(4);
-    expect(ids).not.toEqual(["question02", "question03", "question04", "bankques04"]);
-    expect([...ids].sort()).toEqual(["bankques04", "question02", "question03", "question04"]);
+    expect(ids).not.toEqual(["question02", "question03", "question04", "pooled0003"]);
+    expect([...ids].sort()).toEqual(["pooled0003", "question02", "question03", "question04"]);
   });
 
   test("drawing never changes the quiz", () => {
@@ -280,8 +286,18 @@ describe("interaction ids", () => {
     expect(() => interactionId("Quiz", "Question", 1.5)).toThrow(RangeError);
   });
 
-  test("[rise:R11] characters are counted as code points, never split", () => {
-    expect(interactionId("\u{1F600}".repeat(25), "x", 1)).toBe(`${"\u{1F600}".repeat(20)}_x_1`);
+  test("[rise:R11] characters are counted in UTF-16 units, never splitting a pair", () => {
+    expect(interactionId("\u{1F600}".repeat(25), "x", 1)).toBe(`${"\u{1F600}".repeat(10)}_x_1`);
+    expect(interactionId(`a${"\u{1F600}".repeat(25)}`, "x", 1)).toBe(
+      `a${"\u{1F600}".repeat(9)}_x_1`,
+    );
+  });
+
+  test("[rise:R11] text outside the BMP stays within the SCORM 1.2 limit of 255", () => {
+    expect(interactionId("\u{1F600}".repeat(30), "\u{1F600}".repeat(300), 999)).toHaveLength(255);
+    expect(interactionId("\u{1F600}".repeat(30), `q${"\u{1F600}".repeat(300)}`, 999)).toHaveLength(
+      254,
+    );
   });
 
   test("[rise:R11] tabs and line breaks become underscores too", () => {
@@ -385,7 +401,8 @@ describe("interactions", () => {
 describe("ids stay the same across publishes", () => {
   const ids = (entry: QuizEntry) =>
     entry.questions.flatMap((question) => {
-      const all = question.kind === "draw" ? question.pool : [question];
+      const all =
+        question.kind === "draw" ? question.pool.map((copy) => copy.question) : [question];
       return all.map((q) => toInteraction(entry.title, q, undefined, 1));
     });
 

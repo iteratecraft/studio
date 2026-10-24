@@ -254,8 +254,15 @@ export interface QuestionDraw {
   count?: number;
   /** Bank questions the author left out of the pool. */
   exclude?: ExternalId[];
-  pool: Question[];
+  pool: PoolQuestion[];
   ext?: Ext;
+}
+
+/** A copy of a bank question. The copy has its own ids in this document, so several draws can copy the same bank question. */
+export interface PoolQuestion {
+  /** Id of the question in the bank, as used by exclude. */
+  bankQuestion: ExternalId;
+  question: Question;
 }
 
 /** Block envelope. The shape of variantSettings and items per variant is defined with each block. */

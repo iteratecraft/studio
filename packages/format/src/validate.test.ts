@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { fullCourse, minimalCourse } from "../test/courses.js";
+import { fullCourse, LIBRARY_ID, minimalCourse } from "../test/courses.js";
 import { edit, REMOVE } from "../test/edit.js";
 import type { Schema } from "./validate.js";
 import { compileSchema, courseSchema, validateCourse } from "./validate.js";
@@ -53,6 +53,39 @@ describe("valid documents", () => {
       edit(fullCourse(), "/authors/0/name", "\u{1F600}"),
     ],
     ["a quiz with no questions yet", edit(fullCourse(), "/entries/2/questions", [])],
+    [
+      "two quizzes and a knowledge check that copy the same bank question",
+      edit(fullCourse(), "/entries/4", {
+        id: "quiz000002",
+        kind: "quiz",
+        title: "Check again",
+        questions: [
+          {
+            id: "draw000003",
+            kind: "draw",
+            bank: { containerId: LIBRARY_ID, id: "bank000001" },
+            pool: [
+              {
+                bankQuestion: "bankques01",
+                question: {
+                  id: "pooled0004",
+                  kind: "single-choice",
+                  prompt: "<p>Who may remove a guard?</p>",
+                  answers: [
+                    { id: "answer0009", text: "A trained fitter", correct: true },
+                    { id: "answer0010", text: "Anyone", correct: false },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      "a multiple-response question with every answer correct",
+      edit(fullCourse(), "/entries/2/questions/0/answers/1/correct", true),
+    ],
     ["a course without publish settings", edit(fullCourse(), "/publish", REMOVE)],
     [
       "a block with only its required fields",
@@ -373,10 +406,17 @@ describe("invalid documents report the exact path", () => {
     ],
     [
       "a draw inside a draw's pool",
-      `${QUIZ}/questions/3/pool/0/kind`,
+      `${QUIZ}/questions/3/pool/0/question/kind`,
       "draw",
-      `${QUIZ}/questions/3/pool/0/kind`,
+      `${QUIZ}/questions/3/pool/0/question/kind`,
       "must be one of",
+    ],
+    [
+      "a pool question without its bank question id",
+      `${QUIZ}/questions/3/pool/0/bankQuestion`,
+      REMOVE,
+      `${QUIZ}/questions/3/pool/0/bankQuestion`,
+      "is required",
     ],
     [
       "a draw of no questions",
@@ -534,10 +574,38 @@ describe("reference integrity", () => {
     ],
     [
       "a drawn question with the id of a quiz question",
-      `${QUIZ}/questions/3/pool/0/id`,
+      `${QUIZ}/questions/3/pool/0/question/id`,
       "question03",
-      `${QUIZ}/questions/3/pool/0/id`,
+      `${QUIZ}/questions/3/pool/0/question/id`,
       `duplicates the one at ${QUIZ}/questions/1/id`,
+    ],
+    [
+      "a single-choice question with no correct answer",
+      `${CHECK}/answers/0/correct`,
+      false,
+      `${CHECK}/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a single-choice question with two correct answers",
+      `${CHECK}/answers/1/correct`,
+      true,
+      `${CHECK}/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a drawn single-choice question with two correct answers",
+      `${QUIZ}/questions/3/pool/1/question/answers/1/correct`,
+      true,
+      `${QUIZ}/questions/3/pool/1/question/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a multiple-response question with no correct answer",
+      `${QUIZ}/questions/0/answers/0/correct`,
+      false,
+      `${QUIZ}/questions/0/answers`,
+      "must have a correct answer",
     ],
   ])("%s", (_name, path, value, errorPath, message) => {
     expect(validateCourse(edit(fullCourse(), path, value))).toEqual([

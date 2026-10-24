@@ -297,7 +297,21 @@ const TARGETS: Record<string, readonly string[]> = {
   CategoryRef: ["CategoryItem"],
   CustomBlockRef: ["CustomBlockDocument"],
 };
-const RECORD = new Set(["Id", "StorageKey", "MediaKeyRef", ...Object.keys(TARGETS)]);
+/** Choice questions and the number of correct answers each must have. */
+const CORRECT_ANSWERS: Record<string, { ok: (count: number) => boolean; message: string }> = {
+  SingleChoiceQuestion: {
+    ok: (count) => count === 1,
+    message: "must have exactly one correct answer",
+  },
+  MultipleResponseQuestion: { ok: (count) => count > 0, message: "must have a correct answer" },
+};
+const RECORD = new Set([
+  "Id",
+  "StorageKey",
+  "MediaKeyRef",
+  ...Object.keys(TARGETS),
+  ...Object.keys(CORRECT_ANSWERS),
+]);
 const BLOCK = /^\/entries\/\d+\/blocks\/\d+\//;
 const SKIP_AHEAD = /^\/entries\/\d+\/settings\/skipAhead\/entry$/;
 const entryIndex = (path: string) => Number(/^\/entries\/(\d+)\//.exec(path)?.[1]);
@@ -309,7 +323,8 @@ export interface ValidateOptions {
 
 /**
  * Validates a course document: the schema, then reference integrity (unique ids and storage keys,
- * every reference resolves to the right kind of object). Ids and references inside `ext` and inside
+ * every reference resolves to the right kind of object) and the number of correct answers of each
+ * choice question. Ids and references inside `ext` and inside
  * unknown properties are not seen.
  */
 export function validateCourse(
@@ -350,6 +365,13 @@ export function validateCourse(
       errors.push({ path: ref.path, message: `must refer to a category in the same block` });
     } else if (SKIP_AHEAD.test(ref.path) && entryIndex(target.path) <= entryIndex(ref.path)) {
       errors.push({ path: ref.path, message: "must refer to an entry after the quiz" });
+    }
+  }
+  for (const { def, value, path } of found) {
+    const rule = CORRECT_ANSWERS[def];
+    const answers = (value as { answers?: { correct: boolean }[] }).answers ?? [];
+    if (rule && !rule.ok(answers.filter((answer) => answer.correct).length)) {
+      errors.push({ path: pointer(path, "answers"), message: rule.message });
     }
   }
   return errors;

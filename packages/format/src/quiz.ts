@@ -25,7 +25,12 @@ export function isCorrect(question: Question, response: Response | undefined): b
       if (!Array.isArray(response)) return false;
       const chosen = new Set<string>(response);
       const correct = question.answers.filter((answer) => answer.correct);
-      return chosen.size === correct.length && correct.every((answer) => chosen.has(answer.id));
+      // A question with no correct answer is invalid (validateCourse); it can never be answered right.
+      return (
+        correct.length > 0 &&
+        chosen.size === correct.length &&
+        correct.every((answer) => chosen.has(answer.id))
+      );
     }
     case "fill-in":
       return (
@@ -106,7 +111,8 @@ export function drawAttempt(quiz: QuizEntry, random: () => number = Math.random)
 
 /** `count` questions from the pool (all of them when unset), in random order. A knowledge check shows the first. */
 export function drawFrom(draw: QuestionDraw, random: () => number = Math.random): Question[] {
-  return shuffle(draw.pool, random).slice(0, draw.count ?? draw.pool.length);
+  const pool = draw.pool.map((copy) => copy.question);
+  return shuffle(pool, random).slice(0, draw.count ?? pool.length);
 }
 
 /** A shuffled copy (Fisher-Yates). `random` returns a number in [0, 1), like Math.random. */
@@ -194,13 +200,25 @@ export function toInteraction(
   }
 }
 
-const take = (text: string, count: number) => Array.from(text).slice(0, count).join("");
+/**
+ * The start of the text, at most `count` UTF-16 units, never splitting a surrogate pair. An LMS
+ * measures ids by JavaScript string length, so a character outside the BMP counts twice.
+ */
+function take(text: string, count: number): string {
+  let taken = "";
+  for (const char of text) {
+    if (taken.length + char.length > count) break;
+    taken += char;
+  }
+  return taken;
+}
 
 /**
  * Interaction id (rule 11): the first 20 characters of the quiz title, "_", the first 230 of the
- * question text, "_", and the attempt number, with spaces turned into underscores. It depends on
- * nothing but the text and the attempt, so it is the same in every publish of the same content, and
- * at most 255 characters, the SCORM 1.2 limit (standards.md §4.2). Attempts above 999 use 999.
+ * question text, "_", and the attempt number, with spaces turned into underscores. Characters are
+ * counted in UTF-16 units, as the LMS counts them. It depends on nothing but the text and the
+ * attempt, so it is the same in every publish of the same content, and at most 255 UTF-16 units,
+ * the SCORM 1.2 limit (standards.md §4.2). Attempts above 999 use 999.
  */
 export function interactionId(quizTitle: string, questionText: string, attempt: number): string {
   if (!Number.isInteger(attempt) || attempt < 1) {
