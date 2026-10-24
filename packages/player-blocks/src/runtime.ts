@@ -102,6 +102,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
     onResumeWarning: (warning) => {
       if (warning.code === "over-cap") failed();
     },
+    // The LMS refused a call: the adapter retries at the next commit; the learner gets a notice.
+    onError: failed,
   });
 
   let saved: ResumeState = {};

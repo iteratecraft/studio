@@ -45,14 +45,16 @@ export interface Launch {
 /**
  * One adapter per standard. Every method after `initialize` is synchronous so the player can still
  * save while the page is hidden (standards.md rule 9); an adapter that talks over the network queues
- * its own requests.
+ * its own requests. A method throws when the LMS refused a call; the core reports the error and goes
+ * on, so a refused save never stops the exit sequence (standards.md P-20).
  */
 export interface TrackingAdapter {
   /** Opens the session with the standard's own launch handshake (standards.md rules 1 and 2). */
   initialize(): Launch | Promise<Launch>;
   writeResume(payload: string): void;
   writeLocation(location: string): void;
-  reportStatus(status: Status): void;
+  /** Returns true when it wrote anything the standard stores; the core then commits it. */
+  reportStatus(status: Status): boolean;
   reportInteraction(interaction: Interaction): void;
   /** Time in this session so far, in milliseconds. */
   writeSessionTime(ms: number): void;
@@ -75,6 +77,10 @@ const timers = globalThis as unknown as {
   clearTimeout(handle: unknown): void;
 };
 
+// No DOM or Node typings here either; the console is global in both.
+const logError = (error: unknown) =>
+  (globalThis as { console?: { error(error: unknown): void } }).console?.error(error);
+
 const systemClock: Clock = {
   now: () => Date.now(),
   setTimeout: (callback, ms) => timers.setTimeout(callback, ms),
@@ -94,6 +100,8 @@ export interface TrackerOptions {
   saveIntervalMs?: number;
   /** Called when a state is saved without some parts, or not saved because it is over the cap. */
   onResumeWarning?: (warning: ResumeWarning) => void;
+  /** Called when an adapter call after `initialize` throws. Default: the console. */
+  onError?: (error: unknown) => void;
 }
 
 export interface Session {
@@ -142,12 +150,22 @@ export function createTracker(options: TrackerOptions): Tracker {
 
   const active = () => phase === "open" && writes;
 
+  /** Runs one adapter call; an error is reported and the caller goes on. */
+  const call = <T>(run: () => T): T | undefined => {
+    try {
+      return run();
+    } catch (error) {
+      (options.onError ?? logError)(error);
+      return undefined;
+    }
+  };
+
   const sessionTime = () => clock.now() - startedAt;
 
   function scheduleSave() {
     saveTimer = clock.setTimeout(() => {
-      adapter.writeSessionTime(sessionTime());
-      adapter.commit();
+      call(() => adapter.writeSessionTime(sessionTime()));
+      call(() => adapter.commit());
       scheduleSave();
     }, saveIntervalMs);
   }
@@ -163,7 +181,8 @@ export function createTracker(options: TrackerOptions): Tracker {
       for (const warning of checkResume(state, resumeOptions)) options.onResumeWarning?.(warning);
     }
     if (!encoded.ok || encoded.payload === written) return false;
-    adapter.writeResume(encoded.payload);
+    // A refused write is still pending in the adapter, which sends it again before the next commit.
+    call(() => adapter.writeResume(encoded.payload));
     written = encoded.payload;
     return true;
   }
@@ -204,7 +223,7 @@ export function createTracker(options: TrackerOptions): Tracker {
     },
 
     setLocation(location) {
-      if (active()) adapter.writeLocation(location);
+      if (active()) call(() => adapter.writeLocation(location));
     },
 
     report(change) {
@@ -212,14 +231,13 @@ export function createTracker(options: TrackerOptions): Tracker {
       if (sameStatus(next, status)) return;
       status = next;
       if (!active()) return;
-      adapter.reportStatus(status);
-      adapter.commit();
+      if (call(() => adapter.reportStatus(status))) call(() => adapter.commit());
     },
 
     recordInteraction(interaction) {
       if (!active()) return;
-      adapter.reportInteraction(interaction);
-      adapter.commit();
+      call(() => adapter.reportInteraction(interaction));
+      call(() => adapter.commit());
     },
 
     exit,
@@ -235,19 +253,19 @@ export function createTracker(options: TrackerOptions): Tracker {
     clock.clearTimeout(saveTimer);
     if (!writes) {
       clock.clearTimeout(resumeTimer);
-      adapter.terminate();
+      call(() => adapter.terminate());
       return;
     }
     // Finishing with no status set marks the course completed (standards.md rule 13).
     if (reachedEnd && status.completion !== "completed" && status.success === "unknown") {
       status = { ...status, completion: "completed" };
-      adapter.reportStatus(status);
+      call(() => adapter.reportStatus(status));
     }
-    if (flush()) adapter.commit();
-    adapter.writeSessionTime(sessionTime());
-    adapter.setExit(reachedEnd ? "normal" : "suspend");
-    adapter.commit();
-    adapter.terminate();
+    if (flush()) call(() => adapter.commit());
+    call(() => adapter.writeSessionTime(sessionTime()));
+    call(() => adapter.setExit(reachedEnd ? "normal" : "suspend"));
+    call(() => adapter.commit());
+    call(() => adapter.terminate());
   }
 }
 
