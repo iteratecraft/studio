@@ -16,16 +16,19 @@ import { drawAttempt, quizResult, scoreAttempt } from "@course-suite/format";
 import type { ResumeState } from "@course-suite/tracking";
 import { type Page, pagesOf } from "./route.js";
 
-/** What a continue block waits for before it can be pressed (UI-BLOCKS-R44). */
-export type Requirement = "none" | "above" | "all-above";
+/**
+ * What a continue block waits for before it can be pressed (UI-BLOCKS-R44): nothing, the block
+ * directly above, or every block since the previous continue block.
+ */
+export type Requirement = "none" | "block-above" | "all-above";
 
 export const isContinue = (block: Block) =>
   block.category === "divider" && block.variant === "continue";
 
-/** `variantSettings.completion` of a continue block; default none. */
+/** `variantSettings.completionType` of a continue block; empty or unknown is none. */
 export function requirement(block: Block): Requirement {
-  const value = block.variantSettings?.completion;
-  return value === "above" || value === "all-above" ? value : "none";
+  const value = block.variantSettings?.completionType;
+  return value === "block-above" || value === "all-above" ? value : "none";
 }
 
 /** A knowledge check that must be answered right before anything below it shows (UI-BLOCKS-R25). */
@@ -35,8 +38,29 @@ export const requiresCorrect = (block: Block) =>
 /** Holds back every block below it until it is done (rule 13, UI-BLOCKS-R25 and R43). */
 const isGate = (block: Block) => isContinue(block) || requiresCorrect(block);
 
-/** Finished by an action (pressing, answering), not by being seen. */
-const needsAction = (block: Block) => isContinue(block) || block.category === "knowledge-check";
+/**
+ * Blocks a continue block can wait for, by `category/variant`: each is finished by an interaction,
+ * not by being seen (UI-BLOCKS-R45). Buttons and attachments never are (UI-BLOCKS-R19). Audio,
+ * video and slide-app blocks join when their blocks and settings exist.
+ */
+const REQUIRABLE = new Set([
+  "interactive/accordion",
+  "interactive/tabs",
+  "interactive/labeled-graphic",
+  "interactive/process",
+  "interactive/sorting",
+  "interactive/scenario",
+  "interactive/flashcard-grid",
+  "interactive/flashcard-stack",
+  "list/checkbox",
+  "gallery/carousel",
+]);
+
+/** Finished by an action (pressing, answering, opening every part), not by being seen. */
+const needsAction = (block: Block) =>
+  isContinue(block) ||
+  block.category === "knowledge-check" ||
+  REQUIRABLE.has(`${block.category}/${block.variant}`);
 
 /** How a page shows in the outline. */
 export type PageStatus = "not-started" | "in-progress" | "done" | "failed" | "locked";
@@ -254,7 +278,7 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
       const index = lesson.blocks.indexOf(block);
       const kind = requirement(block);
       if (kind === "none" || index <= 0) return true;
-      if (kind === "above") return finished(lesson, lesson.blocks[index - 1] as Block);
+      if (kind === "block-above") return finished(lesson, lesson.blocks[index - 1] as Block);
       const before = lesson.blocks.slice(0, index);
       const start = before.findLastIndex(isContinue) + 1;
       return before.slice(start).every((other) => finished(lesson, other));

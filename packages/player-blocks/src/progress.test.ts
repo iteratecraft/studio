@@ -1,4 +1,4 @@
-import type { LessonEntry, QuizEntry } from "@course-suite/format";
+import type { Block, LessonEntry, QuizEntry } from "@course-suite/format";
 import { decodeResume, encodeResume, RESUME_CAPS } from "@course-suite/tracking";
 import { describe, expect, test } from "vitest";
 import {
@@ -7,11 +7,12 @@ import {
   continueBlock,
   course,
   lesson,
+  newId,
   question,
   quiz,
   text,
 } from "../test/courses.js";
-import { createProgress } from "./progress.js";
+import { createProgress, requirement } from "./progress.js";
 
 const texts = (count: number) => Array.from({ length: count }, text);
 
@@ -81,7 +82,7 @@ describe("continue blocks", () => {
 
   test("UI-BLOCKS-R44: 'directly above' waits for the block above to be done", () => {
     const kc = check();
-    const gated = lesson(text(), kc, continueBlock("above"));
+    const gated = lesson(text(), kc, continueBlock("block-above"));
     const gate = gated.blocks[2] as never;
     const progress = createProgress(course([gated]));
     progress.view(gated);
@@ -102,6 +103,39 @@ describe("continue blocks", () => {
     progress.answerCheck(gated, second, answersOf(second.question as never).right, true);
     // The first check was never answered; it is before the previous continue block.
     expect(progress.continueReady(gated, gate)).toBe(true);
+  });
+
+  test("UI-BLOCKS-R44: the completion type is read from completionType; empty or unknown is none", () => {
+    const gate = (completionType?: unknown): Block => ({
+      ...continueBlock(),
+      ...(completionType === undefined ? {} : { variantSettings: { completionType } }),
+    });
+    expect(requirement(gate("block-above"))).toBe("block-above");
+    expect(requirement(gate("all-above"))).toBe("all-above");
+    expect(requirement(gate("none"))).toBe("none");
+    expect(requirement(gate(""))).toBe("none");
+    expect(requirement(gate("above"))).toBe("none");
+    expect(requirement(gate())).toBe("none");
+  });
+
+  test("UI-BLOCKS-R45: a requirable block above is not done by being seen; a button is", () => {
+    const interactive = (variant: string): Block => ({
+      id: newId("x"),
+      category: "interactive",
+      variant,
+    });
+    const accordion = lesson(interactive("accordion"), continueBlock("block-above"));
+    const checklist = lesson(
+      { id: newId("x"), category: "list", variant: "checkbox" },
+      continueBlock("all-above"),
+    );
+    // UI-BLOCKS-R19: a button can never be a requirement.
+    const button = lesson(interactive("button"), continueBlock("block-above"));
+    const progress = createProgress(course([accordion, checklist, button]));
+    for (const page of [accordion, checklist, button]) progress.view(page);
+    expect(progress.continueReady(accordion, accordion.blocks[1] as Block)).toBe(false);
+    expect(progress.continueReady(checklist, checklist.blocks[1] as Block)).toBe(false);
+    expect(progress.continueReady(button, button.blocks[1] as Block)).toBe(true);
   });
 });
 
