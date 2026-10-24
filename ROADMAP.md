@@ -134,12 +134,13 @@ applied these by hand.)
   - **SCORM 1.2:** launch, resume, pass, fail, score and exit are verified end to end in Moodle, and the
     golden traces match the spec rules.
   - **SCORM 2004 4th edition:** golden trace matches; completion and success are reported separately;
-    runs in ILIAS.
-  - **xAPI:** statements and resume are accepted by an open-source LRS (1.0.3 and 2.0).
-  - **cmi5:** the ADL CATAPULT content tests pass.
+    runs in ILIAS (moved to M2, D-26).
+  - **xAPI:** statements and resume are accepted by an open-source LRS (1.0.3 and 2.0) (moved to M2,
+    D-26).
+  - **cmi5:** the ADL CATAPULT content tests pass (moved to M2, D-26).
   - The long-resume course stays under 4,096 characters, with the drop order and an author warning.
   - Zero third-party network requests and zero serious axe violations.
-  - Performance budget for the player is set.
+  - Performance budget for the player is set (moved to M2, D-26).
 
 ### M2: Blocks editor MVP → Desktop 0.1 (weeks 5–18)
 
@@ -154,6 +155,9 @@ applied these by hand.)
   - The editor is usable by keyboard and screen reader.
   - Editor network assertions pass.
   - Installers, release notes and a user guide are published.
+  - Carried from M1 (D-26): SCORM 2004 runs in ILIAS; xAPI statements and resume are accepted by an
+    open-source LRS (1.0.3 and 2.0); the ADL CATAPULT cmi5 content tests pass; the player performance
+    budget is set.
 
 ### M2b: Blocks complete → Desktop 0.2 (weeks 18–24)
 
@@ -384,17 +388,17 @@ planning.
 - [x] **M1-18** SCORM 1.2 exporter (STD-04)
 - [x] **M1-19** SCORM 1.2 runtime adapter with the Blocks profile
 - [x] **M1-20** Standards CI harness: corpus × standards on every engine, player or exporter PR
-- [ ] **M1-21** Moodle end-to-end job in a container
-- [ ] **M1-22** SCORM 2004 4th edition exporter (STD-05)
-- [ ] **M1-23** SCORM 2004 runtime adapter
-- [ ] **M1-24** xAPI exporter, with launch-supplied LRS credentials as the default (STD-06)
-- [ ] **M1-25** xAPI runtime adapter
-- [ ] **M1-26** cmi5 exporter (STD-07)
-- [ ] **M1-27** cmi5 runtime adapter
+- [x] **M1-21** Moodle end-to-end job in a container (fixtures and a quiz course; the corpus runs once the deploy key exists)
+- [x] **M1-22** SCORM 2004 4th edition exporter (STD-05)
+- [x] **M1-23** SCORM 2004 runtime adapter
+- [x] **M1-24** xAPI exporter, with launch-supplied LRS credentials as the default (STD-06)
+- [x] **M1-25** xAPI runtime adapter
+- [x] **M1-26** cmi5 exporter (STD-07)
+- [x] **M1-27** cmi5 runtime adapter
 - [x] **M1-28** Conformance corpus v1: at least 6 reference Blocks courses (ENG-37)
-- [ ] **M1-29** Player accessibility baseline, axe in CI
-- [ ] **M1-30** No-network guarantee tests for every output
-- [ ] **M1-31** M1 demo and exit review
+- [x] **M1-29** Player accessibility baseline, axe in CI
+- [x] **M1-30** No-network guarantee tests for every output
+- [x] **M1-31** M1 demo and exit review
 
 ## Top risks
 
@@ -441,6 +445,9 @@ planning.
 | D-23 | LTI 1.3 support (common LMS launch method, not used by the reference product) | server edition, after 1.0 | 1.1 planning |
 | D-24 | Continue-button settings names | **Decided 2026-10-24:** `completionType` (none, block-above, all-above), `buttonLabel`, `hintText`, as used by the reference courses | done |
 | D-25 | A link inside an author's SVG pointing outside the course | **Decided 2026-10-24:** allowed as navigation (ADR-0004); only addresses the browser loads by itself block publishing | done |
+| D-26 | Which M1 exit items must be met before M1 closes | **Decided 2026-10-25:** Moodle only. ILIAS, an open-source LRS, the CATAPULT cmi5 content tests and the player performance budget move to the M2 exit | done |
+| D-27 | Moodle version for the end-to-end job | **Decided 2026-10-25:** Moodle 5.3, pinned by release checksum and image digests | done |
+| D-28 | Sign-in names and passwords of the throwaway test Moodle | **Decided 2026-10-25:** fixed values committed in the repo; they work only inside the local test container | done |
 
 ## How to read the backlog
 
