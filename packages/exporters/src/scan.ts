@@ -18,7 +18,8 @@ const PROTOCOL_RELATIVE =
 const TRAILING = /[.,;:!?]+$/;
 
 /**
- * XML and DOM namespace names, and the xAPI vocabulary (verb and activity type IRIs) in statements:
+ * XML and DOM namespace names, and the xAPI and cmi5 vocabulary (verb, activity type, category and
+ * extension IRIs) in statements:
  * identifiers that player code uses, never fetched.
  */
 export const NAMESPACE_URIS: readonly string[] = [
@@ -31,6 +32,7 @@ export const NAMESPACE_URIS: readonly string[] = [
   "http://adlnet.gov/expapi/verbs/",
   "http://adlnet.gov/expapi/activities/",
   "http://activitystrea.ms/schema/1.0/",
+  "https://w3id.org/xapi/cmi5/",
 ];
 
 /** Every absolute or protocol-relative URL in `text`, in order of appearance. */

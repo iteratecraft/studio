@@ -1,11 +1,17 @@
-// Launches an xAPI package in headless Chromium the way an LMS does (standards.md X-1): the launch
-// page with the launch-link parameters endpoint, auth, actor and registration, reporting to the
-// test LMS's in-memory LRS. The run ends when the course page goes away and the LRS has gone quiet;
+// Launches an xAPI or cmi5 package in headless Chromium the way an LMS does: the launch page with
+// the launch-link parameters endpoint, auth, actor and registration (standards.md X-1), or for cmi5
+// those the test LMS's launcher prepares, with its one-time fetch URL (C-1), reporting to the test
+// LMS's in-memory LRS. The run ends when the course page goes away and the LRS has gone quiet;
 // it returns what the LRS holds and every request the page made.
 import { type Browser, chromium, type Page } from "playwright-core";
 import type { LrsRequest, MemoryLrs } from "./memory-lrs.js";
 import type { CoursePackage } from "./package.js";
-import { startTestLms, type TestLmsOptions } from "./test-lms.js";
+import {
+  type Cmi5LaunchOptions,
+  startTestLms,
+  TEST_CMI5_AUTH,
+  type TestLmsOptions,
+} from "./test-lms.js";
 
 /** The learner, registration and credentials a test launch uses unless told otherwise. */
 export const TEST_LAUNCH = {
@@ -22,13 +28,18 @@ export interface XapiRunOptions {
   browser?: Browser;
   /** The LRS of an earlier run, so a relaunch finds its state. Default: a new LRS. */
   lrs?: MemoryLrs;
-  /** Options of a new LRS, such as the versions it supports. */
+  /**
+   * Options of a new LRS, such as the versions it supports. A cmi5 launch's LRS requires the
+   * launcher's credentials (TEST_CMI5_AUTH) unless these say otherwise.
+   */
   lrsOptions?: TestLmsOptions["lrsOptions"];
   /**
    * Launch-link parameters over the defaults: `endpoint` (the test LRS), `auth`, `actor` and
-   * `registration` (TEST_LAUNCH). Null leaves a parameter out.
+   * `registration` (TEST_LAUNCH), or for cmi5 those of `cmi5Launch`. Null leaves a parameter out.
    */
   launch?: Record<string, string | null>;
+  /** cmi5: the launch data the test LMS writes, such as the launch mode. */
+  cmi5?: Cmi5LaunchOptions;
   /** Runs before the course opens, for example to install a fake clock with `page.clock`. */
   prepare?: (page: Page) => Promise<void>;
   /** The learner. The run then closes the course page, which is the learner leaving. */
@@ -41,6 +52,8 @@ export interface XapiRun {
   lrs: MemoryLrs;
   /** Origin of the test LMS that served the package and the LRS. */
   origin: string;
+  /** cmi5: every request to a fetch URL (TestLms.fetches). */
+  fetches: string[];
   /** Every URL the course page requested, in order. */
   requests: string[];
   pageErrors: string[];
@@ -52,12 +65,14 @@ export async function runXapiPackage(
   pkg: CoursePackage,
   options: XapiRunOptions = {},
 ): Promise<XapiRun> {
-  if (pkg.descriptor.kind !== "tincan") {
-    throw new Error(`runXapiPackage launches xAPI packages; this one is ${pkg.descriptor.kind}`);
+  const { kind } = pkg.descriptor;
+  if (kind !== "tincan" && kind !== "cmi5") {
+    throw new Error(`runXapiPackage launches xAPI and cmi5 packages; this one is ${kind}`);
   }
+  const lrsOptions = options.lrsOptions ?? (kind === "cmi5" ? { auth: TEST_CMI5_AUTH } : undefined);
   const lms = await startTestLms(pkg, {
     ...(options.lrs && { lrs: options.lrs }),
-    ...(options.lrsOptions && { lrsOptions: options.lrsOptions }),
+    ...(lrsOptions && { lrsOptions }),
   });
   try {
     const browser = options.browser ?? (await chromium.launch());
@@ -66,6 +81,7 @@ export async function runXapiPackage(
       const run: XapiRun = {
         lrs: lms.lrs,
         origin: lms.origin,
+        fetches: lms.fetches,
         requests: [],
         pageErrors: [],
         consoleErrors: [],
@@ -83,10 +99,14 @@ export async function runXapiPackage(
         await options.prepare?.(page);
         const params = new URLSearchParams();
         const values: Record<string, string | null> = {
-          endpoint: lms.xapiEndpoint,
-          auth: TEST_LAUNCH.auth,
-          actor: JSON.stringify(TEST_LAUNCH.actor),
-          registration: TEST_LAUNCH.registration,
+          ...(kind === "cmi5"
+            ? lms.cmi5Launch(options.cmi5)
+            : {
+                endpoint: lms.xapiEndpoint,
+                auth: TEST_LAUNCH.auth,
+                actor: JSON.stringify(TEST_LAUNCH.actor),
+                registration: TEST_LAUNCH.registration,
+              }),
           ...options.launch,
         };
         for (const [name, value] of Object.entries(values))

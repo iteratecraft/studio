@@ -67,7 +67,7 @@ export interface XapiLaunch {
   registration?: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The launch-link parameters `endpoint`, `auth`, `actor` and `registration` (standards.md X-1). An
@@ -104,7 +104,7 @@ export function readXapiLaunch(
  * The learner from the `actor` parameter, with one identifier. Older launch links wrap each value
  * in an array and name account fields `accountServiceHomePage` and `accountName`.
  */
-function toAgent(json: string | null): Agent | undefined {
+export function toAgent(json: string | null): Agent | undefined {
   let value: unknown;
   try {
     value = JSON.parse(json ?? "");
@@ -149,7 +149,7 @@ export interface XapiAdapterOptions {
 }
 
 /** What the state document holds (standards.md §4.4 "State documents"). */
-interface Progress {
+export interface Progress {
   resume?: string;
   location?: string;
   language?: string;
@@ -159,7 +159,7 @@ interface Progress {
   status?: Status;
 }
 
-const NOT_ATTEMPTED: Status = { completion: "not-attempted", success: "unknown" };
+export const NOT_ATTEMPTED: Status = { completion: "not-attempted", success: "unknown" };
 
 /**
  * The xAPI adapter. Its methods queue statements and state writes and return at once; the LRS client
@@ -333,13 +333,16 @@ export function createXapiAdapter(options: XapiAdapterOptions): TrackingAdapter 
   };
 }
 
-interface Activity {
+export interface Activity {
   id: string;
   definition: Record<string, unknown>;
 }
 
 /** Definitions of every lesson, quiz and quiz question, by content id path (`quiz/question`). */
-function activitiesOf(course: Course, language: string): Map<string, Record<string, unknown>> {
+export function activitiesOf(
+  course: Course,
+  language: string,
+): Map<string, Record<string, unknown>> {
   const found = new Map<string, Record<string, unknown>>();
   const name = (text: string) => ({ [language]: text });
   for (const entry of course.entries) {
@@ -369,7 +372,7 @@ export function interactionType(question: Question): Interaction["type"] {
       : "choice";
 }
 
-function interactionActivity(activity: Activity, interaction: Interaction): Activity {
+export function interactionActivity(activity: Activity, interaction: Interaction): Activity {
   const patterns =
     interaction.type === "fill-in"
       ? interaction.correctResponse
@@ -394,7 +397,7 @@ export function response(type: Interaction["type"], value: Interaction["response
 }
 
 /** Score with scaled = raw ÷ max (standards.md rule 12). */
-function score(value: { raw: number; min: number; max: number }) {
+export function score(value: { raw: number; min: number; max: number }) {
   return { scaled: value.max > 0 ? value.raw / value.max : 0, ...value };
 }
 
@@ -407,7 +410,7 @@ export function isoDuration(ms: number): string {
   return `PT${hours ? `${hours}H` : ""}${minutes ? `${minutes}M` : ""}${seconds || !(hours || minutes) ? `${seconds}S` : ""}`;
 }
 
-function readProgress(text: string | undefined): Progress {
+export function readProgress(text: string | undefined): Progress {
   if (text === undefined) return {};
   let value: unknown;
   try {
@@ -438,7 +441,7 @@ function isStatus(value: unknown): value is Status {
 
 // No DOM typings here; Web Crypto is global in browsers and Node, and getRandomValues also works
 // on pages that are not a secure context.
-function uuidV4(): string {
+export function uuidV4(): string {
   const bytes = (
     globalThis as unknown as { crypto: { getRandomValues(array: Uint8Array): Uint8Array } }
   ).crypto.getRandomValues(new Uint8Array(16));

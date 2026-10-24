@@ -302,6 +302,16 @@
           "maxLength": 2048,
           "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:[^\\s]+$"
         },
+        "moveOn": {
+          "description": "cmi5: what the LMS waits for before it counts the course as done. Default Passed when a quiz decides the result, otherwise Completed.",
+          "enum": [
+            "Passed",
+            "Completed",
+            "CompletedAndPassed",
+            "CompletedOrPassed",
+            "NotApplicable"
+          ]
+        },
         "lom": { "$ref": "#/$defs/LomMetadata" },
         "exitLink": {
           "description": "Show an exit-course link in the course menu. Default false.",

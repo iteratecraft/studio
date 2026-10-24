@@ -1,0 +1,418 @@
+{
+  "statements": [
+    {
+      "id": "<statement 1>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/initialized",
+        "display": {
+          "en-US": "initialized"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:test-lms:au:1"
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ],
+          "category": [
+            {
+              "id": "https://w3id.org/xapi/cmi5/context/categories/cmi5"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.000Z"
+    },
+    {
+      "id": "<statement 2>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/attempted",
+        "display": {
+          "en-US": "attempted"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:test-lms:au:1"
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:test-lms:au:1"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.001Z"
+    },
+    {
+      "id": "<statement 3>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/experienced",
+        "display": {
+          "en-US": "experienced"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/zzaq1hyyxi",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Pressure and isobars"
+          }
+        }
+      },
+      "result": {
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/result/extensions/progress": 0
+        }
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:test-lms:au:1"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.002Z"
+    },
+    {
+      "id": "<statement 4>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://activitystrea.ms/schema/1.0/leave",
+        "display": {
+          "en-US": "left"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/zzaq1hyyxi",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Pressure and isobars"
+          }
+        }
+      },
+      "result": {
+        "duration": "PT0.1S",
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/result/extensions/progress": 50
+        }
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:test-lms:au:1"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.100Z"
+    },
+    {
+      "id": "<statement 5>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/experienced",
+        "display": {
+          "en-US": "experienced"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/qfg042vm4x",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Fronts at a glance"
+          }
+        }
+      },
+      "result": {
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/result/extensions/progress": 50
+        }
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:test-lms:au:1"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.101Z"
+    },
+    {
+      "id": "<statement 6>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/completed",
+        "display": {
+          "en-US": "completed"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:test-lms:au:1"
+      },
+      "result": {
+        "completion": true,
+        "duration": "PT0.1S"
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ],
+          "category": [
+            {
+              "id": "https://w3id.org/xapi/cmi5/context/categories/cmi5"
+            },
+            {
+              "id": "https://w3id.org/xapi/cmi5/context/categories/moveon"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:01.102Z"
+    },
+    {
+      "id": "<statement 7>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://activitystrea.ms/schema/1.0/leave",
+        "display": {
+          "en-US": "left"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/qfg042vm4x",
+        "definition": {
+          "type": "http://adlnet.gov/expapi/activities/module",
+          "name": {
+            "en": "Fronts at a glance"
+          }
+        }
+      },
+      "result": {
+        "duration": "PT19.9S"
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "parent": [
+            {
+              "id": "urn:test-lms:au:1"
+            }
+          ],
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:21.000Z"
+    },
+    {
+      "id": "<statement 8>",
+      "actor": {
+        "objectType": "Agent",
+        "name": "Test Learner",
+        "account": {
+          "homePage": "https://lms.example.org",
+          "name": "learner-1"
+        }
+      },
+      "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/terminated",
+        "display": {
+          "en-US": "terminated"
+        }
+      },
+      "object": {
+        "objectType": "Activity",
+        "id": "urn:test-lms:au:1"
+      },
+      "result": {
+        "duration": "PT20S"
+      },
+      "context": {
+        "registration": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d",
+        "language": "en",
+        "contextActivities": {
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ],
+          "category": [
+            {
+              "id": "https://w3id.org/xapi/cmi5/context/categories/cmi5"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "timestamp": "2026-01-05T09:00:21.001Z"
+    }
+  ],
+  "state": {
+    "LMS.LaunchData": {
+      "contextTemplate": {
+        "contextActivities": {
+          "grouping": [
+            {
+              "id": "urn:uuid:c22cc109-6818-4e50-b146-769dccd19120/au"
+            }
+          ]
+        },
+        "extensions": {
+          "https://w3id.org/xapi/cmi5/context/extensions/sessionid": "0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d-1"
+        }
+      },
+      "launchMode": "Normal",
+      "moveOn": "Completed",
+      "returnURL": "<lms>/cmi5/return"
+    },
+    "course-state": {
+      "language": "en",
+      "status": {
+        "completion": "completed",
+        "success": "unknown",
+        "progress": 1
+      },
+      "location": "#/lessons/qfg042vm4x",
+      "resume": "1.CY66ZnODxQnhV0zOcHihPyisSHxIuIKumZzg8UJ5IMyihLd-0WUTs0sfl-vWYVo92ThjHXRhOgb3KKxIfEi4hJMnK8YFUzyzoCQvcuPxT2OoXHlrkPtSdVgu8AAAAA",
+      "committed": {
+        "completed": true
+      },
+      "totalTimeMs": 20000
+    }
+  }
+}

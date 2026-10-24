@@ -5,6 +5,8 @@
 // shows the error screen with Retry; the error is logged to the console and sent nowhere (ADR-0004).
 import { formatLabel, type Labels, resolveLabels } from "@course-suite/labels";
 import {
+  type Cmi5Adapter,
+  createCmi5Adapter,
   createMemoryAdapter,
   createScorm12Adapter,
   createScorm2004Adapter,
@@ -14,6 +16,7 @@ import {
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
+  readCmi5Launch,
   readXapiLaunch,
   type TrackingAdapter,
 } from "@course-suite/tracking";
@@ -64,6 +67,8 @@ const errorScreen = h("div", { class: "load-error", role: "alert", hidden: true 
 // The notice slot: a live region in place from the start, so a notice is announced and never blocks.
 const notices = h("div", { class: "notices", role: "status" });
 let shell: HTMLElement | undefined;
+/** The cmi5 session, which may name a page to return to when it ends (standards.md C-8). */
+let cmi5: Cmi5Adapter | undefined;
 
 const player: PlayerRegistry = {
   register(name, value) {
@@ -153,7 +158,7 @@ function boot(): void {
         // preview too, gets the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
         // package would.
         resumeCap:
-          data.standard === "xapi"
+          data.standard === "xapi" || data.standard === "cmi5"
             ? RESUME_CAPS.xapi
             : data.standard === "scorm2004"
               ? RESUME_CAPS.scorm2004
@@ -165,15 +170,25 @@ function boot(): void {
           hooks.events = events;
           runtime.on((event) => events.push(event));
         }
+        const returnUrl = safeUrl(cmi5?.returnUrl);
         runtime.on((event) => {
           if (event.type === "save-failed") notice();
+          // After the session has ended, back to the LMS (standards.md C-8).
+          if (event.type === "exit" && returnUrl) setTimeout(() => location.assign(returnUrl));
         });
         if (runtime.saveFailed) notice();
         // Page-hide, not unload, so mobile browsers and a removed frame still save (standards.md rule 9).
         window.addEventListener("pagehide", () => runtime.exit("page-hide"));
         shell = h("div", { class: "player" });
         root.replaceChildren(notices, shell, errorScreen);
-        startShell(shell, data.course, labels, runtime);
+        // An LMS that names a page to return to gets an exit button to go back by.
+        const course = returnUrl
+          ? {
+              ...data.course,
+              publish: { standard: "cmi5" as const, ...data.course.publish, exitLink: true },
+            }
+          : data.course;
+        startShell(shell, course, labels, runtime);
       });
     })
     .catch(() => status.remove());
@@ -189,6 +204,21 @@ function connect(data: CourseData): TrackingAdapter | undefined {
     const api = findScorm12Api(window);
     return api && createScorm12Adapter(api);
   }
+  if (data.standard === "cmi5") {
+    // The LRS, learner, registration and fetch URL come from the LMS's launch link (standards.md C-1).
+    const launch = readCmi5Launch(new URLSearchParams(location.search));
+    if ("error" in launch) {
+      console.error(`cmi5 reporting is off. ${launch.error}`);
+      return undefined;
+    }
+    cmi5 = createCmi5Adapter({
+      launch,
+      course: data.course,
+      onConnection: offline,
+      onError: saveError,
+    });
+    return cmi5;
+  }
   if (data.standard !== "xapi") return undefined;
   // The LRS, learner and registration come from the launch link (standards.md X-1).
   const launch = readXapiLaunch(new URLSearchParams(location.search), data.lrs);
@@ -201,11 +231,24 @@ function connect(data: CourseData): TrackingAdapter | undefined {
     launch,
     course: data.course,
     onConnection: offline,
-    onError: (error) => {
-      console.error(error);
-      notice();
-    },
+    onError: saveError,
   });
+}
+
+/** The LRS refused a request for good: the console has the details, the learner gets the notice. */
+function saveError(error: unknown): void {
+  console.error(error);
+  notice();
+}
+
+/** `url` when it is an http or https address, so a launch-data value cannot run script. */
+function safeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return /^https?:$/.test(new URL(url, location.href).protocol) ? url : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The offline banner while statements wait to be sent (standards.md X-5); it goes when they are. */

@@ -1,4 +1,4 @@
-// Package builder and exporters (STD-02, STD-04, STD-05, STD-06): one pipeline that turns a course into a validated,
+// Package builder and exporters (STD-02, STD-04, STD-05, STD-06, STD-07): one pipeline that turns a course into a validated,
 // reproducible package for a standard, with one exporter plug-in per standard, and the Blocks player
 // files every Blocks package ships (M1-17).
 export { BLOCKS_LAUNCH_PAGE, blocksPlayer, webExporter } from "./blocks.js";
@@ -13,6 +13,7 @@ export type {
   Standard,
 } from "./builder.js";
 export { buildPackage, MEDIA_FOLDER, unsafePath } from "./builder.js";
+export { CMI5_AU, CMI5_XML, cmi5Exporter, cmi5MoveOn } from "./cmi5.js";
 export type { Problem, Result } from "./result.js";
 export {
   findModuleCode,
