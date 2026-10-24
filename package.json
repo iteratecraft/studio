@@ -13,6 +13,7 @@
     "lint": "biome check .",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
+    "demo:m1": "turbo run build --filter=@course-suite/conformance --output-logs=errors-only && node packages/conformance/demo/m1.ts",
     "check:deps": "turbo boundaries",
     "check:clean-room": "node tools/clean-room-guard/guard.ts",
     "report:trace": "node tools/traceability/trace.ts",
