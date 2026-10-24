@@ -15,6 +15,7 @@ export {
   LrsError,
   MAX_QUEUED_STATEMENTS,
   OFFLINE_RETRY_MS,
+  REQUEST_TIMEOUT_MS,
   RETRY_DELAYS_MS,
   XAPI_VERSION,
 } from "./lrs.js";

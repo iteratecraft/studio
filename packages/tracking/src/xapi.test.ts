@@ -7,6 +7,7 @@ import {
   type HttpRequest,
   isoDuration,
   OFFLINE_RETRY_MS,
+  REQUEST_TIMEOUT_MS,
   RESUME_CAPS,
   RETRY_DELAYS_MS,
   readXapiLaunch,
@@ -99,12 +100,22 @@ interface Sent extends HttpRequest {
   params: Record<string, string>;
 }
 
-/** An LRS behind a fake `fetch`: `failNext` requests fail without an answer, `status` answers instead. */
+/**
+ * An LRS behind a fake `fetch`: `failNext` requests fail without an answer, `status` answers instead,
+ * and while `hang` is set requests never get an answer.
+ */
 function fakeLrs(versions = ["1.0.3"]) {
   const requests: Sent[] = [];
   const statements: Record<string, unknown>[] = [];
   const state = new Map<string, string>();
-  const lrs = { requests, statements, state, failNext: 0, status: undefined as number | undefined };
+  const lrs = {
+    requests,
+    statements,
+    state,
+    failNext: 0,
+    hang: false,
+    status: undefined as number | undefined,
+  };
   const transport: Transport = async (url, request) => {
     const [path = "", search = ""] = url.slice(ENDPOINT.length).split("?");
     const params = Object.fromEntries(
@@ -114,6 +125,7 @@ function fakeLrs(versions = ["1.0.3"]) {
         .map((pair) => pair.split("=").map(decodeURIComponent) as [string, string]),
     );
     requests.push({ ...request, path, params });
+    if (lrs.hang) return new Promise<never>(() => {});
     const answer = (status: number, body = "") => ({ status, text: async () => body });
     if (lrs.failNext > 0) {
       lrs.failNext--;
@@ -432,6 +444,86 @@ describe("state", () => {
     tracker.exit(false);
     await settle();
     expect(requests.filter((r) => r.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("an LRS that never answers", () => {
+  const aborted = (request: HttpRequest) => (request.signal as { aborted?: boolean }).aborted;
+
+  test("[standards:X-4] [standards:X-7] the launch gives up after 10 s per request, aborts them and stops tracking", async () => {
+    const lrs = fakeLrs();
+    const { tracker, clock, requests } = setup(lrs);
+    lrs.lrs.hang = true;
+    let outcome: unknown;
+    void tracker.start().then(
+      () => (outcome = "started"),
+      (error: unknown) => (outcome = error),
+    );
+    await clock.advance(REQUEST_TIMEOUT_MS - 1);
+    // Still waiting on the version check.
+    expect(outcome).toBeUndefined();
+    expect(requests.map((r) => r.path)).toEqual(["about"]);
+    await clock.advance(1);
+    // The version check has no answer: 1.0.3, and on to the state, which gets one try.
+    expect(requests.map((r) => r.path)).toEqual(["about", "activities/state"]);
+    expect(requests[1]?.headers["X-Experience-API-Version"]).toBe("1.0.3");
+    await clock.advance(REQUEST_TIMEOUT_MS);
+    expect(outcome).toBeInstanceOf(Error);
+    expect(String(outcome)).toContain("no answer in time");
+    expect(requests.every(aborted)).toBe(true);
+    tracker.exit(false);
+    await settle();
+    expect(requests.filter((r) => r.method !== "GET")).toEqual([]);
+  });
+
+  test("[standards:X-5] a send with no answer is given up after 10 s and aborted: offline at once, retried, then delivered once, in order", async () => {
+    const lrs = fakeLrs();
+    const online: boolean[] = [];
+    const { tracker, clock, verbs, requests } = setup(lrs, { online });
+    await tracker.start();
+    await settle();
+    lrs.lrs.hang = true;
+    tracker.entered("lessonone1");
+    await settle();
+    const posts = () => requests.filter((r) => r.path === "statements");
+    expect(posts()).toHaveLength(2);
+    await clock.advance(REQUEST_TIMEOUT_MS - 1);
+    expect(online).toEqual([]);
+    await clock.advance(1);
+    // Ten seconds without an answer: the learner is told, and the hung request is aborted.
+    expect(online).toEqual([false]);
+    expect(aborted(posts()[1] as HttpRequest)).toBe(true);
+    // The queue is not stuck: a later statement waits behind the retry instead of being lost.
+    tracker.left("lessonone1");
+    await clock.advance(RETRY_DELAYS_MS[0] - 1);
+    expect(posts()).toHaveLength(2);
+    lrs.lrs.hang = false;
+    await clock.advance(1);
+    expect(posts()).toHaveLength(4);
+    expect(online).toEqual([false, true]);
+    // The retry carries the same batch; the statement queued meanwhile follows on its own.
+    expect(posts().map((r) => JSON.parse(r.body ?? "[]").length)).toEqual([1, 1, 1, 1]);
+    expect(verbs()).toEqual([
+      "attempted https://example.org/courses/compost",
+      "experienced https://example.org/courses/compost/lessonone1",
+      "left https://example.org/courses/compost/lessonone1",
+    ]);
+  });
+
+  test("[standards:R9] [standards:R16] the last writes of a closing page are never cut off", async () => {
+    const lrs = fakeLrs();
+    const { tracker, clock, requests } = setup(lrs);
+    await tracker.start();
+    await settle();
+    tracker.entered("lessonone1");
+    await settle();
+    lrs.lrs.hang = true;
+    tracker.left("lessonone1");
+    tracker.exit(false);
+    await clock.advance(REQUEST_TIMEOUT_MS * 2);
+    const closing = requests.filter((r) => r.keepalive);
+    expect(closing.length).toBeGreaterThan(0);
+    expect(closing.every((r) => r.signal === undefined)).toBe(true);
   });
 });
 
