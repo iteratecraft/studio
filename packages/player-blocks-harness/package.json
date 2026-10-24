@@ -12,7 +12,8 @@
   "dependencies": {
     "@course-suite/format": "workspace:*",
     "@course-suite/labels": "workspace:*",
-    "@course-suite/player-blocks": "workspace:*"
+    "@course-suite/player-blocks": "workspace:*",
+    "@course-suite/tracking": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",

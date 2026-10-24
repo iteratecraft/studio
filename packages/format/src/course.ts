@@ -21,6 +21,13 @@ export interface Course {
   /** Reserved: translation glossary, owned by another container. */
   glossaryRef?: ExternalRef;
   publish?: PublishSettings;
+  /** How learners move through the course. Every setting is optional; the default is given with each. */
+  navigation?: {
+    /** Lessons open only in order, each once the one before it is done; turns off learner mark-done. Default false; any quiz with skip-ahead turns it on. */
+    restricted?: boolean;
+    /** While navigation is free, learners may mark an unfinished lesson (not a quiz) done. Default false. */
+    learnerMarkDone?: boolean;
+  };
   /** Ordered course outline. */
   entries: Entry[];
   /** Media index: every media file the document references, by storage key. */
@@ -154,6 +161,8 @@ export interface PublishSettings {
   /** xAPI and cmi5 activity IRI. */
   activityId?: string;
   lom?: LomMetadata;
+  /** Show an exit-course link in the course menu. Default false. */
+  exitLink?: boolean;
 }
 
 /** Learning Object Metadata written into the package manifest. */

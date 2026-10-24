@@ -1,17 +1,34 @@
-// The Blocks player shell (ENG-04): cover page, sidebar outline, lesson pages addressed by stable
-// id, previous and next links (rise.md §3 B, E, F and N). Every learner string comes from the label
-// set; course text comes from the course document.
-import type { Course, Entry } from "@course-suite/format";
+// The Blocks player shell (ENG-04): cover page, sidebar outline with progress, lesson pages
+// addressed by stable id, previous and next links (rise.md §3 B, E, F, G and N), and the goodbye
+// page. Every learner string comes from the label set; course text comes from the course document.
+import type { Block, Course, Entry, LessonEntry } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
-import { mediaUrl, renderBlock } from "./blocks.js";
+import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
-import { COVER_HASH, lessonNumber, type Page, pageHash, pagesOf, parseRoute } from "./route.js";
+import { isContinue, type PageStatus } from "./progress.js";
+import { quizView } from "./quiz.js";
+import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
+import type { Runtime } from "./runtime.js";
 
 /** Below this width the outline starts closed and covers the content when opened (UI-BLOCKS-EDITOR-R53, R55). */
 export const WIDE_LAYOUT = "(min-width: 992px)";
 
-export function startShell(root: HTMLElement, course: Course, labels: Labels): void {
-  const pages = pagesOf(course);
+interface PageView {
+  element: HTMLElement;
+  /** Follows a progress change: gates, links, statuses. */
+  refresh(): void;
+  /** The learner leaves the page. */
+  leave(): void;
+}
+
+export function startShell(
+  root: HTMLElement,
+  course: Course,
+  labels: Labels,
+  runtime: Runtime,
+): void {
+  const { progress } = runtime;
+  const pages = progress.pages;
   const wide = window.matchMedia(WIDE_LAYOUT);
   const main = h("main", { id: "content", tabindex: -1, "aria-label": labels["sr.content"] });
   const toggle = h("button", {
@@ -19,13 +36,24 @@ export function startShell(root: HTMLElement, course: Course, labels: Labels): v
     class: "outline-toggle",
     "aria-controls": "outline",
   });
-  const links = new Map<string, HTMLAnchorElement>();
+  const links = new Map<string, { link: HTMLAnchorElement; status: HTMLElement }>();
+  const courseProgress = h("p", { class: "outline-progress" });
+  const exit = course.publish?.exitLink
+    ? h("button", { type: "button", class: "outline-exit" }, labels["course.exit"])
+    : undefined;
   const outline = h(
     "nav",
     { id: "outline", class: "outline", "aria-label": labels["sr.outline"] },
     h("p", { class: "outline-course" }, course.title),
+    courseProgress,
     outlineList(course.entries, links),
+    exit,
   );
+  // Polite announcements: a lesson done, content revealed (UI-BLOCKS-R43).
+  const announcer = h("p", { class: "visually-hidden", role: "status" });
+  const announce = (text: string) => {
+    announcer.textContent = text;
+  };
 
   const setOpen = (open: boolean) => {
     outline.hidden = !open;
@@ -57,37 +85,297 @@ export function startShell(root: HTMLElement, course: Course, labels: Labels): v
     skip,
     h("header", { class: "topbar" }, toggle, h("p", { class: "topbar-title" }, course.title)),
     h("div", { class: "layout" }, outline, main),
+    announcer,
   );
+
+  let view: PageView | undefined;
+
+  /** Outline statuses, the course percentage (rise.md §3 F) and the open page follow progress. */
+  function refresh(): void {
+    for (const page of pages) {
+      const entry = links.get(page.id);
+      if (!entry) continue;
+      const status = progress.status(page);
+      // A locked lesson is not a link in the outline, and says why (UI-BLOCKS-R26).
+      if (status === "locked") entry.link.removeAttribute("href");
+      else entry.link.setAttribute("href", pageHash(page.id));
+      entry.link.parentElement?.setAttribute("data-status", status);
+      entry.status.textContent = statusText(status, progress.percent(page), labels);
+    }
+    courseProgress.textContent = formatLabel(labels, "course.progress", {
+      percent: progress.coursePercent(),
+    });
+    view?.refresh();
+  }
+
+  function goodbye(): void {
+    view?.leave();
+    view = undefined;
+    const heading = h("h1", { tabindex: -1 }, course.title);
+    root.replaceChildren(
+      h("main", { class: "goodbye" }, heading, h("p", {}, labels["course.goodbye"])),
+    );
+    document.title = course.title;
+    heading.focus();
+  }
+  runtime.on((event) => {
+    if (event.type === "exit") goodbye();
+  });
+  exit?.addEventListener("click", () => runtime.exit("exit"));
 
   let first = true;
   const show = () => {
+    if (runtime.ended) return;
     const route = parseRoute(location.hash, pages);
     if (route.kind === "unknown") {
       // A lesson address this version of the course does not have: open the cover instead.
       history.replaceState(null, "", COVER_HASH);
     }
     const page = route.kind === "page" ? route.page : undefined;
-    for (const [id, link] of links) {
+    view?.leave();
+    if (page) runtime.enter(page);
+    for (const [id, { link }] of links) {
       if (id === page?.id) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    const view = page ? lessonView(course, pages, page, labels) : coverView(course, pages, labels);
-    main.replaceChildren(view);
+    view = page ? lessonView(page) : coverView();
+    main.replaceChildren(view.element);
+    refresh();
     document.title = page ? [page.title, course.title].join(" - ") : course.title;
     // Focus moves to the new page's heading on every change of page, not on the first one.
     if (!first) {
       window.scrollTo(0, 0);
-      view.querySelector<HTMLElement>("h1")?.focus();
+      view.element.querySelector<HTMLElement>("h1")?.focus();
     }
     first = false;
   };
+
+  function coverView(): PageView {
+    const cover = course.cover && course.media.find((media) => media.key === course.cover?.key);
+    // A returning learner resumes where they stopped (rise.md rule 1, §4 "Learner state").
+    const target = runtime.resumeAt ?? pages[0];
+    const begin = target
+      ? h(
+          "a",
+          { class: "button", href: pageHash(target.id) },
+          labels[runtime.resumeAt ? "course.resume" : "course.begin"],
+        )
+      : undefined;
+    begin?.addEventListener("click", () => runtime.begin());
+    const element = h(
+      "div",
+      { class: "cover" },
+      cover && course.cover
+        ? h("img", {
+            class: "cover-image",
+            src: mediaUrl(cover.variantKey ?? cover.key),
+            alt: course.cover.alt ?? "",
+            width: cover.width,
+            height: cover.height,
+          })
+        : undefined,
+      h(
+        "div",
+        { class: "cover-text" },
+        h("h1", { tabindex: -1 }, course.title),
+        course.description
+          ? h("div", { class: "cover-description" }, richText(course.description, labels))
+          : undefined,
+        course.authors?.length
+          ? h(
+              "p",
+              { class: "cover-authors" },
+              course.authors.map((author) => author.name).join(", "),
+            )
+          : undefined,
+        begin,
+      ),
+    );
+    return { element, refresh() {}, leave() {} };
+  }
+
+  function lessonView(page: Page): PageView {
+    const index = pages.indexOf(page);
+    const previous = pages[index - 1];
+    const next = pages[index + 1];
+    const number = lessonNumber(pages, page);
+    const titleId = uid("lesson");
+    const updates: (() => void)[] = [];
+    let leave = () => {};
+    const blocker = progress.lockedBy(page);
+    let body: HTMLElement;
+    if (blocker) {
+      // Opened by its address while locked: the lesson says so and points back (UI-BLOCKS-R26).
+      body = h(
+        "div",
+        { class: "locked-notice" },
+        h("p", {}, labels["outline.lessonLocked"]),
+        h(
+          "a",
+          { href: pageHash(blocker.id) },
+          formatLabel(labels, "lesson.finishFirst", { lesson: blocker.title }),
+        ),
+      );
+    } else if (page.kind === "lesson") {
+      body = lessonBlocks(page, next, updates);
+    } else {
+      const quiz = quizView(page, { labels, runtime, next, refresh });
+      leave = quiz.stop;
+      body = quiz.element;
+    }
+
+    const markDone =
+      page.kind === "lesson" && !blocker
+        ? h("button", { type: "button", class: "button mark-done" }, labels["lesson.markDone"])
+        : undefined;
+    markDone?.addEventListener("click", () => {
+      progress.markDone(page);
+      runtime.changed();
+      refresh();
+      document.getElementById(titleId)?.focus(); // the button is gone; the lesson goes on
+    });
+    if (markDone) {
+      updates.push(() => {
+        markDone.hidden = !progress.canMarkDone(page);
+      });
+    }
+
+    const nav = h("nav", { class: "lesson-nav", "aria-label": labels["sr.lessonNavigation"] });
+    updates.push(() => {
+      nav.hidden = !previous && !next;
+      nav.replaceChildren(
+        ...(previous ? [pageLink(previous, "previous", labels)] : []),
+        ...(next ? [nextLink(next)] : []),
+      );
+    });
+
+    let wasDone = progress.isDone(page.id);
+    updates.push(() => {
+      const done = progress.isDone(page.id);
+      if (done && !wasDone) announce(labels["sr.lessonDone"]);
+      wasDone = done;
+    });
+
+    const element = h(
+      "article",
+      { class: `lesson lesson-${page.kind}`, "aria-labelledby": titleId },
+      h(
+        "header",
+        { class: "lesson-header" },
+        previous ? pageLink(previous, "previous", labels) : undefined,
+        number
+          ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
+          : undefined,
+        h("h1", { id: titleId, tabindex: -1 }, page.title),
+        page.description
+          ? h("div", { class: "lesson-description" }, richText(page.description, labels))
+          : undefined,
+      ),
+      body,
+      markDone ? h("div", { class: "lesson-actions" }, markDone) : undefined,
+      nav,
+    );
+    return {
+      element,
+      refresh: () => {
+        for (const update of updates) update();
+      },
+      leave,
+    };
+  }
+
+  /** The next page's link, or its title marked unavailable with the reason (UI-BLOCKS-R26). */
+  function nextLink(next: Page): HTMLElement {
+    if (!progress.lockedBy(next)) return pageLink(next, "next", labels);
+    return h(
+      "p",
+      { class: "page-link page-link-next is-locked" },
+      h("span", { class: "page-link-label" }, labels["lesson.next"]),
+      " ",
+      h("span", { class: "page-link-title" }, next.title),
+      h("span", { class: "page-link-reason" }, labels["outline.lessonLocked"]),
+    );
+  }
+
+  /** The blocks of a lesson, each shown once the gates above it are passed (rule 13, UI-BLOCKS-R43). */
+  function lessonBlocks(page: LessonEntry, next: Page | undefined, updates: (() => void)[]) {
+    const rendered: [Block, HTMLElement | undefined][] = [];
+    const changed = () => {
+      runtime.changed();
+      refresh();
+    };
+    const hooks: LessonHooks = {
+      continueReady: (block) => progress.continueReady(page, block),
+      pressContinue(block) {
+        const before = progress.shownBlocks(page);
+        progress.pressContinue(page, block);
+        changed();
+        // The last block of a lesson finishes it and opens the next lesson.
+        if (page.blocks.at(-1) === block && next && !progress.lockedBy(next)) {
+          location.hash = pageHash(next.id);
+          return;
+        }
+        focusFirst(rendered.slice(before));
+      },
+      answered(block, response, correct) {
+        progress.answerCheck(page, block, response, correct);
+        changed();
+      },
+      saved: (id) => progress.response(id),
+      watch(update) {
+        updates.push(update);
+        update();
+      },
+    };
+    for (const block of page.blocks) {
+      rendered.push([block, renderBlock(block, { course, labels, lesson: hooks })]);
+    }
+    updates.push(() => {
+      const shown = progress.shownBlocks(page);
+      rendered.forEach(([block, element], i) => {
+        // A pressed continue block has done its job and steps aside.
+        if (element)
+          element.hidden = i >= shown || (isContinue(block) && progress.isDone(block.id));
+      });
+    });
+    return h(
+      "div",
+      { class: "blocks" },
+      ...rendered.flatMap(([, element]) => (element ? [element] : [])),
+    );
+  }
+
+  /** Focus moves to the first block a gate revealed, so keyboard users carry on from there. */
+  function focusFirst(revealed: [Block, HTMLElement | undefined][]): void {
+    const element = revealed.find(([, el]) => el && !el.hidden)?.[1];
+    if (!element) return;
+    element.tabIndex = -1;
+    element.focus();
+  }
+
   window.addEventListener("hashchange", show);
   show();
 }
 
+/** What the outline says beside a page (rise.md §3 F, UI-BLOCKS-R26, R36). */
+function statusText(status: PageStatus, percent: number, labels: Labels): string {
+  switch (status) {
+    case "done":
+      return labels["outline.lessonDone"];
+    case "failed":
+      return labels["quiz.failed"];
+    case "locked":
+      return labels["outline.lessonLocked"];
+    case "in-progress":
+      return formatLabel(labels, "course.progress", { percent });
+    case "not-started":
+      return "";
+  }
+}
+
 function outlineList(
   entries: readonly Entry[],
-  links: Map<string, HTMLAnchorElement>,
+  links: Map<string, { link: HTMLAnchorElement; status: HTMLElement }>,
 ): HTMLElement {
   const top = h("ul", { class: "outline-list" });
   let list = top;
@@ -100,85 +388,13 @@ function outlineList(
       );
       continue;
     }
-    const link = h("a", { href: pageHash(entry.id) }, entry.title);
-    links.set(entry.id, link);
-    list.append(h("li", {}, link));
+    const statusId = uid("status");
+    const status = h("span", { class: "outline-status", id: statusId });
+    const link = h("a", { href: pageHash(entry.id), "aria-describedby": statusId }, entry.title);
+    links.set(entry.id, { link, status });
+    list.append(h("li", {}, link, status));
   }
   return top;
-}
-
-function coverView(course: Course, pages: readonly Page[], labels: Labels): HTMLElement {
-  const cover = course.cover && course.media.find((media) => media.key === course.cover?.key);
-  const firstPage = pages[0];
-  return h(
-    "div",
-    { class: "cover" },
-    cover && course.cover
-      ? h("img", {
-          class: "cover-image",
-          src: mediaUrl(cover.variantKey ?? cover.key),
-          alt: course.cover.alt ?? "",
-          width: cover.width,
-          height: cover.height,
-        })
-      : undefined,
-    h(
-      "div",
-      { class: "cover-text" },
-      h("h1", { tabindex: -1 }, course.title),
-      course.description
-        ? h("div", { class: "cover-description" }, richText(course.description, labels))
-        : undefined,
-      course.authors?.length
-        ? h("p", { class: "cover-authors" }, course.authors.map((author) => author.name).join(", "))
-        : undefined,
-      firstPage
-        ? h("a", { class: "button", href: pageHash(firstPage.id) }, labels["course.begin"])
-        : undefined,
-    ),
-  );
-}
-
-function lessonView(
-  course: Course,
-  pages: readonly Page[],
-  page: Page,
-  labels: Labels,
-): HTMLElement {
-  const index = pages.indexOf(page);
-  const previous = pages[index - 1];
-  const next = pages[index + 1];
-  const number = lessonNumber(pages, page);
-  const titleId = uid("lesson");
-  const blocks =
-    page.kind === "lesson"
-      ? page.blocks.map((block) => renderBlock(block, { course, labels }))
-      : []; // The quiz runtime (M1-12) fills quiz pages.
-  return h(
-    "article",
-    { class: `lesson lesson-${page.kind}`, "aria-labelledby": titleId },
-    h(
-      "header",
-      { class: "lesson-header" },
-      previous ? pageLink(previous, "previous", labels) : undefined,
-      number
-        ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
-        : undefined,
-      h("h1", { id: titleId, tabindex: -1 }, page.title),
-      page.description
-        ? h("div", { class: "lesson-description" }, richText(page.description, labels))
-        : undefined,
-    ),
-    h("div", { class: "blocks" }, ...blocks),
-    previous || next
-      ? h(
-          "nav",
-          { class: "lesson-nav", "aria-label": labels["sr.lessonNavigation"] },
-          previous ? pageLink(previous, "previous", labels) : undefined,
-          next ? pageLink(next, "next", labels) : undefined,
-        )
-      : undefined,
-  );
 }
 
 /** A link to the previous or next page that names it (rise.md §3 F). */

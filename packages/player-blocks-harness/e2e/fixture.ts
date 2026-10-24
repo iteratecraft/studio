@@ -5,8 +5,38 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { sampleCourse } from "@course-suite/format/test/courses";
-import { test as base } from "@playwright/test";
+import type { PlayerEvent, TestHooks } from "@course-suite/player-blocks";
+import type { AdapterCall } from "@course-suite/tracking";
+import { test as base, type Page } from "@playwright/test";
 import { type PackageOptions, writePackage } from "../src/package.ts";
+
+declare global {
+  interface Window {
+    blocksPlayerTestHooks?: TestHooks;
+  }
+}
+
+/**
+ * Turns on the player test hooks for the next page load. With `keep`, the debug adapter keeps the
+ * saved state in session storage, so a reload of the same tab resumes.
+ */
+export async function useHooks(page: Page, { keep = false } = {}): Promise<void> {
+  await page.addInitScript((keepState) => {
+    window.blocksPlayerTestHooks = keepState ? { storage: sessionStorage } : {};
+  }, keep);
+}
+
+/** The debug adapter calls the player made so far, oldest first. */
+export const adapterCalls = (page: Page): Promise<AdapterCall[]> =>
+  page.evaluate(() =>
+    JSON.parse(JSON.stringify(window.blocksPlayerTestHooks?.adapter?.calls ?? [])),
+  );
+
+/** The player events so far, oldest first, without their times. */
+export const playerEvents = (page: Page): Promise<PlayerEvent[]> =>
+  page.evaluate(() =>
+    (window.blocksPlayerTestHooks?.events ?? []).map(({ at: _, ...event }) => event as PlayerEvent),
+  );
 
 export interface Visit {
   /** Console errors and uncaught page errors. */

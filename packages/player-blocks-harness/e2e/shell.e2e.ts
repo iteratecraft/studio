@@ -117,13 +117,11 @@ test("previous and next links name the adjacent lessons; focus moves to each new
   await expect(nav.getByRole("link")).toHaveText(["Previous lesson Check what you know"]);
 });
 
-test("a quiz entry is a page of its own; the quiz runtime fills it later", async ({
-  open,
-  page,
-}) => {
+test("a quiz entry is a page of its own, opening on its start screen", async ({ open, page }) => {
   await open("#/lessons/quizcheck1");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Check what you know");
   await expect(page.getByRole("main")).toContainText("Lesson 3 of 4");
+  await expect(page.getByRole("button", { name: "Begin quiz" })).toBeVisible();
 });
 
 test("learner text comes from the course's label set", async ({ write, open, page }) => {

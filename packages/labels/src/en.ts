@@ -7,6 +7,8 @@ export const english = {
     "course.resume": "Resume where you stopped",
     "course.progress": "{percent}% done",
     "course.finished": "You have finished this course",
+    "course.exit": "Exit course",
+    "course.goodbye": "You have left the course. You can close this window now.",
 
     "outline.title": "Contents",
     "outline.show": "Show contents",
@@ -20,6 +22,7 @@ export const english = {
     "lesson.markDone": "Mark this lesson done",
     "lesson.continue": "Continue",
     "lesson.continueLocked": "Finish the activities above to go on",
+    "lesson.finishFirst": "Finish {lesson} first",
 
     "accordion.open": "Open section",
     "accordion.close": "Close section",
@@ -53,11 +56,15 @@ export const english = {
     "question.chooseAll": "Choose every answer that applies",
     "question.typeAnswer": "Type your answer",
     "question.match": "Pair each item with its match",
+    "question.chooseMatch": "Choose a match",
+    "question.acceptedAnswers": "Accepted answers",
+    "question.mustAnswer": "Answer this question correctly to see the rest of the lesson",
 
     "quiz.begin": "Begin quiz",
     "quiz.position": "Question {current} of {total}",
     "quiz.submit": "Submit",
     "quiz.next": "Next question",
+    "quiz.showResults": "See your result",
     "quiz.results": "Your result",
     "quiz.score": "Your score: {score}%",
     "quiz.passingScore": "Needed to pass: {score}%",
@@ -78,6 +85,7 @@ export const english = {
     "timer.elapsedOfTotal": "{elapsed} of {total}",
     "timer.show": "Show timer",
     "timer.hide": "Hide timer",
+    "timer.title": "Quiz timer",
 
     "media.play": "Play",
     "media.pause": "Pause",
@@ -97,6 +105,10 @@ export const english = {
     "error.loadFailed": "Part of this course could not load: {part}",
     "error.retry": "Retry",
     "error.partContent": "course content",
+
+    "notice.saveFailed":
+      "Your progress cannot be saved right now. You can keep going, but this visit may not be remembered.",
+    "notice.dismiss": "Dismiss",
 
     "sr.skipToContent": "Skip to the course content",
     "sr.content": "Course content",

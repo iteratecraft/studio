@@ -1,7 +1,7 @@
 // Blocks player (ENG-04). The browser entry is `./boot` (built as one classic script, ADR-0003);
 // this entry gives builders and tests the package contract: the data file, the index page, the
-// chunk loader and lesson addresses.
-export type { PlayerRegistry } from "./boot.js";
+// chunk loader, lesson addresses, the progress engine and the player lifecycle.
+export type { PlayerRegistry, TestHooks } from "./boot.js";
 export type { CourseData } from "./data.js";
 export {
   CHUNK_DIR,
@@ -17,6 +17,16 @@ export {
 } from "./data.js";
 export { ChunkLoadError, createLoader, type Load } from "./loader.js";
 export {
+  type Attempt,
+  createProgress,
+  type PageStatus,
+  type Progress,
+  type QuizState,
+  type Requirement,
+  requirement,
+  requiresCorrect,
+} from "./progress.js";
+export {
   COVER_HASH,
   lessonNumber,
   type Page,
@@ -25,3 +35,13 @@ export {
   parseRoute,
   type Route,
 } from "./route.js";
+export {
+  COMMIT_INTERVAL_MS,
+  courseStatus,
+  type PlayerEvent,
+  RESUME_DELAY_MS,
+  type Runtime,
+  type RuntimeOptions,
+  startRuntime,
+  type TimedEvent,
+} from "./runtime.js";

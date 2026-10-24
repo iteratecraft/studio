@@ -44,7 +44,9 @@ export function fullCourse(): Course {
         keywords: ["safety", "workshop"],
         language: "en",
       },
+      exitLink: true,
     },
+    navigation: { restricted: false, learnerMarkDone: true },
     entries: [
       { id: "section001", kind: "section", title: "Getting started" },
       {
