@@ -1,14 +1,16 @@
 // Post-build scan for outbound URLs (ADR-0004): a package may load its own files, the LMS or LRS
-// supplied at launch and endpoints the author configured, and nothing else. This finds absolute and
-// protocol-relative URLs written in the player's text files, and the URLs the author's media makes a
-// browser load, and reports every one not allowed.
+// supplied at launch and endpoints the author configured, and nothing else. The player's own pages,
+// scripts and styles are read in full; media and other markup only for what a browser loads from
+// them, since namespace names, metadata and text in an SVG or caption file are never fetched.
 //
 // shortcut: a text scan, so a URL assembled at run time or encoded (for example in base64) passes;
 // the no-network browser tests (M1-30) catch what the package actually requests.
 import type { Problem } from "./result.js";
 
-/** Files a browser reads as text. Media and fonts are skipped. */
-const TEXT = /\.(?:html?|xhtml|js|mjs|cjs|css|json|svg|xml|txt|vtt|webmanifest)$/i;
+/** The player's own pages, scripts and styles: every URL written in them counts. */
+const CODE = /\.(?:html?|xhtml|js|mjs|cjs|css)$/i;
+/** Markup and styles a browser loads further files from; captions, text and binary media load nothing. */
+const MARKUP = /\.(?:html?|xhtml|svg|xml|css)$/i;
 const ABSOLUTE = /\b(?:https?|wss?|ftp):\/\/[^\s"'`<>()[\]{}\\]+/gi;
 // `//host/...` only where markup or CSS loads it; elsewhere it is far more often a comment.
 const PROTOCOL_RELATIVE =
@@ -35,21 +37,24 @@ export function urlsIn(text: string): string[] {
   return found.sort((a, b) => a[0] - b[0]).map(([, url]) => url.replace(TRAILING, ""));
 }
 
-// In media only what a browser loads counts: attribute values that load or link (`href`, `xlink:href`,
-// `src` ...), `<?xml-stylesheet?>`, CSS `url()` and `@import`. Namespace declarations, RDF metadata,
-// a DOCTYPE's DTD address, comments and text such as caption cues are never fetched.
+// In media and other markup only what a browser loads counts: attribute values that load (`href`,
+// `xlink:href`, `src` ...) on any element but a link, `<?xml-stylesheet?>`, CSS `url()` and `@import`.
+// Namespace declarations, RDF metadata, a DOCTYPE's DTD address, comments and text such as caption
+// cues are never fetched, and a link the learner clicks is navigation, not a load (ADR-0004).
 const COMMENT = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g;
-const TAG = /<(?:[A-Za-z]|\?xml-stylesheet\b)(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
+const TAG = /<(?:([A-Za-z][\w.:-]*)|\?xml-stylesheet\b)(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
+const LINK = /^(?:[\w.-]+:)?a$/i;
 const LOAD_ATTRIBUTE =
   /\s(?:[\w-]+:)?(?:href|src|srcset|poster|action|data|background)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
 const CSS_LOAD = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^\s"')]+))|@import\s+["']([^"']*)["']/gi;
 const OUTSIDE = /^(?:(?:https?|wss?|ftp):)?\/\//i;
 
-/** Every absolute or protocol-relative URL a browser would load from the media file `text`, in order. */
+/** Every absolute or protocol-relative URL a browser would load from the markup or CSS `text`, in order. */
 export function loadedUrlsIn(text: string): string[] {
   const code = text.replace(COMMENT, "");
   const values: string[] = [];
-  for (const tag of code.match(TAG) ?? []) {
+  for (const [tag, name = ""] of code.matchAll(TAG)) {
+    if (LINK.test(name)) continue;
     for (const match of tag.matchAll(LOAD_ATTRIBUTE)) values.push(match.slice(1).join(""));
   }
   for (const match of code.matchAll(CSS_LOAD)) values.push(match.slice(1).join(""));
@@ -98,8 +103,9 @@ export function findModuleCode(files: Iterable<readonly [string, Uint8Array]>): 
 }
 
 /**
- * One problem per file and URL that is neither allowed nor a namespace name. In the `media` paths
- * (the author's media files) only URLs a browser loads count; every other text file is scanned whole.
+ * One problem per file and URL that is neither allowed nor a namespace name. The player's pages,
+ * scripts and styles are scanned whole; the `media` paths (the author's media files) and other markup
+ * only for what a browser loads from them.
  */
 export function findOutboundUrls(
   files: Iterable<readonly [string, Uint8Array]>,
@@ -109,9 +115,10 @@ export function findOutboundUrls(
   const permitted = [...NAMESPACE_URIS, ...allowed];
   const problems: Problem[] = [];
   for (const [path, data] of files) {
-    if (!TEXT.test(path)) continue;
-    const text = utf8.decode(data);
-    for (const url of new Set(media.has(path) ? loadedUrlsIn(text) : urlsIn(text))) {
+    const scan =
+      CODE.test(path) && !media.has(path) ? urlsIn : MARKUP.test(path) ? loadedUrlsIn : undefined;
+    if (scan === undefined) continue;
+    for (const url of new Set(scan(utf8.decode(data)))) {
       if (isAllowed(url, permitted)) continue;
       problems.push({
         file: path,
