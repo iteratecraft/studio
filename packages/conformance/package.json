@@ -14,7 +14,10 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "moodle:up": "node moodle/up.ts",
+    "moodle:down": "docker compose -f moodle/compose.yaml down --volumes",
+    "test:moodle": "playwright test -c moodle"
   },
   "dependencies": {
     "@xmldom/xmldom": "catalog:",

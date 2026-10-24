@@ -1,0 +1,53 @@
+# Moodle for the end-to-end job (M1-21, standards.md T-4): Moodle 5.3 (LTS) on PHP 8.3 with
+# PostgreSQL 17, its minimum. Start it with `pnpm --filter @course-suite/conformance moodle:up`,
+# which downloads and checks the Moodle release into .cache/ first; see docs/ci.md.
+# Images are pinned by digest; bump a digest only to one published at least two weeks earlier.
+name: course-suite-moodle
+
+x-web-image: &web-image moodlehq/moodle-php-apache:8.3-bookworm@sha256:501f19fa75ad3cdc8962f2a742f39d179b8aa8ffdc2ff233d8d27a32f14e0e05
+
+services:
+  db:
+    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_USER: moodle
+      POSTGRES_PASSWORD: moodle
+      POSTGRES_DB: moodle
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "moodle"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Unpacks the Moodle release into the code volume and puts our config.php beside it, then exits.
+  code:
+    image: *web-image
+    entrypoint:
+      - sh
+      - -c
+      - test -f /var/www/html/public/version.php || tar -xzf /cache/moodle.tgz --strip-components=1 -C /var/www/html; cp /harness/config.php /var/www/html/config.php
+    volumes:
+      - moodle:/var/www/html
+      - ./.cache/moodle.tgz:/cache/moodle.tgz:ro
+      - ./:/harness:ro
+
+  webserver:
+    image: *web-image
+    depends_on:
+      db:
+        condition: service_healthy
+      code:
+        condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:${MOODLE_PORT:-8250}:80
+    environment:
+      # Moodle's wwwroot: the address the browser uses, so it must match the published port.
+      MOODLE_WWWROOT: http://localhost:${MOODLE_PORT:-8250}
+    volumes:
+      - moodle:/var/www/html
+      - moodledata:/var/www/moodledata
+      - ./:/harness:ro
+
+volumes:
+  moodle:
+  moodledata:

@@ -30,27 +30,34 @@ jobs:
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    env:
+      # Secrets cannot appear in `if:`; this says only whether the key exists, never its value.
+      TEST_COURSES_KEY_SET: ${{ secrets.TEST_COURSES_DEPLOY_KEY != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       # Course fixtures (M0-12): iteratecraft/test-courses, checked out at a fixed commit so a
-      # fixture change reaches studio only through a reviewed bump of `ref` here. A checkout step,
-      # not a git submodule, so a clone of studio never needs access to the fixtures repository.
-      # Not enabled yet: that repository is private, so this step needs a read-only token in the
-      # TEST_COURSES_TOKEN secret (a fine-grained token with Contents: read on test-courses only).
-      # Until then the Blocks corpus tests (packages/conformance/src/corpus.test.ts, M1-28) find no
-      # checkout at test-courses/ and skip with a message. Once the secret exists, uncomment the
-      # step: `pnpm test` then validates every corpus course, and Turborepo hashes
-      # test-courses/blocks into the conformance test task, so a `ref` bump reruns it.
-      # - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      #   with:
-      #     repository: iteratecraft/test-courses
-      #     ref: d75b1bcf690ec846dc4e6145d90769dea8e02b92
-      #     path: test-courses
-      #     token: ${{ secrets.TEST_COURSES_TOKEN }}
-      #     persist-credentials: false
+      # fixture change reaches studio only through a reviewed bump of `ref` here (keep both jobs'
+      # `ref` the same). A checkout step, not a git submodule, so a clone of studio never needs
+      # access to the fixtures repository. That repository is private: the step reads it with the
+      # read-only deploy key in the TEST_COURSES_DEPLOY_KEY secret (docs/ci.md) and is skipped
+      # without it, for example on pull requests from forks; the corpus tests then skip too. With
+      # it, `pnpm test` validates every corpus course and the standards harness runs them, and
+      # Turborepo hashes test-courses/blocks into the conformance tasks, so a `ref` bump reruns them.
+      - name: Check out the course corpus
+        if: env.TEST_COURSES_KEY_SET == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: iteratecraft/test-courses
+          ref: d75b1bcf690ec846dc4e6145d90769dea8e02b92
+          path: test-courses
+          ssh-key: ${{ secrets.TEST_COURSES_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Skip the course corpus
+        if: env.TEST_COURSES_KEY_SET != 'true'
+        run: echo "::notice title=Course corpus skipped::TEST_COURSES_DEPLOY_KEY is not set, so test-courses is not checked out and the corpus tests skip (docs/ci.md)."
 
       # Reads the pnpm version from `packageManager` in package.json.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -85,4 +92,77 @@ jobs:
             apps/web/playwright-report/
             apps/web/test-results/
             packages/conformance/playwright-report/
+          if-no-files-found: ignore
+
+  # Moodle end to end (M1-21, standards.md T-4): SCORM 1.2 packages from our exporters, uploaded
+  # to a real Moodle and taken by a learner in Chromium. The one Linux job, an exception the lead
+  # approved to ADR-0001's Windows-first rule: it only hosts Moodle, whose containers need Linux.
+  # The product itself is still built and tested on Windows above.
+  moodle:
+    name: moodle (SCORM 1.2 end to end)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TEST_COURSES_KEY_SET: ${{ secrets.TEST_COURSES_DEPLOY_KEY != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The course corpus, as in the check job.
+      - name: Check out the course corpus
+        if: env.TEST_COURSES_KEY_SET == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: iteratecraft/test-courses
+          ref: d75b1bcf690ec846dc4e6145d90769dea8e02b92
+          path: test-courses
+          ssh-key: ${{ secrets.TEST_COURSES_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Skip the course corpus
+        if: env.TEST_COURSES_KEY_SET != 'true'
+        run: echo "::notice title=Course corpus skipped::TEST_COURSES_DEPLOY_KEY is not set, so Moodle gets only the format's fixtures (docs/ci.md)."
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # The Moodle release and the pinned images, keyed on the files that pin them.
+      - name: Restore the Moodle cache
+        id: moodle-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/conformance/moodle/.cache
+          key: moodle-${{ hashFiles('packages/conformance/moodle/up.ts', 'packages/conformance/moodle/compose.yaml') }}
+      - name: Load the cached Moodle images
+        if: steps.moodle-cache.outputs.cache-hit == 'true'
+        run: docker load --input packages/conformance/moodle/.cache/images.tar
+      - name: Start Moodle
+        run: pnpm --filter @course-suite/conformance moodle:up
+      - name: Keep the Moodle images for the cache
+        if: steps.moodle-cache.outputs.cache-hit != 'true'
+        run: docker save --output packages/conformance/moodle/.cache/images.tar $(docker compose -f packages/conformance/moodle/compose.yaml config --images | sort -u)
+
+      - name: Install Chromium for Playwright
+        run: pnpm --filter @course-suite/conformance exec playwright install --with-deps --only-shell chromium
+      - name: SCORM 1.2 in Moodle
+        run: pnpm --filter @course-suite/conformance test:moodle
+
+      # cancelled() too: a job that hits timeout-minutes is cancelled, and failure() is then false.
+      - name: Collect the Moodle logs
+        if: failure() || cancelled()
+        run: docker compose -f packages/conformance/moodle/compose.yaml logs --no-color --timestamps > moodle-logs.txt 2>&1 || true
+      - name: Upload Playwright traces and Moodle logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: moodle-e2e
+          path: |
+            moodle-logs.txt
+            packages/conformance/moodle/playwright-report/
+            packages/conformance/moodle/test-results/
           if-no-files-found: ignore

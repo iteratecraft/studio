@@ -12,3 +12,5 @@ playwright-report/
 test-courses/
 # Packages written by `pnpm demo:m1` (M1-31).
 /demo/
+# Moodle release downloaded by the Moodle end-to-end harness (M1-21).
+packages/conformance/moodle/.cache/
