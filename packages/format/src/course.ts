@@ -196,8 +196,73 @@ export interface QuizEntry {
   icon?: Token;
   headerImage?: MediaRef;
   author?: Author;
-  questions: Question[];
+  settings?: QuizSettings;
+  /** Questions in order, and draws from question banks. */
+  questions: QuizQuestion[];
   ext?: Ext;
+}
+
+/** How a quiz is taken and passed. Every setting is optional; the default is given with each. */
+export interface QuizSettings {
+  /** Score in percent at or above which the learner passes. Default 80. */
+  passingScore?: number;
+  /** Attempts allowed after the first one. Default: unlimited. */
+  retries?: number;
+  /** A learner who fails must retry before going on; with no retries left the course cannot be completed. Default false. */
+  requirePassing?: boolean;
+  /** A learner who passes may jump to a later entry; skipped entries count as complete. Default: off. */
+  skipAhead?: {
+    entry: EntryRef;
+    /** Let the learner choose whether to skip. Default false. */
+    learnerChooses?: boolean;
+  };
+  /** Ask the questions in a new random order on each attempt. Default false. */
+  shuffleQuestions?: boolean;
+  /** Show answer choices in a new random order on each attempt. Default false. */
+  shuffleAnswers?: boolean;
+  /** What the results show: every answer with its feedback, nothing, or only the learner's wrong answers. Default all. */
+  revealAnswers?: "all" | "none" | "incorrect";
+  correctColor?: Color;
+  incorrectColor?: Color;
+  /** Time limit for each attempt. At zero the attempt is submitted and unanswered questions are wrong. Default: no timer. */
+  timer?: {
+    minutes: number;
+    /** Time shown to the learner. Default remaining. */
+    display?: "remaining" | "elapsed" | "elapsed-of-total";
+    learnerCanHide?: boolean;
+  };
+  /** Include the quiz in the lesson count. Default true. */
+  countAsLesson?: boolean;
+  /** How the button after the results looks. Default next-lesson. */
+  finishButton?: "next-lesson" | "continue";
+}
+
+/** One question of a quiz, or a draw of several from a question bank. */
+export type QuizQuestion =
+  | SingleChoiceQuestion
+  | MultipleResponseQuestion
+  | FillInQuestion
+  | MatchingQuestion
+  | QuestionDraw;
+
+/** Random questions from a question bank. The pool is a copy of the bank's questions taken when the author adds or updates the draw; later bank edits reach it only then. */
+export interface QuestionDraw {
+  id: Id;
+  kind: "draw";
+  bank: ExternalRef;
+  /** Questions drawn per attempt. Default: all of them, in random order. A knowledge check always shows one. */
+  count?: number;
+  /** Bank questions the author left out of the pool. */
+  exclude?: ExternalId[];
+  pool: PoolQuestion[];
+  ext?: Ext;
+}
+
+/** A copy of a bank question. The copy has its own ids in this document, so several draws can copy the same bank question. */
+export interface PoolQuestion {
+  /** Id of the question in the bank, as used by exclude. */
+  bankQuestion: ExternalId;
+  question: Question;
 }
 
 /** Block envelope. The shape of variantSettings and items per variant is defined with each block. */
@@ -223,6 +288,8 @@ export interface Block {
   variantSettings?: VariantSettings;
   items?: Item[];
   question?: Question;
+  /** Knowledge check: one random question from a question bank. */
+  draw?: QuestionDraw;
   customBlock?: CustomBlockRef;
   media?: MediaRef[];
   /** Link to a shared block template or question-bank question. */

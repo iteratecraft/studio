@@ -359,13 +359,137 @@
         "icon": { "$ref": "#/$defs/Token" },
         "headerImage": { "$ref": "#/$defs/MediaRef" },
         "author": { "$ref": "#/$defs/Author" },
+        "settings": { "$ref": "#/$defs/QuizSettings" },
         "questions": {
+          "description": "Questions in order, and draws from question banks.",
           "type": "array",
-          "items": { "$ref": "#/$defs/Question" }
+          "items": { "$ref": "#/$defs/QuizQuestion" }
         },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "title", "questions"],
+      "unevaluatedProperties": false
+    },
+    "QuizSettings": {
+      "description": "How a quiz is taken and passed. Every setting is optional; the default is given with each.",
+      "type": "object",
+      "properties": {
+        "passingScore": {
+          "description": "Score in percent at or above which the learner passes. Default 80.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "retries": {
+          "description": "Attempts allowed after the first one. Default: unlimited.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "requirePassing": {
+          "description": "A learner who fails must retry before going on; with no retries left the course cannot be completed. Default false.",
+          "type": "boolean"
+        },
+        "skipAhead": {
+          "description": "A learner who passes may jump to a later entry; skipped entries count as complete. Default: off.",
+          "type": "object",
+          "properties": {
+            "entry": { "$ref": "#/$defs/EntryRef" },
+            "learnerChooses": {
+              "description": "Let the learner choose whether to skip. Default false.",
+              "type": "boolean"
+            }
+          },
+          "required": ["entry"],
+          "unevaluatedProperties": false
+        },
+        "shuffleQuestions": {
+          "description": "Ask the questions in a new random order on each attempt. Default false.",
+          "type": "boolean"
+        },
+        "shuffleAnswers": {
+          "description": "Show answer choices in a new random order on each attempt. Default false.",
+          "type": "boolean"
+        },
+        "revealAnswers": {
+          "description": "What the results show: every answer with its feedback, nothing, or only the learner's wrong answers. Default all.",
+          "enum": ["all", "none", "incorrect"]
+        },
+        "correctColor": { "$ref": "#/$defs/Color" },
+        "incorrectColor": { "$ref": "#/$defs/Color" },
+        "timer": {
+          "description": "Time limit for each attempt. At zero the attempt is submitted and unanswered questions are wrong. Default: no timer.",
+          "type": "object",
+          "properties": {
+            "minutes": { "type": "integer", "minimum": 1 },
+            "display": {
+              "description": "Time shown to the learner. Default remaining.",
+              "enum": ["remaining", "elapsed", "elapsed-of-total"]
+            },
+            "learnerCanHide": { "type": "boolean" }
+          },
+          "required": ["minutes"],
+          "unevaluatedProperties": false
+        },
+        "countAsLesson": {
+          "description": "Include the quiz in the lesson count. Default true.",
+          "type": "boolean"
+        },
+        "finishButton": {
+          "description": "How the button after the results looks. Default next-lesson.",
+          "enum": ["next-lesson", "continue"]
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "QuizQuestion": {
+      "description": "One question of a quiz, or a draw of several from a question bank.",
+      "oneOf": [
+        { "$ref": "#/$defs/SingleChoiceQuestion" },
+        { "$ref": "#/$defs/MultipleResponseQuestion" },
+        { "$ref": "#/$defs/FillInQuestion" },
+        { "$ref": "#/$defs/MatchingQuestion" },
+        { "$ref": "#/$defs/QuestionDraw" }
+      ]
+    },
+    "QuestionDraw": {
+      "description": "Random questions from a question bank. The pool is a copy of the bank's questions taken when the author adds or updates the draw; later bank edits reach it only then.",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "const": "draw" },
+        "bank": { "$ref": "#/$defs/ExternalRef" },
+        "count": {
+          "description": "Questions drawn per attempt. Default: all of them, in random order. A knowledge check always shows one.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "exclude": {
+          "description": "Bank questions the author left out of the pool.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExternalId" },
+          "uniqueItems": true
+        },
+        "pool": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/PoolQuestion" }
+        },
+        "ext": { "$ref": "#/$defs/Ext" }
+      },
+      "required": ["id", "kind", "bank", "pool"],
+      "unevaluatedProperties": false
+    },
+    "PoolQuestion": {
+      "description": "A copy of a bank question. The copy has its own ids in this document, so several draws can copy the same bank question.",
+      "type": "object",
+      "properties": {
+        "bankQuestion": {
+          "description": "Id of the question in the bank, as used by exclude.",
+          "$ref": "#/$defs/ExternalId"
+        },
+        "question": { "$ref": "#/$defs/Question" }
+      },
+      "required": ["bankQuestion", "question"],
       "unevaluatedProperties": false
     },
     "Block": {
@@ -399,6 +523,10 @@
           "items": { "$ref": "#/$defs/Item" }
         },
         "question": { "$ref": "#/$defs/Question" },
+        "draw": {
+          "description": "Knowledge check: one random question from a question bank.",
+          "$ref": "#/$defs/QuestionDraw"
+        },
         "customBlock": { "$ref": "#/$defs/CustomBlockRef" },
         "media": {
           "type": "array",

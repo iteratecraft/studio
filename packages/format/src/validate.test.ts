@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { fullCourse, minimalCourse } from "../test/courses.js";
+import { fullCourse, LIBRARY_ID, minimalCourse } from "../test/courses.js";
 import { edit, REMOVE } from "../test/edit.js";
 import type { Schema } from "./validate.js";
 import { compileSchema, courseSchema, validateCourse } from "./validate.js";
@@ -53,6 +53,39 @@ describe("valid documents", () => {
       edit(fullCourse(), "/authors/0/name", "\u{1F600}"),
     ],
     ["a quiz with no questions yet", edit(fullCourse(), "/entries/2/questions", [])],
+    [
+      "two quizzes and a knowledge check that copy the same bank question",
+      edit(fullCourse(), "/entries/4", {
+        id: "quiz000002",
+        kind: "quiz",
+        title: "Check again",
+        questions: [
+          {
+            id: "draw000003",
+            kind: "draw",
+            bank: { containerId: LIBRARY_ID, id: "bank000001" },
+            pool: [
+              {
+                bankQuestion: "bankques01",
+                question: {
+                  id: "pooled0004",
+                  kind: "single-choice",
+                  prompt: "<p>Who may remove a guard?</p>",
+                  answers: [
+                    { id: "answer0009", text: "A trained fitter", correct: true },
+                    { id: "answer0010", text: "Anyone", correct: false },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      "a multiple-response question with every answer correct",
+      edit(fullCourse(), "/entries/2/questions/0/answers/1/correct", true),
+    ],
     ["a course without publish settings", edit(fullCourse(), "/publish", REMOVE)],
     [
       "a block with only its required fields",
@@ -357,6 +390,70 @@ describe("invalid documents report the exact path", () => {
       "/media/1/variantKey",
       "must match",
     ],
+    [
+      "a quiz question of an unknown kind",
+      `${QUIZ}/questions/0/kind`,
+      "essay",
+      `${QUIZ}/questions/0/kind`,
+      'must be one of "single-choice", "multiple-response", "fill-in", "matching", "draw"',
+    ],
+    [
+      "a draw with an empty pool",
+      `${QUIZ}/questions/3/pool`,
+      [],
+      `${QUIZ}/questions/3/pool`,
+      "must have at least 1 items",
+    ],
+    [
+      "a draw inside a draw's pool",
+      `${QUIZ}/questions/3/pool/0/question/kind`,
+      "draw",
+      `${QUIZ}/questions/3/pool/0/question/kind`,
+      "must be one of",
+    ],
+    [
+      "a pool question without its bank question id",
+      `${QUIZ}/questions/3/pool/0/bankQuestion`,
+      REMOVE,
+      `${QUIZ}/questions/3/pool/0/bankQuestion`,
+      "is required",
+    ],
+    [
+      "a draw of no questions",
+      `${QUIZ}/questions/3/count`,
+      0,
+      `${QUIZ}/questions/3/count`,
+      "at least 1",
+    ],
+    [
+      "a timer of no minutes",
+      `${QUIZ}/settings/timer/minutes`,
+      0,
+      `${QUIZ}/settings/timer/minutes`,
+      "at least 1",
+    ],
+    ["negative retries", `${QUIZ}/settings/retries`, -1, `${QUIZ}/settings/retries`, "at least 0"],
+    [
+      "a passing score over 100",
+      `${QUIZ}/settings/passingScore`,
+      101,
+      `${QUIZ}/settings/passingScore`,
+      "at most 100",
+    ],
+    [
+      "an unknown reveal mode",
+      `${QUIZ}/settings/revealAnswers`,
+      "some",
+      `${QUIZ}/settings/revealAnswers`,
+      "must be one of",
+    ],
+    [
+      "a knowledge-check draw without its bank",
+      `${LESSON}/blocks/6/draw/bank`,
+      REMOVE,
+      `${LESSON}/blocks/6/draw/bank`,
+      "is required",
+    ],
     ["a zero media width", "/media/1/width", 0, "/media/1/width", "must be at least 1"],
     [
       "an external reference without its container",
@@ -460,6 +557,55 @@ describe("reference integrity", () => {
       "step000001",
       `${SORTING}/items/1/category`,
       "must refer to a CategoryItem",
+    ],
+    [
+      "a quiz that skips back to an earlier lesson",
+      `${QUIZ}/settings/skipAhead/entry`,
+      "lesson0001",
+      `${QUIZ}/settings/skipAhead/entry`,
+      "must refer to an entry after the quiz",
+    ],
+    [
+      "a quiz that skips to itself",
+      `${QUIZ}/settings/skipAhead/entry`,
+      "quiz000001",
+      `${QUIZ}/settings/skipAhead/entry`,
+      "must refer to an entry after the quiz",
+    ],
+    [
+      "a drawn question with the id of a quiz question",
+      `${QUIZ}/questions/3/pool/0/question/id`,
+      "question03",
+      `${QUIZ}/questions/3/pool/0/question/id`,
+      `duplicates the one at ${QUIZ}/questions/1/id`,
+    ],
+    [
+      "a single-choice question with no correct answer",
+      `${CHECK}/answers/0/correct`,
+      false,
+      `${CHECK}/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a single-choice question with two correct answers",
+      `${CHECK}/answers/1/correct`,
+      true,
+      `${CHECK}/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a drawn single-choice question with two correct answers",
+      `${QUIZ}/questions/3/pool/1/question/answers/1/correct`,
+      true,
+      `${QUIZ}/questions/3/pool/1/question/answers`,
+      "must have exactly one correct answer",
+    ],
+    [
+      "a multiple-response question with no correct answer",
+      `${QUIZ}/questions/0/answers/0/correct`,
+      false,
+      `${QUIZ}/questions/0/answers`,
+      "must have a correct answer",
     ],
   ])("%s", (_name, path, value, errorPath, message) => {
     expect(validateCourse(edit(fullCourse(), path, value))).toEqual([

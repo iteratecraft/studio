@@ -149,12 +149,51 @@ export function fullCourse(): Course {
             link: { kind: "bankQuestion", ref: { containerId: LIBRARY_ID, id: "bankques01" } },
           },
           { id: "block00006", category: "custom", variant: "canvas", customBlock: "custom0001" },
+          {
+            id: "block00007",
+            category: "knowledge-check",
+            variant: "bank-draw",
+            draw: {
+              id: "draw000001",
+              kind: "draw",
+              bank: { containerId: LIBRARY_ID, id: "bank000001" },
+              exclude: ["bankques02"],
+              pool: [
+                {
+                  bankQuestion: "bankques01",
+                  question: {
+                    id: "pooled0001",
+                    kind: "single-choice",
+                    prompt: "<p>Who may remove a guard?</p>",
+                    answers: [
+                      { id: "answer0005", text: "A trained fitter", correct: true },
+                      { id: "answer0006", text: "Anyone", correct: false },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
         ],
       },
       {
         id: "quiz000001",
         kind: "quiz",
         title: "Check your knowledge",
+        settings: {
+          passingScore: 75,
+          retries: 2,
+          requirePassing: true,
+          skipAhead: { entry: "lesson0002", learnerChooses: true },
+          shuffleQuestions: true,
+          shuffleAnswers: true,
+          revealAnswers: "incorrect",
+          correctColor: "#2e7d32",
+          incorrectColor: "#c62828",
+          timer: { minutes: 10, display: "elapsed-of-total", learnerCanHide: true },
+          countAsLesson: false,
+          finishButton: "continue",
+        },
         questions: [
           {
             id: "question02",
@@ -184,8 +223,38 @@ export function fullCourse(): Course {
               { id: "pair000002", prompt: "Guard", match: "Covers the chuck" },
             ],
           },
+          {
+            id: "draw000002",
+            kind: "draw",
+            bank: { containerId: LIBRARY_ID, id: "bank000001" },
+            count: 1,
+            pool: [
+              {
+                bankQuestion: "bankques03",
+                question: {
+                  id: "pooled0002",
+                  kind: "fill-in",
+                  prompt: "<p>Name the part that holds the work.</p>",
+                  acceptedAnswers: ["chuck"],
+                },
+              },
+              {
+                bankQuestion: "bankques04",
+                question: {
+                  id: "pooled0003",
+                  kind: "single-choice",
+                  prompt: "<p>Is a loose sleeve safe near the chuck?</p>",
+                  answers: [
+                    { id: "answer0007", text: "No", correct: true },
+                    { id: "answer0008", text: "Yes", correct: false },
+                  ],
+                },
+              },
+            ],
+          },
         ],
       },
+      { id: "lesson0002", kind: "lesson", title: "Using the lathe", blocks: [] },
     ],
     media: [
       { id: "media00001", key: "avatar.png", source: "upload", mimeType: "image/png" },
