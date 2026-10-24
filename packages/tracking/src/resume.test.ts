@@ -97,7 +97,8 @@ describe("round trip", () => {
       const decoded = decodeResume(encode(state));
       expect(decoded, `state ${i}`).toEqual({ status: "ok", state, packageVersion: "7" });
     }
-  });
+    // About 1.3 s locally but over the 5 s default on the shared Windows CI runner.
+  }, 30_000);
 
   test("payloads use only URL-safe base64 characters after the format version", () => {
     const random = seeded(2);
