@@ -8,11 +8,13 @@ import {
   createMemoryAdapter,
   createScorm12Adapter,
   createScorm2004Adapter,
+  createXapiAdapter,
   findScorm12Api,
   findScorm2004Api,
   type KeyValueStorage,
   type MemoryAdapter,
   RESUME_CAPS,
+  readXapiLaunch,
   type TrackingAdapter,
 } from "@course-suite/tracking";
 import {
@@ -137,22 +139,28 @@ function boot(): void {
       }
       labels = resolveLabels(data.labels);
       document.documentElement.lang = data.course.sourceLanguage ?? data.labels?.language ?? "en";
-      // The standard is fixed at publish (standards.md P-1). Without an LMS interface a Blocks
+      // The standard is fixed at publish (standards.md P-1). Without an LMS or LRS a Blocks
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.
-      const lms = lmsAdapter(data.standard);
       const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
+      const adapter = connect(data) ?? memory;
       return startRuntime({
         course: data.course,
-        adapter: lms ?? memory,
+        adapter,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // SCORM 2004 packages are 4th edition (64,000 characters). Anything else gets the strictest
-        // cap, so a preview warns as soon as a SCORM 1.2 package would.
-        resumeCap: data.standard === "scorm2004" ? RESUME_CAPS.scorm2004 : RESUME_CAPS.scorm12,
+        // SCORM 2004 (4th edition) and an LRS state document have their own caps. Anything else, a
+        // preview too, gets the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
+        // package would.
+        resumeCap:
+          data.standard === "xapi"
+            ? RESUME_CAPS.xapi
+            : data.standard === "scorm2004"
+              ? RESUME_CAPS.scorm2004
+              : RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
-          if (!lms) hooks.adapter = memory;
+          if (adapter === memory) hooks.adapter = memory;
           const events: TimedEvent[] = [];
           hooks.events = events;
           runtime.on((event) => events.push(event));
@@ -171,17 +179,44 @@ function boot(): void {
     .catch(() => status.remove());
 }
 
-/** The adapter for the LMS interface of the package's standard, when the LMS offers one. */
-function lmsAdapter(standard: CourseData["standard"]): TrackingAdapter | undefined {
-  if (standard === "scorm2004") {
+/** The adapter for the standard the package was published for, or undefined when none is there. */
+function connect(data: CourseData): TrackingAdapter | undefined {
+  if (data.standard === "scorm2004") {
     const api = findScorm2004Api(window);
     return api && createScorm2004Adapter(api);
   }
-  if (standard === "scorm12") {
+  if (data.standard === "scorm12") {
     const api = findScorm12Api(window);
     return api && createScorm12Adapter(api);
   }
-  return undefined;
+  if (data.standard !== "xapi") return undefined;
+  // The LRS, learner and registration come from the launch link (standards.md X-1).
+  const launch = readXapiLaunch(new URLSearchParams(location.search), data.lrs);
+  if ("error" in launch) {
+    // One console error and no requests; the course runs without reporting.
+    console.error(`xAPI reporting is off. ${launch.error}`);
+    return undefined;
+  }
+  return createXapiAdapter({
+    launch,
+    course: data.course,
+    onConnection: offline,
+    onError: (error) => {
+      console.error(error);
+      notice();
+    },
+  });
+}
+
+/** The offline banner while statements wait to be sent (standards.md X-5); it goes when they are. */
+function offline(online: boolean): void {
+  if (online) {
+    notices.querySelector(".notice-offline")?.remove();
+    return;
+  }
+  notices.replaceChildren(
+    h("div", { class: "notice notice-offline" }, h("p", {}, labels["notice.offline"])),
+  );
 }
 
 /** The save-failed notice: the course goes on, and the learner may dismiss it (standards.md P-20). */

@@ -99,6 +99,9 @@ importers:
       '@course-suite/player-blocks':
         specifier: workspace:*
         version: link:../player-blocks
+      '@course-suite/tracking':
+        specifier: workspace:*
+        version: link:../tracking
       '@xmldom/xmldom':
         specifier: 'catalog:'
         version: 0.9.12

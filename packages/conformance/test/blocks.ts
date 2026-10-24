@@ -6,9 +6,11 @@ import {
   blocksPlayer,
   buildPackage,
   type Exporter,
+  type Standard,
   scorm12Exporter,
   scorm2004Exporter,
   webExporter,
+  xapiExporter,
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
 import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
@@ -40,10 +42,13 @@ export type ScormStandard = "scorm12" | "scorm2004";
 
 /**
  * Every course of the Blocks conformance corpus (M1-28) when the test-courses checkout is present,
- * otherwise the format's test fixtures, all published for `standard` (standards.md P-1).
+ * otherwise the format's test fixtures, all published to `standard` (standards.md P-1).
  */
-export function standardsCourses(standard: ScormStandard = "scorm12"): TestCourse[] {
-  const as = (course: Course): Course => ({ ...course, publish: { ...course.publish, standard } });
+export function standardsCourses(standard: Standard = "scorm12"): TestCourse[] {
+  const publish = (course: Course): Course => ({
+    ...course,
+    publish: { ...course.publish, standard },
+  });
   const corpus = join(TEST_COURSES, "blocks");
   if (existsSync(corpus)) {
     return readdirSync(corpus, { withFileTypes: true })
@@ -55,7 +60,7 @@ export function standardsCourses(standard: ScormStandard = "scorm12"): TestCours
         const course = JSON.parse(readFileSync(join(dir, "course.json"), "utf8")) as Course;
         return {
           name: `corpus/${folder}`,
-          course: as(course),
+          course: publish(course),
           media: (key) => {
             const file = join(dir, "media", key);
             return existsSync(file) ? readFileSync(file) : undefined;
@@ -64,8 +69,8 @@ export function standardsCourses(standard: ScormStandard = "scorm12"): TestCours
       });
   }
   return [
-    { name: "fixtures/sample", course: as(sampleCourse()), media: standIn },
-    { name: "fixtures/full", course: as(fullCourse()), media: standIn },
+    { name: "fixtures/sample", course: publish(sampleCourse()), media: standIn },
+    { name: "fixtures/full", course: publish(fullCourse()), media: standIn },
   ];
 }
 
@@ -98,6 +103,17 @@ async function scormPackage(
   course: Course,
   exporter: Exporter,
   media?: TestCourse["media"],
+): Promise<CoursePackage> {
+  const read = readPackage(await blocksZip(course, exporter, media));
+  if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
+  return read.value;
+}
+
+/** Builds and reads back an xAPI package of `course`. */
+export async function xapiPackage(
+  course: Course,
+  media?: TestCourse["media"],
+  exporter = xapiExporter(),
 ): Promise<CoursePackage> {
   const read = readPackage(await blocksZip(course, exporter, media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));

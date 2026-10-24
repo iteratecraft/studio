@@ -12,7 +12,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createMemoryLrs, type MemoryLrs } from "./memory-lrs.js";
+import { createMemoryLrs, type MemoryLrs, type MemoryLrsOptions } from "./memory-lrs.js";
 import type { CoursePackage } from "./package.js";
 import type { ScormVersion } from "./scorm-manifest.js";
 
@@ -104,6 +104,10 @@ export type CmiData = Record<string, unknown>;
 export interface TestLmsOptions {
   /** CMI data loaded into the API before the SCO launches. */
   cmi?: CmiData;
+  /** An LRS to serve, such as the one of an earlier run, so a relaunch finds its state. */
+  lrs?: MemoryLrs;
+  /** Options of a new LRS when `lrs` is not given. */
+  lrsOptions?: MemoryLrsOptions;
 }
 
 function hostPage(version: ScormVersion, launchHref: string, cmi: CmiData = {}): string {
@@ -150,7 +154,7 @@ export async function startTestLms(
   pkg?: CoursePackage,
   options: TestLmsOptions = {},
 ): Promise<TestLms> {
-  const lrs = createMemoryLrs();
+  const lrs = options.lrs ?? createMemoryLrs(options.lrsOptions);
   const version = pkg?.descriptor.kind === "scorm" ? pkg.descriptor.manifest.version : undefined;
   const page = version && pkg ? hostPage(version, pkg.launchHref, options.cmi) : undefined;
   const runtimes = new Map<string, string>();

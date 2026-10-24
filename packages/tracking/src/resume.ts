@@ -8,11 +8,15 @@ import { BitReader, BitWriter } from "./packing.js";
 /** The resume format this player writes. A payload is `<format>.<packed state>`. */
 export const RESUME_FORMAT = 1;
 
-/** Suspend-data caps in characters (standards.md §4.2). xAPI state has the cap the author sets. */
+/**
+ * Suspend-data caps in characters (standards.md §4.2). An LRS state document has no cap of its own;
+ * xAPI keeps the whole document under the 64 KiB a closing page may still send (fetch keepalive).
+ */
 export const RESUME_CAPS = {
   scorm12: 4_096,
   scorm2004_2nd: 4_000,
   scorm2004: 64_000,
+  xapi: 32_000,
 } as const;
 
 /** What a player resumes from. Every key and id is a stable content id (ADR-0002). */

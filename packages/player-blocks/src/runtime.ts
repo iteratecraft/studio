@@ -2,7 +2,7 @@
 // wired to the tracking core with the Blocks profile (rise.md rules 2-8; standards.md §5 rules 3-9
 // and 17). No DOM: the shell calls it, so tests run it under a fake clock.
 import type { Course, Question, QuizEntry, Response } from "@course-suite/format";
-import { toInteraction } from "@course-suite/format";
+import { isPassed, toInteraction } from "@course-suite/format";
 import {
   type Clock,
   createTracker,
@@ -150,6 +150,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
     report();
   }
 
+  function leave(page: Page) {
+    emit({ type: "page-left", page: page.id });
+    safely(() => tracker.left(page.id));
+  }
+
   function begin() {
     if (begun || ended) return;
     begun = true;
@@ -177,10 +182,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
     enter(page) {
       if (ended) return;
       begin();
-      if (current && current !== page) emit({ type: "page-left", page: current.id });
+      const same = current === page;
+      if (current && !same) leave(current);
       current = page;
       emit({ type: "page-entered", page: page.id });
       safely(() => tracker.setLocation(pageHash(page.id)));
+      if (!same) safely(() => tracker.entered(page.id));
       // A locked page opened by its address shows, but its blocks do not count (UI-BLOCKS-R26).
       if (!progress.lockedBy(page)) progress.view(page);
       changed();
@@ -191,12 +198,16 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
     answered(quiz, question, response) {
       const attempt = progress.quiz(quiz).scores.length + 1;
       safely(() =>
-        tracker.recordInteraction(toInteraction(quiz.title, question, response, attempt)),
+        tracker.recordInteraction(toInteraction(quiz.title, question, response, attempt), {
+          quiz: quiz.id,
+          question: question.id,
+        }),
       );
     },
 
     quizSubmitted(quiz, score) {
       emit({ type: "quiz-submitted", quiz: quiz.id, score, passed: progress.quiz(quiz).passed });
+      safely(() => tracker.quizScored(quiz.id, { score, passed: isPassed(score, quiz.settings) }));
       changed();
     },
 
@@ -210,7 +221,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
       changed();
       ended = true;
       const reachedEnd = progress.courseDone();
-      if (current) emit({ type: "page-left", page: current.id });
+      if (current) leave(current);
       emit({ type: reason, reachedEnd });
       safely(() => tracker.exit(reachedEnd));
     },

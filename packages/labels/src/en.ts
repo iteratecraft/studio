@@ -109,6 +109,8 @@ export const english = {
     "notice.saveFailed":
       "Your progress cannot be saved right now. You can keep going, but this visit may not be remembered.",
     "notice.dismiss": "Dismiss",
+    "notice.offline":
+      "Your progress cannot reach your learning records right now. Keep this page open: it will be sent when the connection is back.",
 
     "sr.skipToContent": "Skip to the course content",
     "sr.content": "Course content",

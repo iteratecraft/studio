@@ -3,6 +3,7 @@
 // it. Same course, player, media and options always give the same bytes.
 import type { Course, PublishSettings } from "@course-suite/format";
 import { validateCourse } from "@course-suite/format";
+import type { LrsSettings } from "@course-suite/tracking";
 import { fail, ok, type Problem, type Result } from "./result.js";
 import { findModuleCode, findOutboundUrls, urlsIn } from "./scan.js";
 import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "./zip.js";
@@ -37,6 +38,8 @@ export interface CourseData {
   packageVersion: number;
   /** Package path of each media file, by the storage key of its media index entry. */
   media: Record<string, string>;
+  /** xAPI: the LRS the author set, for launches that name none (standards.md E-17). */
+  lrs?: LrsSettings;
 }
 
 /** What an exporter is given to write its descriptor. */
@@ -55,6 +58,8 @@ export interface Exporter {
   describe(input: DescribeInput): Result<PackageFile[]>;
   /** Problems in a finished package's descriptor: invalid, or not matching the package's files. */
   check(files: ReadonlyMap<string, Uint8Array>): Problem[];
+  /** An LRS the author set (xAPI), written into the course data for the player. */
+  lrs?: LrsSettings;
 }
 
 export interface BuildInput {
@@ -76,6 +81,8 @@ export interface BuiltPackage {
   zip: Uint8Array;
   /** Every file in the package, sorted. */
   files: string[];
+  /** What the author should know before sharing the package, such as credentials inside it. */
+  warnings: Problem[];
 }
 
 export const MEDIA_FOLDER = "media";
@@ -137,6 +144,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     standard: exporter.standard,
     packageVersion,
     media,
+    ...(exporter.lrs && { lrs: exporter.lrs }),
   });
   add(data.path, data.data);
 
@@ -163,7 +171,11 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
   }
 
   const shipped = content.map((path) => [path, files.get(path) as Uint8Array] as const);
-  const allowed = [...urlsInStrings(course), ...(input.allowedUrls ?? [])];
+  const allowed = [
+    ...urlsInStrings(course),
+    ...(input.allowedUrls ?? []),
+    ...(exporter.lrs ? [exporter.lrs.endpoint] : []),
+  ];
   problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed, collected));
   if (problems.length > 0) return fail(problems);
 
@@ -178,7 +190,17 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     if (!(error instanceof RangeError)) throw error;
     return fail([{ file: "", message: error.message }]);
   }
-  return ok({ zip, files: [...files.keys()].sort() });
+  // Honest credential handling (ROADMAP.md note 14): encoding hides nothing, so the author is told.
+  const warnings: Problem[] = exporter.lrs?.auth
+    ? [
+        {
+          file: data.path,
+          message:
+            "holds LRS credentials that anyone with the package can read; use credentials that can only write statements and state, for this course only",
+        },
+      ]
+    : [];
+  return ok({ zip, files: [...files.keys()].sort(), warnings });
 }
 
 const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
