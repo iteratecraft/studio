@@ -144,76 +144,86 @@ describe("buildPackage", () => {
     ).toHaveLength(1);
   });
 
-  // Media as authors' tools save it: an SVG with editor namespaces and RDF metadata, a caption file
-  // whose cue text names a web page. None of these URLs is ever fetched.
-  const editorSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Drawn with a vector editor (http://editor.example.org/) -->
-<svg width="10mm" height="10mm" viewBox="0 0 10 10" version="1.1"
+  describe("media", () => {
+    // Written by hand in the shape an SVG editor saves: editor namespaces, a DTD address, a comment,
+    // RDF licence metadata, text and a link, none of which a browser fetches.
+    const editorSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Saved from https://editor.example.net/ -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"
+   viewBox="0 0 10 10" sodipodi:docname="bench.svg">
   <sodipodi:namedview id="view1" inkscape:zoom="1"/>
   <metadata><rdf:RDF><cc:Work rdf:about="">
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
     <cc:license rdf:resource="http://creativecommons.org/licenses/by/4.0/"/>
   </cc:Work></rdf:RDF></metadata>
-  <a href="https://example.net/more"><text x="1" y="5">See https://example.net/notes</text></a>
+  <a href="https://example.net/more"><text x="1" y="5">See http://example.org/source</text></a>
+  <rect width="10" height="10" style="fill:url(#shade)"/>
   <use xlink:href="#shape"/><image href="pattern.png" width="1" height="1"/>
 </svg>
 `;
-  const captions =
-    "WEBVTT\n\n00:00.000 --> 00:04.000\nRead more at https://example.org/guide-two\n";
+    // The cue names an address the course text does not, so only the caption could allow it.
+    const captions = `WEBVTT
 
-  /** The stub input with extra media files (storage key to text) in the course's media index. */
-  function withMedia(files: Record<string, string>) {
-    const course = stubCourse();
-    for (const [i, key] of Object.keys(files).entries()) {
-      course.media.push({ id: `media1000${i}`, key, source: "upload" });
+00:00.000 --> 00:04.000
+Read more at https://example.org/guide-two
+`;
+
+    /** The stub input with extra media files (storage key to text) in the course's media index. */
+    function withMedia(files: Record<string, string>) {
+      const course = stubCourse();
+      for (const [index, key] of Object.keys(files).entries()) {
+        course.media.push({ id: `media1000${index}`, key, source: "upload" });
+      }
+      const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
+      return { course, media };
     }
-    const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
-    return { course, media };
-  }
 
-  test("publishes an editor-saved SVG: namespace names, metadata, text and links are not loads [standards:R16]", async () => {
-    await expect(built(withMedia({ "drawing.svg": editorSvg }))).resolves.toBeTruthy();
-  });
+    test("publishes an editor-saved SVG: namespace names, metadata, comments, text and links are not loads [standards:R16]", async () => {
+      await expect(built(withMedia({ "bench.svg": editorSvg }))).resolves.toBeTruthy();
+    });
 
-  test("publishes a caption file whose cue text names a web address [standards:R16]", async () => {
-    await expect(built(withMedia({ "captions.vtt": captions }))).resolves.toBeTruthy();
-  });
+    test("publishes a caption file whose cue text names a web address [standards:R16]", async () => {
+      await expect(built(withMedia({ "talk.vtt": captions }))).resolves.toBeTruthy();
+    });
 
-  test("rejects media that loads from outside through href, xlink:href, src, url() and @import [standards:R16]", async () => {
-    const svg =
-      '<?xml-stylesheet href="https://cdn.example.net/a.css"?>' +
-      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
-      '<style>@import "//fonts.example.net/b.css"; rect { fill: url( "https://cdn.example.net/c.svg#g" ) }</style>' +
-      "<image href=\"https://cdn.example.net/d.png\"/><use xlink:href='https://cdn.example.net/e.svg#s'/>" +
-      '<foreignObject><img xmlns="http://www.w3.org/1999/xhtml" src="http://cdn.example.net/f.gif"/></foreignObject>' +
-      "</svg>";
-    const found = (await problems(withMedia({ "loads.svg": svg }))).map((p) => [
-      p.file,
-      p.message.split("'")[1],
-    ]);
-    expect(found).toEqual(
-      [
-        "https://cdn.example.net/a.css",
-        "https://cdn.example.net/d.png",
-        "https://cdn.example.net/e.svg#s",
-        "http://cdn.example.net/f.gif",
-        "//fonts.example.net/b.css",
-        "https://cdn.example.net/c.svg#g",
-      ].map((url) => ["media/loads.svg", url]),
-    );
-  });
+    test("rejects media that loads an outside address through href, xlink:href, src, srcset, url() or @import [standards:R16]", async () => {
+      const svg = `<?xml-stylesheet href="https://styles.example.net/a.css"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<style>@import "//fonts.example.net/b.css"; rect { fill: url('https://img.example.net/c.png') }</style>
+<image xlink:href="https://img.example.net/d.png"/>
+<image href='//img.example.net/e.png'/>
+<foreignObject><img xmlns="http://www.w3.org/1999/xhtml" src="f.png"
+  srcset="f.png 1x, http://img.example.net/f2.png 2x"/></foreignObject>
+</svg>
+`;
+      expect(
+        (await problems(withMedia({ "remote.svg": svg }))).map((p) => [
+          p.file,
+          p.message.split(",")[0],
+        ]),
+      ).toEqual(
+        [
+          "https://styles.example.net/a.css",
+          "https://img.example.net/d.png",
+          "//img.example.net/e.png",
+          "http://img.example.net/f2.png",
+          "//fonts.example.net/b.css",
+          "https://img.example.net/c.png",
+        ].map((url) => ["media/remote.svg", `names '${url}'`]),
+      );
+    });
 
-  test("still reads the player's own pages, scripts and styles in full [standards:R16]", async () => {
-    const player = withFiles({ "player/notes.js": "// docs: https://tracker.example.net/x\n" });
-    expect(await problems({ player })).toEqual([
-      { file: "player/notes.js", message: expect.stringContaining("tracker.example.net") },
-    ]);
+    test("still scans the player's own pages, scripts and styles whole [standards:R16]", async () => {
+      const player = withFiles({ "player/notes.js": "// docs: https://tracker.example.net/x\n" });
+      expect(await problems({ player })).toEqual([
+        { file: "player/notes.js", message: expect.stringContaining("tracker.example.net") },
+      ]);
+    });
   });
 });
 

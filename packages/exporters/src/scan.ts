@@ -7,9 +7,9 @@
 // the no-network browser tests (M1-30) catch what the package actually requests.
 import type { Problem } from "./result.js";
 
-/** The player's pages, scripts and styles: every URL written in them counts. */
+/** The player's own pages, scripts and styles: every URL written in them counts. */
 const CODE = /\.(?:html?|xhtml|js|mjs|cjs|css)$/i;
-/** Markup and styles a browser loads further files from. Captions, text and binary media load nothing. */
+/** Markup and styles a browser loads further files from; captions, text and binary media load nothing. */
 const MARKUP = /\.(?:html?|xhtml|svg|xml|css)$/i;
 const ABSOLUTE = /\b(?:https?|wss?|ftp):\/\/[^\s"'`<>()[\]{}\\]+/gi;
 // `//host/...` only where markup or CSS loads it; elsewhere it is far more often a comment.
@@ -37,26 +37,29 @@ export function urlsIn(text: string): string[] {
   return found.sort((a, b) => a[0] - b[0]).map(([, url]) => url.replace(TRAILING, ""));
 }
 
-const TAG = /<\??([\w.:-]+)([^>]*)>/g;
-const LOAD_ATTRIBUTE = /\s(?:[\w.-]+:)?(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
-const CSS_LOAD =
-  /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/gi;
-const EXTERNAL = /^(?:(?:https?|wss?|ftp):)?\/\//i;
+// In media and other markup only what a browser loads counts: attribute values that load (`href`,
+// `xlink:href`, `src` ...) on any element but a link, `<?xml-stylesheet?>`, CSS `url()` and `@import`.
+// Namespace declarations, RDF metadata, a DOCTYPE's DTD address, comments and text such as caption
+// cues are never fetched, and a link the learner clicks is navigation, not a load (ADR-0004).
+const COMMENT = /<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g;
+const TAG = /<(?:([A-Za-z][\w.:-]*)|\?xml-stylesheet\b)(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
+const LINK = /^(?:[\w.-]+:)?a$/i;
+const LOAD_ATTRIBUTE =
+  /\s(?:[\w-]+:)?(?:href|src|srcset|poster|action|data|background)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+const CSS_LOAD = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^\s"')]+))|@import\s+["']([^"']*)["']/gi;
+const OUTSIDE = /^(?:(?:https?|wss?|ftp):)?\/\//i;
 
-/**
- * Every absolute or protocol-relative URL a browser would fetch for markup or CSS: `href`,
- * `xlink:href` and `src` values (not on links, which are navigation, ADR-0004), `url()` and `@import`.
- * `xmlns:*` declarations, metadata and text content are never fetched, so they are not read.
- */
-export function loadsIn(text: string): string[] {
-  const values: (string | undefined)[] = [];
-  for (const [, name = "", attributes = ""] of text.matchAll(TAG)) {
-    if (/^(?:[\w.-]+:)?a$/i.test(name)) continue;
-    for (const match of attributes.matchAll(LOAD_ATTRIBUTE)) values.push(match[1] ?? match[2]);
+/** Every absolute or protocol-relative URL a browser would load from the markup or CSS `text`, in order. */
+export function loadedUrlsIn(text: string): string[] {
+  const code = text.replace(COMMENT, "");
+  const values: string[] = [];
+  for (const [tag, name = ""] of code.matchAll(TAG)) {
+    if (LINK.test(name)) continue;
+    for (const match of tag.matchAll(LOAD_ATTRIBUTE)) values.push(match.slice(1).join(""));
   }
-  for (const match of text.matchAll(CSS_LOAD))
-    values.push(match.slice(1).find((v) => v !== undefined));
-  return values.map((value) => (value ?? "").trim()).filter((value) => EXTERNAL.test(value));
+  for (const match of code.matchAll(CSS_LOAD)) values.push(match.slice(1).join(""));
+  // A `srcset` holds several URLs, each followed by an optional size.
+  return values.flatMap((value) => value.split(/[\s,]+/)).filter((url) => OUTSIDE.test(url));
 }
 
 /** True when `url` is `allowed` or lies under it (the next character starts a path, query or fragment). */
@@ -100,8 +103,9 @@ export function findModuleCode(files: Iterable<readonly [string, Uint8Array]>): 
 }
 
 /**
- * One problem per file and URL that is neither allowed nor a namespace name. Files in `media` (the
- * course's media) are read only for what a browser loads from them, never in full.
+ * One problem per file and URL that is neither allowed nor a namespace name. The player's pages,
+ * scripts and styles are scanned whole; the `media` paths (the author's media files) and other markup
+ * only for what a browser loads from them.
  */
 export function findOutboundUrls(
   files: Iterable<readonly [string, Uint8Array]>,
@@ -112,7 +116,7 @@ export function findOutboundUrls(
   const problems: Problem[] = [];
   for (const [path, data] of files) {
     const scan =
-      CODE.test(path) && !media.has(path) ? urlsIn : MARKUP.test(path) ? loadsIn : undefined;
+      CODE.test(path) && !media.has(path) ? urlsIn : MARKUP.test(path) ? loadedUrlsIn : undefined;
     if (scan === undefined) continue;
     for (const url of new Set(scan(utf8.decode(data)))) {
       if (isAllowed(url, permitted)) continue;

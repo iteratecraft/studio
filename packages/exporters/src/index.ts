@@ -16,7 +16,7 @@ export {
   findModuleCode,
   findOutboundUrls,
   isAllowed,
-  loadsIn,
+  loadedUrlsIn,
   NAMESPACE_URIS,
   urlsIn,
 } from "./scan.js";
