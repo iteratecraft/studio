@@ -19,7 +19,8 @@ import { basename, dirname, join, sep } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
-const NOT_COPIED = new Set(["node_modules", ".git", ".turbo", "dist"]);
+// test-courses: the fixtures checkout (M1-28), which these checks never read.
+const NOT_COPIED = new Set(["node_modules", ".git", ".turbo", "dist", "test-courses"]);
 const TIMEOUT_MS = 120_000;
 
 const copies: string[] = [];
