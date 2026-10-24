@@ -11,7 +11,7 @@ import type { Course } from "@course-suite/format";
 import { PROJECT_ID } from "@course-suite/format/test/courses";
 import { english } from "@course-suite/labels";
 import { pageHash, pagesOf } from "@course-suite/player-blocks";
-import { expect, type Frame, test } from "@playwright/test";
+import { type Browser, expect, type Frame, test } from "@playwright/test";
 import { readPackage } from "../src/package.js";
 import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
 import type { CmiData } from "../src/test-lms.js";
@@ -70,6 +70,35 @@ const keptByTestLms = (cmi: CmiData) => {
   return { status: core.lesson_status, location: core.lesson_location, score: core.score.raw };
 };
 
+/**
+ * What the test LMS keeps after each of `visits`, each one a launch that resumes where the last
+ * left off and ends with the learner closing the course. Moodle overrides the status word when the
+ * manifest has a mastery score, so this reference, not Moodle, shows what our package reported.
+ */
+async function keptByTestLmsAfter(
+  browser: Browser,
+  zip: Uint8Array,
+  visits: ((sco: Frame) => Promise<void>)[],
+) {
+  const pkg = readPackage(zip);
+  if (!pkg.ok) throw new Error(JSON.stringify(pkg.problems));
+  const kept = [];
+  let cmi: CmiData | undefined;
+  for (const visit of visits) {
+    const run = await runPackage(pkg.value, {
+      browser,
+      ...(cmi && { cmi: relaunchCmi(cmi) }),
+      drive: async (sco, host) => {
+        await visit(sco);
+        await closeSco(host);
+      },
+    });
+    cmi = run.cmi;
+    kept.push(keptByTestLms(cmi));
+  }
+  return kept;
+}
+
 // The format's fixtures, and the corpus when a test-courses checkout is present.
 for (const { name, media, ...fixture } of [...fixtureCourses(), ...(corpusCourses() ?? [])]) {
   const course: Course = {
@@ -81,39 +110,25 @@ for (const { name, media, ...fixture } of [...fixtureCourses(), ...(corpusCourse
     page,
   }) => {
     const zip = await blocksZip(course, scorm12Exporter(), media);
-    const pkg = readPackage(zip);
-    if (!pkg.ok) throw new Error(JSON.stringify(pkg.problems));
-
     // The same two visits in the test LMS give what Moodle should keep.
-    const reference = await runPackage(pkg.value, {
-      browser,
-      drive: async (sco, host) => {
-        await firstVisit(sco, course);
-        await closeSco(host);
-      },
-    });
-    const referenceEnd = await runPackage(pkg.value, {
-      browser,
-      cmi: relaunchCmi(reference.cmi),
-      drive: async (sco, host) => {
-        await secondVisit(sco, course);
-        await closeSco(host);
-      },
-    });
+    const [reference, referenceEnd] = await keptByTestLmsAfter(browser, zip, [
+      (sco) => firstVisit(sco, course),
+      (sco) => secondVisit(sco, course),
+    ]);
 
     const activity = upload(zip, name);
     await logIn(page);
     await firstVisit(await launch(page, activity), course);
     await exitActivity(page);
     const left = await trackedVisit(activity);
-    expect(kept(left)).toEqual(keptByTestLms(reference.cmi));
+    expect(kept(left)).toEqual(reference);
     expect(left.elements["cmi.suspend_data"]).toMatch(/^1\./);
     expect(totalTime(left)).toBeGreaterThan(0);
 
     await secondVisit(await launch(page, activity), course);
     await exitActivity(page);
     const ended = await trackedVisit(activity, left);
-    expect(kept(ended)).toEqual(keptByTestLms(referenceEnd.cmi));
+    expect(kept(ended)).toEqual(referenceEnd);
     // Resuming continues the attempt.
     expect(ended.attempts).toBe(1);
     expect(ended.elements["cmi.suspend_data"]).toMatch(/^1\./);
@@ -175,20 +190,42 @@ const compost: Course = {
   media: [],
 };
 
-test("[standards:T-4] [standards:R2] [standards:R8] [standards:R9] [standards:R11] [standards:R12] [standards:P-7] [rise:R1] [rise:R2] [rise:R7] a learner completes a lesson, closes, relaunches, resumes at the next lesson and passes: Moodle records passed with the score", async ({
+/** Fails the one-question quiz on the first visit; the quiz allows no retake. */
+async function failQuiz(sco: Frame) {
+  await sco.getByRole("link", { name: label["course.begin"] }).click();
+  await sco.evaluate(`location.hash = ${JSON.stringify(pageHash("quizfinal1"))}`);
+  await sco.getByRole("button", { name: label["quiz.begin"] }).click();
+  await sco.getByRole("radio", { name: "Green" }).check();
+  await sco.getByRole("button", { name: label["quiz.submit"] }).click();
+  await sco.getByRole("button", { name: label["quiz.showResults"] }).click();
+  await expect(sco.locator(".quiz-outcome")).toHaveText(label["quiz.failed"]);
+}
+
+test("[standards:T-4] [standards:R2] [standards:R8] [standards:R9] [standards:R11] [standards:R12] [standards:P-7] [rise:R1] [rise:R2] [rise:R7] a learner completes a lesson, closes, relaunches, resumes at the next lesson and passes: our package reports passed with the score and Moodle keeps it", async ({
+  browser,
   page,
 }) => {
-  const activity = upload(await blocksZip(compost, scorm12Exporter()), "Compost basics, passed");
+  const zip = await blocksZip(compost, scorm12Exporter());
+  // What our package reports, in the test LMS: the manifest's mastery score lets Moodle derive
+  // passed from the score whatever status word the course sent.
+  const [reference, referenceEnd] = await keptByTestLmsAfter(browser, zip, [
+    (sco) => firstVisit(sco, compost),
+    async (sco) => {
+      await secondVisit(sco, compost);
+      await expect(sco.locator(".quiz-score")).toHaveText("Your score: 100%");
+    },
+  ]);
+  expect(reference).toEqual({ status: "incomplete", location: "#/lessons/lessontwo1", score: "" });
+  expect(referenceEnd).toMatchObject({ status: "passed", score: "100" });
+
+  const activity = upload(zip, "Compost basics, passed");
   await logIn(page);
 
   await firstVisit(await launch(page, activity), compost);
   await exitActivity(page);
   const left = await trackedVisit(activity);
-  expect(left.elements).toMatchObject({
-    "cmi.core.lesson_status": "incomplete",
-    "cmi.core.lesson_location": "#/lessons/lessontwo1",
-    "cmi.core.exit": "suspend",
-  });
+  expect(kept(left)).toEqual(reference);
+  expect(left.elements).toMatchObject({ "cmi.core.exit": "suspend" });
   expect(left.elements["cmi.suspend_data"]).toMatch(/^1\./);
   expect(totalTime(left)).toBeGreaterThan(0);
 
@@ -197,9 +234,8 @@ test("[standards:T-4] [standards:R2] [standards:R8] [standards:R9] [standards:R1
   await expect(sco.locator(".quiz-score")).toHaveText("Your score: 100%");
   await exitActivity(page);
   const ended = await trackedVisit(activity, left);
+  expect(kept(ended)).toEqual(referenceEnd);
   expect(ended.elements).toMatchObject({
-    "cmi.core.lesson_status": "passed",
-    "cmi.core.score.raw": "100",
     "cmi.core.score.min": "0",
     "cmi.core.score.max": "100",
   });
@@ -208,27 +244,22 @@ test("[standards:T-4] [standards:R2] [standards:R8] [standards:R9] [standards:R1
   expect(totalTime(ended)).toBeGreaterThan(totalTime(left));
 });
 
-test("[standards:T-4] [standards:R11] [standards:R12] [rise:R7] a learner who fails the quiz: Moodle records failed with the score", async ({
+test("[standards:T-4] [standards:R11] [standards:R12] [rise:R7] a learner who fails the quiz: our package reports failed with the score and Moodle keeps it", async ({
+  browser,
   page,
 }) => {
-  const activity = upload(await blocksZip(compost, scorm12Exporter()), "Compost basics, failed");
-  await logIn(page);
+  const zip = await blocksZip(compost, scorm12Exporter());
+  // What our package reports, in the test LMS (see the passed case).
+  const [reference] = await keptByTestLmsAfter(browser, zip, [failQuiz]);
+  expect(reference).toMatchObject({ status: "failed", score: "0" });
 
-  const sco = await launch(page, activity);
-  await sco.getByRole("link", { name: label["course.begin"] }).click();
-  await sco.evaluate(`location.hash = ${JSON.stringify(pageHash("quizfinal1"))}`);
-  await sco.getByRole("button", { name: label["quiz.begin"] }).click();
-  await sco.getByRole("radio", { name: "Green" }).check();
-  await sco.getByRole("button", { name: label["quiz.submit"] }).click();
-  await sco.getByRole("button", { name: label["quiz.showResults"] }).click();
-  await expect(sco.locator(".quiz-outcome")).toHaveText(label["quiz.failed"]);
+  const activity = upload(zip, "Compost basics, failed");
+  await logIn(page);
+  await failQuiz(await launch(page, activity));
   await exitActivity(page);
 
   const ended = await trackedVisit(activity);
-  expect(ended.elements).toMatchObject({
-    "cmi.core.lesson_status": "failed",
-    "cmi.core.score.raw": "0",
-  });
+  expect(kept(ended)).toEqual(reference);
   expect(ended.elements["cmi.suspend_data"]).toMatch(/^1\./);
   expect(totalTime(ended)).toBeGreaterThan(0);
 });

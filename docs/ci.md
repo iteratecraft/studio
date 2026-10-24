@@ -22,14 +22,18 @@ it in Chromium with Playwright. Then it reads what Moodle recorded from its SCOR
   button, relaunch, resume at that lesson, finish the course and pass its quiz. A second path fails
   the quiz.
 - **Checks:** the status, bookmark and score Moodle keeps after each visit match what the
-  conformance test LMS keeps after the same visits; the quiz course reads "passed" with score 100,
-  or "failed" with score 0; suspend data is kept; the total time grows; resuming continues the same
-  attempt.
+  conformance test LMS keeps after the same visits; in the test LMS the quiz course reports
+  "passed" with score 100, or "failed" with score 0, and Moodle keeps the same; suspend data is
+  kept; the total time grows; resuming continues the same attempt. The quiz course has a passing
+  score, so its manifest carries a mastery score and Moodle derives passed or failed from the score
+  itself; only the test LMS shows the status word the course sent.
 - **SCORM 1.2 only.** Moodle does not implement SCORM 2004 sequencing fully, and it needs plugins for
   xAPI and cmi5 (standards.md T-4). Those standards are verified in the conformance hosts
   (`packages/conformance/e2e/standards.e2e.ts`); SCORM 2004 in a real LMS waits for ILIAS (T-5).
-- **On failure** the job uploads the `moodle-e2e` artifact: Playwright traces and report, and the
-  Moodle containers' logs (web server and PHP errors, database).
+- **On failure, or when the job runs out of time,** it uploads the `moodle-e2e` artifact:
+  Playwright traces and report, and the Moodle containers' logs (web server and PHP errors,
+  database). Playwright stops after 25 minutes, or on CI after three failed tests, so the upload
+  still fits in the job's 40 minutes.
 
 ### What runs
 
