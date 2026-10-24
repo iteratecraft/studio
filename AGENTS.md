@@ -44,7 +44,8 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 
 - `packages/format` <- engine packages (`player-blocks`, `tracking`, `exporters`, `conformance`) <-
   `packages/ui` <- `apps/*`. Import only from layers to your left; import other packages by name, never by relative
-  path. `pnpm check:deps` enforces this.
+  path. `conformance` is test-only: `ui` and apps never import it (ADR-0001). `pnpm check:deps`
+  enforces this.
 - Anything that ships inside a published course is MIT and may depend only on MIT packages. Everything
   else is Apache-2.0. A new package needs a `turbo.json` with one layer tag (`format`, `engine`, `ui`
   or `app`), plus `mit` if it is MIT. An MIT package declares everything it ships under
