@@ -3,7 +3,8 @@
 // reached the shell through the host, that the content security policy holds inside the real
 // WebView2, and the file scope of our one command. It also prints the app's idle memory.
 // Build the app first (`pnpm build`, then `pnpm --filter @course-suite/desktop build:app`); without
-// the executable the test skips, except on CI.
+// the executable the test skips, except on CI. CI also sets the DevTools port as a WebView2 policy
+// (ci.yml), because WebView2 ignores the variable on the runner.
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -98,6 +98,13 @@ jobs:
       - name: Desktop executable size gate (15 MB)
         run: pnpm --filter @course-suite/desktop check:size
 
+      # The desktop smoke test opens WebView2's DevTools port through the
+      # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS variable, which WebView2 does not apply on the runner
+      # (an administrator with UAC off); the same option set as WebView2's policy for our exe is.
+      - name: Open WebView2's DevTools port for the desktop smoke test
+        run: |
+          reg add "HKCU\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments" /v course-suite-desktop.exe /d "--remote-debugging-port=9333" /f
+          reg add "HKLM\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments" /v course-suite-desktop.exe /d "--remote-debugging-port=9333" /f
       - name: Install Chromium for Playwright
         run: pnpm --filter @course-suite/web exec playwright install --only-shell chromium
       - name: Browser smoke test
