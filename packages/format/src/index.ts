@@ -19,5 +19,5 @@ export {
   shuffle,
   toInteraction,
 } from "./quiz.js";
-export type { ValidateOptions, ValidationError } from "./validate.js";
-export { courseSchema, validateCourse } from "./validate.js";
+export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
+export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
