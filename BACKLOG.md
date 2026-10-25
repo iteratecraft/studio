@@ -71,7 +71,7 @@ Give every agent team one repo that builds, tests and ships installers and a ser
 - Licence split: Apache-2.0 for apps and server, MIT for the player and tracking runtime; third-party licence gate
 - Clean-room guard: research-path and vendor-trademark checks, spec-reference trailer on every PR
 - CI on Windows, macOS and Linux: lint, typecheck, unit tests, browser smoke tests
-- Electron shell skeleton with context isolation, sandboxed renderer and strict content security policy
+- Tauri shell skeleton with capability files and a strict content security policy (ADR-0006)
 - Installers for Windows, macOS and Linux on every tag; signing hooks; auto-updater from GitHub Releases with stable/beta channels and a policy switch
 - Server skeleton: Node.js + TypeScript, PostgreSQL migrations, S3/MinIO client, Docker Compose, health checks
 - test-courses repo pinned into CI
@@ -323,7 +323,7 @@ Let one React editor and admin UI run unchanged in the desktop app and in the br
 - [ ] The component kit passes axe and keyboard tests
 
 **Spec refs:** studio/ARCHITECTURE.md Layers, Editions, reach.md shared needs (data table, string catalogue)  
-**Risks:** Electron APIs leaking into editor code; a lint rule forbids it.
+**Risks:** Tauri APIs leaking into editor code; a lint rule forbids it.
 
 ### ENG-13: Real-player preview harness
 
@@ -4777,7 +4777,7 @@ Let authors pick the output standard and its reporting options in one panel shar
 - [ ] Settings persist in the project file and a republish uses them unchanged
 - [ ] Incoherent choices are flagged (for example move-on Passed on a course with no scored quiz)
 - [ ] The panel passes automated WCAG 2.1 AA checks and is fully operable by keyboard
-- [ ] The same component renders in Electron and in the server web UI
+- [ ] The same component renders in the desktop app and in the server web UI
 
 **Spec refs:** standards.md 2 users and flow step 1, standards.md 3.4 E-22, standards.md 3.7 P-10, standards.md 4.2 publish warning  
 **Risks:** Option sprawl as v1 options arrive; the editors' teams must agree where tracking source lives in the course format.

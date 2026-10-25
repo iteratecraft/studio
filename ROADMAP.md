@@ -114,8 +114,8 @@ applied these by hand.)
 ### M0: Foundations (weeks 0–2, with the rest running alongside M1)
 
 - **Goal:** anyone, human or agent, can clone `studio`, build it and test it on three operating systems.
-- **Epic:** ENG-01. Only tasks M0-01 to M0-06 and M0-13 to M0-16 block M1. The Electron shell,
-  installers and auto-update (M0-07 to M0-09) run alongside M1 and must finish before M2 starts. The
+- **Epic:** ENG-01. Only tasks M0-01 to M0-06 and M0-13 to M0-16 block M1. The desktop shell,
+  installers and auto-update (M0-07 to M0-09) moved into M2 (M2-01, M2-19, M2-20). The
   server and web skeletons (M0-10, M0-11) must finish before M3.
 - **Exit:**
   - CI green on Windows, macOS and Linux from a clean clone.
@@ -354,7 +354,7 @@ planning.
 - [x] **M0-04** Licences and licence gate: Apache-2.0 root, MIT for every course-shipped package, NOTICE, scanner of built contents
 - [x] **M0-05** Clean-room and trademark guard in CI, PR template citing spec ids
 - [x] **M0-06** Spec traceability report: every numbered spec rule mapped to tagged tests
-- [ ] **M0-07** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC *(now M2-01)*
+- [ ] **M0-07** Desktop shell with a strict security boundary *(now M2-01, Tauri per ADR-0006)*
 - [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(now M2-19, Windows first)*
 - [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(now M2-20, Windows first)*
 - [ ] **M0-10** Server skeleton: Fastify, /health, migrations; **one all-in-one image** (SQLite + local files by default, PostgreSQL + S3 by env vars), plus `compose.yaml`; documented single `docker run` command proven in CI *(before M3)*
@@ -404,12 +404,12 @@ planning.
 
 Wave F, foundation:
 
-- [ ] **M2-01** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC (M0-07)
+- [ ] **M2-01** Tauri shell: strict CSP, capability files allowing only the needed commands and paths, no Node.js at run time (M0-07, ADR-0006)
 - [ ] **M2-02** Host interface the editors code against, and its desktop adapter (ENG-12)
 - [ ] **M2-03** Document command layer: typed commands, validation, integrity, undo and redo, change events (ENG-10)
 - [ ] **M2-04** Project container: one file per course, autosave folder, crash-safe save, asset store, snapshots (ENG-11, D-4)
 - [ ] **M2-05** UI kit: design tokens, light and dark themes, keyboard patterns, string catalogue, web app skeleton (ENG-12, M0-11)
-- [ ] **M2-06** Job runner: desktop worker processes, progress, cancel, retry, resume after restart (ENG-15)
+- [ ] **M2-06** Job runner: Web Workers on desktop, progress, cancel, retry, resume after restart (ENG-15); the engine and exporters run without Node.js (ADR-0006)
 - [ ] **M2-07** Long-resume author warning at publish (carried from M1)
 
 Wave G, editor core:
@@ -441,7 +441,7 @@ Wave I, release:
 | Risk | Mitigation |
 |---|---|
 | A build agent picks up research files, vendor code or copied help text | Separate build-agent config, build copy of specs, CI guards, fixture provenance policy, per-release originality audit |
-| Slide text renders differently in editor, player and OS | One renderer, Electron's single Chromium, bundled fonts, text-layout spike first, pixel-parity suite on 3 OS |
+| Slide text renders differently in editor, player and OS | One renderer, WebView2 (Chromium) on Windows and the system engines checked when macOS and Linux start (ADR-0006), bundled fonts, text-layout spike first, pixel-parity suite on 3 OS |
 | Slides scope explodes (47 events, 86 actions, 26 question types) | Registry-driven trigger engine, fixed MVP list, long tail moved to M5c |
 | Real training systems differ from the standards | Golden traces, Moodle and ILIAS in CI, a matrix of 3+ more LMSs, fast patch releases |
 | Courses exceed SCORM 1.2's 4,096-character resume limit | Compact codec, size warning at publish, long-resume corpus course |
@@ -458,7 +458,7 @@ Wave I, release:
 |---|---|---|---|
 | D-1 | Product name (organisation **iteratecraft** is done) | — | before Desktop 0.1 |
 | D-2 | Code signing: Apple about US$99/yr, Windows about US$10/mo | **Decided 2026-10-25:** unsigned with published checksums for Desktop 0.1 | before Desktop 0.1 |
-| D-3 | Toolchain (ADR-0001) | pnpm + Turborepo, Vitest, Playwright, electron-builder, Fastify | M0 start |
+| D-3 | Toolchain (ADR-0001) | pnpm + Turborepo, Vitest, Playwright, Tauri bundler (ADR-0006), Fastify | M0 start |
 | D-4 | Desktop project file container | **Decided 2026-10-25:** one zip-based file per course, with a hidden autosave folder for crash recovery | done |
 | D-5 | Co-editing granularity for Blocks | one editor per lesson, with live presence | **M1 start** |
 | D-6 | Standalone web output: keep progress in browser storage or not, per app | Blocks no, Slides yes (follow specs) | before M1-17 |
@@ -467,7 +467,7 @@ Wave I, release:
 | D-9 | .story import go/no-go | wait for the study spec | before M6c |
 | D-10 | Project-editing chat assistant parked after 1.1 | yes | M6 |
 | D-11 | First AI providers and local runtimes | one OpenAI-compatible API, Anthropic, Ollama, whisper.cpp, Piper | before M6 |
-| D-12 | ffmpeg build and codecs bundled | **Decided 2026-10-25:** LGPL build, royalty-free codecs plus OS decoders | done |
+| D-12 | ffmpeg build and codecs | **Decided 2026-10-25:** LGPL build, royalty-free codecs plus OS decoders; downloaded after asking the first time an author adds video or audio, not in the installer | done |
 | D-13 | Licences for test-courses and library repos; who makes original art | CC-BY-4.0 content, CC0 icons; AI-assisted original art | before M2b |
 | D-14 | How many agent teams the lead can review at once | start with 6, raise when gates hold | M0 |
 | D-15 | Publish engine packages to npm | after M1 exit | M1 exit |
@@ -486,6 +486,8 @@ Wave I, release:
 | D-28 | Sign-in names and passwords of the throwaway test Moodle | **Decided 2026-10-25:** fixed values committed in the repo; they work only inside the local test container | done |
 | D-29 | Platforms for Desktop 0.1 | **Decided 2026-10-25:** Windows only; the M2 exit run is on Windows, macOS and Linux follow the platform order | done |
 | D-30 | Product name | real name chosen before Desktop 0.1 goes public; options brought at the start of wave I | before Desktop 0.1 |
+| D-31 | Desktop shell | **Decided 2026-10-25:** Tauri 2 instead of Electron, for a small download and low memory; the engine runs without Node.js (ADR-0006) | done |
+| D-32 | Editor UI tooling | **Decided 2026-10-25:** Vite for building, React Aria Components for accessible controls with our own styling, our own zip code for the project file, newest stable versions at least two weeks old, pinned exactly | done |
 
 ## How to read the backlog
 
