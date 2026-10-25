@@ -379,3 +379,75 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     },
   };
 }
+
+/** Finished attempts the publish-time size estimate counts for a quiz with unlimited retries. */
+export const ESTIMATED_ATTEMPTS = 3;
+
+/**
+ * The largest state this player saves for `course`, for the resume size check at publish
+ * (standards.md §4.2, M2-07): every page and every block the learner finishes by an action done,
+ * every block of every lesson seen, every knowledge check answered, every quiz with an attempt in
+ * progress whose questions are all answered, its timer at the limit, and every finished attempt the
+ * quiz allows, each scored 100.
+ *
+ * shortcut: an estimate. Unlimited retries count as ESTIMATED_ATTEMPTS, and a typed fill-in answer
+ * as the longest accepted answer; a learner can go past both.
+ */
+export function largestResume(course: Course): ResumeState {
+  const pages = pagesOf(course);
+  const lessons = pages.filter((page): page is LessonEntry => page.kind === "lesson");
+  const quizzes = pages.filter((page): page is QuizEntry => page.kind === "quiz");
+  const blocks = lessons.flatMap((lesson) => lesson.blocks);
+  const drawn = new Map(quizzes.map((quiz) => [quiz.id, drawAttempt(quiz, () => 0)]));
+  const questions = [
+    ...blocks.flatMap((block) => (block.question ? [block.question] : [])),
+    ...[...drawn.values()].flat(),
+  ];
+  return {
+    done: [
+      ...pages.map((page) => page.id),
+      // Continue blocks are pressed and knowledge checks answered; no other block is saved as done.
+      ...blocks
+        .filter((block) => isContinue(block) || block.category === "knowledge-check")
+        .map((block) => block.id),
+    ],
+    visited: Object.fromEntries(
+      lessons.map((lesson) => [lesson.id, lesson.blocks.map((block) => block.id)]),
+    ),
+    answers: Object.fromEntries(questions.map((question) => [question.id, longest(question)])),
+    draws: Object.fromEntries(
+      [...drawn].map(([id, attempt]) => [id, attempt.map((question) => question.id)]),
+    ),
+    attempts: Object.fromEntries(
+      quizzes.map((quiz) => {
+        const retries = quiz.settings?.retries;
+        const count = retries === undefined ? ESTIMATED_ATTEMPTS : retries + 1;
+        return [quiz.id, Array.from({ length: count }, () => 100)];
+      }),
+    ),
+    variables: Object.fromEntries(
+      quizzes.flatMap((quiz) =>
+        quiz.settings?.timer ? [[quiz.id, quiz.settings.timer.minutes * 60]] : [],
+      ),
+    ),
+  };
+}
+
+const longestText = (texts: readonly string[]) =>
+  texts.reduce((a, b) => (b.length > a.length ? b : a), "");
+
+/** The longest response the question can have. */
+function longest(question: Question): Response {
+  switch (question.kind) {
+    case "single-choice":
+      return longestText(question.answers.map((answer) => answer.id));
+    case "multiple-response":
+      return question.answers.map((answer) => answer.id);
+    case "fill-in":
+      return longestText(question.acceptedAnswers);
+    case "matching": {
+      const match = longestText(question.pairs.map((pair) => pair.id));
+      return Object.fromEntries(question.pairs.map((pair) => [pair.id, match]));
+    }
+  }
+}

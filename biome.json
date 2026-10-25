@@ -12,6 +12,26 @@
     {
       "includes": ["packages/player-*/src/**", "!**/*.test.ts"],
       "plugins": ["./tools/lint/learner-text.grit"]
+    },
+    {
+      "includes": [
+        "packages/format/src/**",
+        "packages/labels/src/**",
+        "packages/tracking/src/**",
+        "packages/player-blocks/src/**",
+        "packages/exporters/src/**",
+        "packages/zip/src/**",
+        "packages/project/src/**",
+        "packages/jobs/src/**",
+        "!**/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "error"
+          }
+        }
+      }
     }
   ]
 }

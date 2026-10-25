@@ -15,6 +15,9 @@ catalogs:
     '@xmldom/xmldom':
       specifier: 0.9.12
       version: 0.9.12
+    rolldown:
+      specifier: 1.2.13
+      version: 1.2.13
     turbo:
       specifier: 2.11.7
       version: 2.11.7
@@ -81,6 +84,9 @@ importers:
       '@course-suite/format':
         specifier: workspace:*
         version: link:../format
+      '@course-suite/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@course-suite/labels':
         specifier: workspace:*
         version: link:../labels
@@ -93,6 +99,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.1
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.13
       vitest:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
@@ -119,7 +128,7 @@ importers:
         specifier: 'catalog:'
         version: 24.19.1
       rolldown:
-        specifier: 1.2.13
+        specifier: 'catalog:'
         version: 1.2.13
       vitest:
         specifier: 'catalog:'
@@ -127,6 +136,22 @@ importers:
 
   packages/format:
     devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+
+  packages/jobs:
+    dependencies:
+      '@course-suite/exporters':
+        specifier: workspace:*
+        version: link:../exporters
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
       vitest:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))

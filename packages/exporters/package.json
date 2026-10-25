@@ -4,6 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -11,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/bundle-player.ts",
+    "build": "node scripts/bundle-player.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -24,7 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "rolldown": "1.2.13",
+    "rolldown": "catalog:",
     "vitest": "catalog:"
   }
 }

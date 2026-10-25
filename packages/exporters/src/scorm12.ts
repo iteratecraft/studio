@@ -1,12 +1,12 @@
 // SCORM 1.2 exporter (STD-04, standards.md §3.1 E-1..E-6, §4.5): imsmanifest.xml in IMS Content
 // Packaging 1.1.2 with the ADL extensions and inline IMS metadata 1.2.1, and the ADL SCORM 1.2 schema
 // files beside it at the package root.
-import { readFileSync } from "node:fs";
 import type { Course } from "@course-suite/format";
 import { plainText } from "@course-suite/format";
+import { SCORM12_SCHEMA_TEXT } from "../dist/assets.js";
 import type { DescribeInput, Exporter, PackageFile } from "./builder.js";
 import { fail, ok, type Problem, type Result } from "./result.js";
-import { checkSco, elements, esc, ISO_DURATION, only, parseXml, problemsIn } from "./xml.js";
+import { checkSco, elements, esc, ISO_DURATION, only, parseXml, problemsIn, utf8 } from "./xml.js";
 
 export const SCORM12_MANIFEST = "imsmanifest.xml";
 /** The ADL SCORM 1.2 schema set, shipped unchanged (THIRD_PARTY_NOTICES.md). */
@@ -52,7 +52,7 @@ let schemaFiles: PackageFile[] | undefined;
 function schemas(): PackageFile[] {
   schemaFiles ??= SCORM12_SCHEMAS.map((name) => ({
     path: name,
-    data: readFileSync(new URL(`../schemas/scorm12/${name}`, import.meta.url)),
+    data: utf8(SCORM12_SCHEMA_TEXT[name]),
   }));
   return schemaFiles;
 }
@@ -134,10 +134,7 @@ function describe(input: DescribeInput, options: Scorm12Options): Result<Package
     `</manifest>`,
     ``,
   ];
-  return ok([
-    { path: SCORM12_MANIFEST, data: Buffer.from(lines.join("\n"), "utf8") },
-    ...schemas(),
-  ]);
+  return ok([{ path: SCORM12_MANIFEST, data: utf8(lines.join("\n")) }, ...schemas()]);
 }
 
 /**

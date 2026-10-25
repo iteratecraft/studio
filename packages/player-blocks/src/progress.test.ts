@@ -12,7 +12,7 @@ import {
   quiz,
   text,
 } from "../test/courses.js";
-import { createProgress, requirement } from "./progress.js";
+import { createProgress, ESTIMATED_ATTEMPTS, largestResume, requirement } from "./progress.js";
 
 const texts = (count: number) => Array.from({ length: count }, text);
 
@@ -404,5 +404,52 @@ describe("saved state", () => {
       expect(restored.percent(page)).toBe(progress.percent(page));
     }
     expect(restored.quiz(entry)).toEqual(progress.quiz(entry));
+  });
+});
+
+describe("largest saved state", () => {
+  test("standards.md §4.2: holds everything a learner can save, so the publish check never underestimates", () => {
+    const kc = check(true);
+    const gated = lesson(text(), kc, continueBlock(), text());
+    const limited = quiz(3, { retries: 1, timer: { minutes: 5 } });
+    const unlimited = quiz(2);
+    const all = course([gated, limited, unlimited]);
+    const largest = largestResume(all);
+
+    expect(largest.visited).toEqual({ [gated.id]: gated.blocks.map((block) => block.id) });
+    expect(new Set(largest.done)).toEqual(
+      new Set([gated.id, limited.id, unlimited.id, kc.id, gated.blocks[2]?.id]),
+    );
+    expect(largest.attempts).toEqual({
+      [limited.id]: [100, 100],
+      [unlimited.id]: Array(ESTIMATED_ATTEMPTS).fill(100),
+    });
+    expect(largest.variables).toEqual({ [limited.id]: 300 });
+    expect(Object.keys(largest.answers ?? {})).toHaveLength(1 + 3 + 2);
+
+    // A learner who does everything there is to do saves no more than the estimate.
+    const progress = createProgress(all);
+    progress.view(gated);
+    progress.answerCheck(gated, kc, answersOf(kc.question as never).right, true);
+    progress.pressContinue(gated, gated.blocks[2] as never);
+    const attempt = (entry: QuizEntry) => {
+      for (const q of progress.startAttempt(entry).questions) {
+        progress.answerQuestion(entry, q, answersOf(q as never).wrong);
+      }
+    };
+    for (let i = 0; i < 2; i++) {
+      attempt(limited);
+      progress.submitAttempt(limited);
+    }
+    for (let i = 0; i < ESTIMATED_ATTEMPTS; i++) {
+      attempt(unlimited);
+      progress.submitAttempt(unlimited);
+    }
+    attempt(unlimited);
+    const size = (state: ReturnType<typeof largestResume>) => {
+      const encoded = encodeResume(state, { packageVersion: "1", cap: RESUME_CAPS.scorm2004 });
+      return encoded.ok ? encoded.payload.length : Number.POSITIVE_INFINITY;
+    };
+    expect(size(progress.snapshot())).toBeLessThanOrEqual(size(largest));
   });
 });

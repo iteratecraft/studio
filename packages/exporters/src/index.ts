@@ -9,10 +9,11 @@ export type {
   DescribeInput,
   Exporter,
   PackageFile,
+  PackageWarning,
   PlayerBundle,
   Standard,
 } from "./builder.js";
-export { buildPackage, MEDIA_FOLDER, unsafePath } from "./builder.js";
+export { buildPackage, MEDIA_FOLDER, packagedMediaKeys, unsafePath } from "./builder.js";
 export { CMI5_AU, CMI5_XML, cmi5Exporter, cmi5MoveOn } from "./cmi5.js";
 export type { Problem, Result } from "./result.js";
 export {

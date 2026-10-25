@@ -3,7 +3,8 @@
 // it. Same course, player, media and options always give the same bytes.
 import type { Course, PublishSettings } from "@course-suite/format";
 import { validateCourse } from "@course-suite/format";
-import type { LrsSettings } from "@course-suite/tracking";
+import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
+import { checkResume, resumeCapFor } from "@course-suite/tracking";
 import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "@course-suite/zip";
 import { fail, ok, type Problem, type Result } from "./result.js";
 import { findModuleCode, findOutboundUrls, urlsIn } from "./scan.js";
@@ -27,6 +28,11 @@ export interface PlayerBundle {
   launchPage: string;
   /** The course data as a classic script the player loads by script tag (ADR-0003), and its path. */
   courseDataScript(data: CourseData): PackageFile;
+  /**
+   * The largest learner state the player can save for the course, for the resume size check at
+   * publish (standards.md §4.2). Without it the check is skipped.
+   */
+  largestResume?(course: Course): ResumeState;
 }
 
 /** Everything the player needs about this course, fixed at publish. */
@@ -82,10 +88,44 @@ export interface BuiltPackage {
   /** Every file in the package, sorted. */
   files: string[];
   /** What the author should know before sharing the package, such as credentials inside it. */
-  warnings: Problem[];
+  warnings: PackageWarning[];
 }
 
+/**
+ * Something the author should know about a package that was built. `code` is stable, so an editor
+ * can show its own text; `message` is plain English for the author.
+ */
+export type PackageWarning = Problem &
+  (
+    | {
+        /** The package holds LRS credentials anyone with it can read. */
+        code: "lrs-credentials";
+      }
+    | {
+        /**
+         * Learner progress can outgrow what the standard stores (standards.md §4.2, M2-07).
+         * `resume-parts-dropped`: it still fits once `dropped` is left out.
+         * `resume-over-cap`: it does not fit even then, and saving stops once it grows that large.
+         */
+        code: "resume-parts-dropped" | "resume-over-cap";
+        /** Estimated characters of the largest progress, with nothing dropped. */
+        size: number;
+        /** Characters the standard stores. */
+        cap: number;
+        /** What is not saved to make it fit, first dropped first. */
+        dropped: DropPart[];
+      }
+  );
+
 export const MEDIA_FOLDER = "media";
+
+/** The storage key a package takes a media entry's bytes from: its optimised variant when it has one. */
+const packagedKey = (entry: Course["media"][number]) => entry.variantKey ?? entry.key;
+
+/** Storage keys of every media file a package of `course` holds, each once: what `media` is asked for. */
+export const packagedMediaKeys = (course: Course): string[] => [
+  ...new Set(course.media.map(packagedKey)),
+];
 
 /** Validates and builds a package. Every problem found is reported, not only the first. */
 export async function buildPackage(input: BuildInput): Promise<Result<BuiltPackage>> {
@@ -128,7 +168,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
   const media: Record<string, string> = {};
   const collected = new Set<string>();
   for (const entry of course.media) {
-    const key = entry.variantKey ?? entry.key;
+    const key = packagedKey(entry);
     const path = `${MEDIA_FOLDER}/${key}`;
     media[entry.key] = path;
     if (collected.has(path)) continue;
@@ -190,16 +230,25 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     if (!(error instanceof RangeError)) throw error;
     return fail([{ file: "", message: error.message }]);
   }
+  const warnings: PackageWarning[] = [];
   // Honest credential handling (ROADMAP.md note 14): encoding hides nothing, so the author is told.
-  const warnings: Problem[] = exporter.lrs?.auth
-    ? [
-        {
-          file: data.path,
-          message:
-            "holds LRS credentials that anyone with the package can read; use credentials that can only write statements and state, for this course only",
-        },
-      ]
-    : [];
+  if (exporter.lrs?.auth) {
+    warnings.push({
+      code: "lrs-credentials",
+      file: data.path,
+      message:
+        "holds LRS credentials that anyone with the package can read; use credentials that can only write statements and state, for this course only",
+    });
+  }
+  const cap = resumeCapFor(exporter.standard);
+  const largest = cap === undefined ? undefined : player.largestResume?.(course);
+  if (cap !== undefined && largest) {
+    // The player keeps the package version with the state (rise.md rule 12), so it counts too.
+    for (const warning of checkResume(largest, { packageVersion: String(packageVersion), cap })) {
+      const { code, size, dropped, message } = warning;
+      warnings.push({ code: `resume-${code}`, file: "course", size, cap, dropped, message });
+    }
+  }
   return ok({ zip, files: [...files.keys()].sort(), warnings });
 }
 
