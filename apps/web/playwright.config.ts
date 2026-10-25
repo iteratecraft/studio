@@ -2,14 +2,22 @@
 /// <reference types="node" />
 import { defineConfig, devices } from "@playwright/test";
 
+const port = 4173;
+
 export default defineConfig({
   testDir: "e2e",
   // A distinct suffix keeps Vitest from collecting browser tests.
   testMatch: "**/*.e2e.ts",
   // A leaked test.only would silently skip every other test in CI.
   forbidOnly: !!process.env.CI,
-  // CI uploads playwright-report/ and test-results/ (traces) when the smoke test fails.
+  // CI uploads playwright-report/ and test-results/ (traces) when a browser test fails.
   reporter: [["list"], ["html", { open: "never" }]],
-  use: { trace: "retain-on-failure" },
+  use: { baseURL: `http://localhost:${port}`, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // The built gallery (turbo builds it before test:e2e), served by Vite's preview server.
+  webServer: {
+    command: `vite preview --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
+    reuseExistingServer: !process.env.CI,
+  },
 });

@@ -1,0 +1,98 @@
+/*
+ * Design tokens of the editor UI kit (M2-05). Every colour is a light-dark() pair: the page follows
+ * the system theme, and data-theme="light" or "dark" on any element (usually <html>) pins it.
+ * src/tokens.test.ts checks the contrast of every pair the components put together.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Type: system fonts only, nothing to download. */
+  --cs-font: system-ui, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --cs-font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --cs-text-xs: 0.75rem;
+  --cs-text-sm: 0.875rem;
+  --cs-text-md: 1rem;
+  --cs-text-lg: 1.25rem;
+  --cs-text-xl: 1.5rem;
+  --cs-leading: 1.45;
+  --cs-weight-strong: 600;
+
+  /* Spacing on a 4 px grid. */
+  --cs-space-1: 0.25rem;
+  --cs-space-2: 0.5rem;
+  --cs-space-3: 0.75rem;
+  --cs-space-4: 1rem;
+  --cs-space-6: 1.5rem;
+  --cs-space-8: 2rem;
+  /* WCAG 2.5.8: pointer targets of at least 24 px; controls use 32 px. */
+  --cs-control-height: 2rem;
+
+  --cs-radius-sm: 4px;
+  --cs-radius-md: 6px;
+  --cs-radius-lg: 10px;
+  --cs-radius-full: 999px;
+
+  --cs-focus-width: 2px;
+  --cs-focus-offset: 2px;
+
+  --cs-motion-fast: 120ms;
+  --cs-motion-normal: 200ms;
+  --cs-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Colours: light-dark(light theme, dark theme). */
+  --cs-bg: light-dark(#ffffff, #16181d);
+  --cs-surface: light-dark(#f4f5f7, #1f2128);
+  --cs-raised: light-dark(#ffffff, #292c35);
+  --cs-text: light-dark(#1b1d22, #eceef2);
+  --cs-text-muted: light-dark(#555b66, #aab0bc);
+  --cs-border: light-dark(#d9dce2, #393d48);
+  --cs-control-border: light-dark(#767c88, #8a91a0);
+  --cs-hover: light-dark(#eaecf0, #30333d);
+  --cs-accent: light-dark(#2d52c4, #93afff);
+  --cs-accent-hover: light-dark(#2343a6, #b1c5ff);
+  --cs-on-accent: light-dark(#ffffff, #10131a);
+  --cs-accent-soft: light-dark(#e3e9fb, #2b3554);
+  --cs-danger: light-dark(#b3261e, #ff8e85);
+  --cs-on-danger: light-dark(#ffffff, #1c0b0a);
+  --cs-success: light-dark(#1b7a3a, #74d897);
+  --cs-focus: light-dark(#2d52c4, #a9beff);
+  --cs-shadow-color: light-dark(rgb(16 18 24 / 0.16), rgb(0 0 0 / 0.55));
+  --cs-backdrop: light-dark(rgb(16 18 24 / 0.4), rgb(0 0 0 / 0.6));
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --cs-motion-fast: 0ms;
+    --cs-motion-normal: 0ms;
+  }
+}
+
+/* Windows high-contrast themes: hand every colour to the system palette. */
+@media (forced-colors: active) {
+  :root {
+    --cs-bg: Canvas;
+    --cs-surface: Canvas;
+    --cs-raised: Canvas;
+    --cs-text: CanvasText;
+    --cs-text-muted: CanvasText;
+    --cs-border: CanvasText;
+    --cs-control-border: ButtonText;
+    --cs-hover: Canvas;
+    --cs-accent: Highlight;
+    --cs-accent-hover: Highlight;
+    --cs-on-accent: HighlightText;
+    --cs-accent-soft: Highlight;
+    --cs-danger: CanvasText;
+    --cs-on-danger: Canvas;
+    --cs-success: CanvasText;
+    --cs-focus: Highlight;
+  }
+}

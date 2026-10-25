@@ -1,5 +1,10 @@
 {
   "$schema": "../../node_modules/turbo/schema.json",
   "extends": ["//"],
-  "tags": ["app"]
+  "tags": ["app"],
+  "tasks": {
+    "test:e2e": {
+      "dependsOn": ["build"]
+    }
+  }
 }

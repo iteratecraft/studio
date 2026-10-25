@@ -12,6 +12,27 @@
     {
       "includes": ["packages/player-*/src/**", "!**/*.test.ts"],
       "plugins": ["./tools/lint/learner-text.grit"]
+    },
+    {
+      "includes": ["packages/ui/src/**", "apps/web/src/**", "!**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "correctness": { "noNodejsModules": "error" },
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/**"],
+                    "message": "Editor UI code reaches files, dialogs and processes only through the host interface (ADR-0006, M2-02), never through Tauri."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }
