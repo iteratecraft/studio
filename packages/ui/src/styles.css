@@ -1,0 +1,731 @@
+/*
+ * Styles of the editor UI kit (M2-05). Plain CSS over the class names the components set
+ * (`cs-*`) and the state attributes React Aria Components put on them (`data-hovered`,
+ * `data-pressed`, `data-focus-visible`, `data-selected`, `data-disabled`, ...).
+ */
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cs-bg);
+  color: var(--cs-text);
+  font-family: var(--cs-font);
+  font-size: var(--cs-text-md);
+  line-height: var(--cs-leading);
+}
+
+.cs-Icon {
+  flex: none;
+  vertical-align: middle;
+}
+
+.cs-Icon--mirror:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* Button, IconButton */
+.cs-Button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cs-space-2);
+  min-height: var(--cs-control-height);
+  padding: 0 var(--cs-space-3);
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-bg);
+  color: var(--cs-text);
+  font: inherit;
+  font-size: var(--cs-text-sm);
+  font-weight: var(--cs-weight-strong);
+  cursor: default;
+  transition: background-color var(--cs-motion-fast) var(--cs-ease);
+}
+
+.cs-Button[data-hovered] {
+  background: var(--cs-hover);
+}
+
+.cs-Button[data-pressed] {
+  transform: translateY(1px);
+}
+
+.cs-Button[data-disabled] {
+  opacity: 0.5;
+}
+
+.cs-Button--primary {
+  border-color: var(--cs-accent);
+  background: var(--cs-accent);
+  color: var(--cs-on-accent);
+}
+
+.cs-Button--primary[data-hovered] {
+  background: var(--cs-accent-hover);
+}
+
+.cs-Button--danger {
+  border-color: var(--cs-danger);
+  background: var(--cs-danger);
+  color: var(--cs-on-danger);
+}
+
+.cs-Button--danger[data-hovered] {
+  background: var(--cs-danger);
+  filter: brightness(1.1);
+}
+
+.cs-Button--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.cs-IconButton {
+  width: var(--cs-control-height);
+  padding: 0;
+}
+
+/* Toolbar */
+.cs-Toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cs-space-1);
+  padding: var(--cs-space-1);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-surface);
+}
+
+.cs-Toolbar-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: var(--cs-space-1);
+  background: var(--cs-border);
+}
+
+/* Fields: TextField, TextArea, Select */
+.cs-Field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+  min-width: 0;
+}
+
+.cs-Label {
+  font-size: var(--cs-text-sm);
+  font-weight: var(--cs-weight-strong);
+}
+
+.cs-Field-description {
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-xs);
+}
+
+.cs-Field-error {
+  color: var(--cs-danger);
+  font-size: var(--cs-text-xs);
+}
+
+.cs-Input {
+  width: 100%;
+  min-height: var(--cs-control-height);
+  padding: var(--cs-space-1) var(--cs-space-2);
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-bg);
+  color: var(--cs-text);
+  font: inherit;
+  font-size: var(--cs-text-sm);
+}
+
+.cs-Input::placeholder {
+  color: var(--cs-text-muted);
+  opacity: 1;
+}
+
+.cs-Input[data-invalid] {
+  border-color: var(--cs-danger);
+}
+
+.cs-TextArea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.cs-Select-button {
+  justify-content: space-between;
+  width: 100%;
+  font-weight: normal;
+}
+
+.cs-Select-value[data-placeholder] {
+  color: var(--cs-text-muted);
+}
+
+/* Checkbox, Switch */
+.cs-Checkbox,
+.cs-Switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  min-height: 1.5rem;
+  font-size: var(--cs-text-sm);
+}
+
+.cs-Checkbox-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-bg);
+  color: transparent;
+}
+
+.cs-Checkbox:is([data-selected], [data-indeterminate]) .cs-Checkbox-box {
+  border-color: var(--cs-accent);
+  background: var(--cs-accent);
+  color: var(--cs-on-accent);
+}
+
+.cs-Switch-track {
+  display: inline-flex;
+  align-items: center;
+  width: 2.25rem;
+  height: 1.25rem;
+  padding: 2px;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-bg);
+  transition: background-color var(--cs-motion-fast) var(--cs-ease);
+}
+
+.cs-Switch-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-control-border);
+  transition: transform var(--cs-motion-fast) var(--cs-ease);
+}
+
+.cs-Switch[data-selected] .cs-Switch-track {
+  border-color: var(--cs-accent);
+  background: var(--cs-accent);
+}
+
+.cs-Switch[data-selected] .cs-Switch-thumb {
+  background: var(--cs-on-accent);
+  transform: translateX(1rem);
+}
+
+.cs-Switch[data-selected] .cs-Switch-thumb:dir(rtl) {
+  transform: translateX(-1rem);
+}
+
+:is(.cs-Checkbox, .cs-Switch)[data-disabled] {
+  opacity: 0.5;
+}
+
+/* Overlays: Popover (Select, Menu), Tooltip, Dialog */
+.cs-Popover {
+  min-width: var(--trigger-width, 10rem);
+  max-width: calc(100vw - 2 * var(--cs-space-4));
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-raised);
+  color: var(--cs-text);
+  box-shadow: 0 6px 20px var(--cs-shadow-color);
+  overflow: auto;
+}
+
+.cs-Popover-dialog {
+  padding: var(--cs-space-3);
+}
+
+.cs-Popover[data-entering],
+.cs-Tooltip[data-entering],
+.cs-Modal[data-entering] {
+  animation: cs-fade-in var(--cs-motion-normal) var(--cs-ease);
+}
+
+.cs-Popover[data-exiting],
+.cs-Tooltip[data-exiting],
+.cs-Modal[data-exiting] {
+  animation: cs-fade-in var(--cs-motion-fast) var(--cs-ease) reverse;
+}
+
+@keyframes cs-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.cs-Tooltip {
+  max-width: 16rem;
+  padding: var(--cs-space-1) var(--cs-space-2);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-text);
+  color: var(--cs-bg);
+  font-size: var(--cs-text-xs);
+}
+
+.cs-ModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cs-space-4);
+  background: var(--cs-backdrop);
+}
+
+.cs-Modal {
+  width: min(32rem, 100%);
+  max-height: 100%;
+  overflow: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-lg);
+  background: var(--cs-raised);
+  color: var(--cs-text);
+  box-shadow: 0 12px 40px var(--cs-shadow-color);
+}
+
+.cs-Dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
+  padding: var(--cs-space-4) var(--cs-space-6) var(--cs-space-6);
+}
+
+.cs-Dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cs-space-2);
+}
+
+.cs-Dialog-title {
+  margin: 0;
+  font-size: var(--cs-text-lg);
+}
+
+.cs-Dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--cs-space-2);
+}
+
+/* Menu, ListBox */
+.cs-Menu,
+.cs-ListBox {
+  display: flex;
+  flex-direction: column;
+  padding: var(--cs-space-1);
+  outline: none;
+}
+
+.cs-ListBox--standalone {
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-bg);
+}
+
+.cs-MenuItem,
+.cs-ListBoxItem {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  min-height: var(--cs-control-height);
+  padding: 0 var(--cs-space-2);
+  border-radius: var(--cs-radius-sm);
+  font-size: var(--cs-text-sm);
+  cursor: default;
+}
+
+:is(.cs-MenuItem, .cs-ListBoxItem):is([data-hovered], [data-focused]) {
+  background: var(--cs-hover);
+}
+
+.cs-ListBoxItem[data-selected] {
+  background: var(--cs-accent-soft);
+  font-weight: var(--cs-weight-strong);
+}
+
+:is(.cs-MenuItem, .cs-ListBoxItem)[data-disabled] {
+  opacity: 0.5;
+}
+
+.cs-MenuItem--danger {
+  color: var(--cs-danger);
+}
+
+.cs-Menu-separator {
+  height: 1px;
+  margin: var(--cs-space-1) 0;
+  background: var(--cs-border);
+}
+
+/* Tabs */
+.cs-Tabs {
+  display: flex;
+  flex-direction: column;
+}
+
+.cs-TabList {
+  display: flex;
+  gap: var(--cs-space-1);
+  border-bottom: 1px solid var(--cs-border);
+  overflow-x: auto;
+}
+
+.cs-Tab {
+  padding: var(--cs-space-2) var(--cs-space-3);
+  border-bottom: 2px solid transparent;
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-sm);
+  font-weight: var(--cs-weight-strong);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.cs-Tab[data-hovered] {
+  color: var(--cs-text);
+}
+
+.cs-Tab[data-selected] {
+  border-bottom-color: var(--cs-accent);
+  color: var(--cs-text);
+}
+
+.cs-TabPanel {
+  padding: var(--cs-space-3) 0;
+}
+
+/* GridList (reorderable lists) */
+.cs-GridList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--cs-space-1);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-bg);
+}
+
+.cs-GridListItem {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  min-height: var(--cs-control-height);
+  padding: 0 var(--cs-space-2);
+  border-radius: var(--cs-radius-sm);
+  font-size: var(--cs-text-sm);
+}
+
+.cs-GridListItem[data-hovered] {
+  background: var(--cs-hover);
+}
+
+.cs-GridListItem[data-selected] {
+  background: var(--cs-accent-soft);
+}
+
+.cs-GridListItem[data-dragging] {
+  opacity: 0.5;
+}
+
+.cs-DragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cs-radius-sm);
+  background: transparent;
+  color: var(--cs-text-muted);
+  cursor: grab;
+}
+
+.cs-DropIndicator[data-drop-target] {
+  height: 2px;
+  margin: -1px 0;
+  background: var(--cs-accent);
+}
+
+/* Tree (course outline) */
+.cs-Tree {
+  display: flex;
+  flex-direction: column;
+  padding: var(--cs-space-1);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-bg);
+  outline: none;
+}
+
+.cs-TreeItem {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-1);
+  min-height: var(--cs-control-height);
+  padding-inline: calc((var(--cs-tree-level, 1) - 1) * var(--cs-space-4) + var(--cs-space-1))
+    var(--cs-space-2);
+  border-radius: var(--cs-radius-sm);
+  font-size: var(--cs-text-sm);
+}
+
+.cs-TreeItem[data-hovered] {
+  background: var(--cs-hover);
+}
+
+.cs-TreeItem[data-selected] {
+  background: var(--cs-accent-soft);
+}
+
+.cs-TreeItem-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  transition: transform var(--cs-motion-fast) var(--cs-ease);
+}
+
+.cs-TreeItem[data-expanded] .cs-TreeItem-chevron {
+  transform: rotate(90deg);
+}
+
+.cs-TreeItem[data-expanded] .cs-TreeItem-chevron:dir(rtl) {
+  transform: rotate(-90deg);
+}
+
+.cs-TreeItem-spacer {
+  width: 1.5rem;
+  flex: none;
+}
+
+/* Toast: bottom start of the window, newest last, several may stack. */
+.cs-ToastRegion {
+  position: fixed;
+  bottom: var(--cs-space-4);
+  inset-inline-start: var(--cs-space-4);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  max-width: calc(100vw - 2 * var(--cs-space-4));
+  outline: none;
+}
+
+.cs-Toast {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  width: 22rem;
+  max-width: 100%;
+  padding: var(--cs-space-2) var(--cs-space-2) var(--cs-space-2) var(--cs-space-4);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-text);
+  color: var(--cs-bg);
+  box-shadow: 0 6px 20px var(--cs-shadow-color);
+  font-size: var(--cs-text-sm);
+}
+
+.cs-Toast[data-focus-visible] {
+  outline: var(--cs-focus-width) solid var(--cs-focus);
+  outline-offset: var(--cs-focus-offset);
+}
+
+.cs-Toast-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cs-Toast-title {
+  font-weight: var(--cs-weight-strong);
+}
+
+/* Buttons on the inverted toast surface take its colours. */
+.cs-Toast .cs-Button {
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+}
+
+.cs-Toast .cs-Button[data-hovered] {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.cs-Toast .cs-Button[data-focus-visible] {
+  outline-color: currentColor;
+}
+
+/* Splitter: two panes and a handle between them (WAI-ARIA window splitter). */
+.cs-Splitter {
+  display: grid;
+  min-height: 0;
+}
+
+.cs-Splitter-pane {
+  min-width: 0;
+  overflow: auto;
+}
+
+.cs-Splitter-handle {
+  width: 0.5rem;
+  background: linear-gradient(var(--cs-border), var(--cs-border)) center / 1px 100% no-repeat;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.cs-Splitter-handle:hover {
+  background-size: 3px 100%;
+}
+
+/* EmptyState */
+.cs-EmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cs-space-2);
+  padding: var(--cs-space-8) var(--cs-space-4);
+  color: var(--cs-text-muted);
+  text-align: center;
+}
+
+.cs-EmptyState-title {
+  margin: 0;
+  color: var(--cs-text);
+  font-size: var(--cs-text-lg);
+}
+
+.cs-EmptyState-body {
+  max-width: 28rem;
+  margin: 0;
+  font-size: var(--cs-text-sm);
+}
+
+/* ProgressBar */
+.cs-ProgressBar {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto;
+  gap: var(--cs-space-1);
+  font-size: var(--cs-text-sm);
+}
+
+.cs-ProgressBar-track {
+  grid-column: 1 / -1;
+  height: 0.5rem;
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-surface);
+  box-shadow: inset 0 0 0 1px var(--cs-control-border);
+  overflow: hidden;
+}
+
+.cs-ProgressBar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cs-accent);
+  transition: width var(--cs-motion-normal) var(--cs-ease);
+}
+
+.cs-ProgressBar:not([aria-valuenow]) .cs-ProgressBar-fill {
+  width: 40%;
+  animation: cs-indeterminate 1.4s var(--cs-ease) infinite;
+}
+
+@keyframes cs-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-ProgressBar:not([aria-valuenow]) .cs-ProgressBar-fill {
+    width: 100%;
+    opacity: 0.4;
+    animation: none;
+  }
+}
+
+/* One focus ring for every focusable part, last so it wins: an outline, which high-contrast
+ * themes keep. */
+:is(
+  .cs-Button,
+  .cs-Input,
+  .cs-Tab,
+  .cs-ListBox,
+  .cs-ListBoxItem,
+  .cs-GridListItem,
+  .cs-TreeItem,
+  .cs-MenuItem,
+  .cs-DragHandle,
+  .cs-TabPanel,
+  .cs-Dialog,
+  .cs-Popover-dialog
+)[data-focus-visible],
+.cs-Checkbox[data-focus-visible] .cs-Checkbox-box,
+.cs-Switch[data-focus-visible] .cs-Switch-track,
+.cs-Splitter-handle:focus-visible {
+  outline: var(--cs-focus-width) solid var(--cs-focus);
+  outline-offset: var(--cs-focus-offset);
+}
+
+/* Items inside a list draw the ring inside, so the list's edge does not clip it. */
+:is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-MenuItem)[data-focus-visible] {
+  outline-offset: calc(-1 * var(--cs-focus-width));
+}
+
+/* High-contrast themes force most colours; selection and "on" states take system colours. */
+@media (forced-colors: active) {
+  :is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-Tab)[data-selected],
+  .cs-Checkbox:is([data-selected], [data-indeterminate]) .cs-Checkbox-box,
+  .cs-Switch[data-selected] .cs-Switch-track,
+  .cs-Button--primary,
+  .cs-ProgressBar-fill {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .cs-Switch-thumb {
+    background: ButtonText;
+  }
+
+  .cs-Switch[data-selected] .cs-Switch-thumb {
+    forced-color-adjust: none;
+    background: HighlightText;
+  }
+
+  .cs-Tooltip,
+  .cs-Toast {
+    border: 1px solid CanvasText;
+  }
+}

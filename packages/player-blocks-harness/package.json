@@ -19,6 +19,6 @@
   "devDependencies": {
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
-    "axe-core": "4.13.0"
+    "axe-core": "catalog:"
   }
 }

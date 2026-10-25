@@ -20,7 +20,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "vite --port 1421 --strictPort",
-    url: "http://localhost:1421/e2e/memory.html",
+    // Ready once the page script itself is served: Vite transforms it and its imports on first
+    // request, which took close to 30 s on a cold Windows runner, inside the test's own timeout.
+    url: "http://localhost:1421/e2e/memory.ts",
+    timeout: 180_000,
     reuseExistingServer: !process.env.CI,
   },
 });

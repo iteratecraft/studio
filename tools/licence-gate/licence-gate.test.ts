@@ -25,9 +25,10 @@ const NOT_COPIED = new Set(["node_modules", ".git", ".turbo", "dist", "test-cour
 const TIMEOUT_MS = 120_000;
 
 const copies: string[] = [];
+// Each copy holds its own node_modules; deleting one can take well over 10 s on Windows CI.
 afterEach(() => {
   for (const dir of copies.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
-});
+}, 120_000);
 
 function copyRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "licence-gate-"));

@@ -1,0 +1,56 @@
+// The kit's icon set: original 16 x 16 line drawings made for this project, drawn in currentColor.
+// Icons are decoration: the control around an icon carries the accessible name.
+
+const PATHS = {
+  add: "M8 3v10M3 8h10",
+  check: "M3 8.5l3.2 3.2L13 4.5",
+  "chevron-down": "M4 6l4 4 4-4",
+  "chevron-right": "M6 4l4 4-4 4",
+  close: "M4 4l8 8M12 4l-8 8",
+  edit: "M10.5 2.5l3 3L6 13H3v-3z",
+  file: "M4 1.5h5l3.5 3.5v9.5H4zM9 1.5V5h3.5",
+  grip: "M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01",
+  info: "M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13M8 7v4.5M8 4.75h.01",
+  minus: "M3 8h10",
+  more: "M3.5 8h.01M8 8h.01M12.5 8h.01",
+  redo: "M10 4l3 3-3 3M13 7H6.5a3.5 3.5 0 0 0 0 7H9",
+  search: "M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9M10.5 10.5L14 14",
+  trash: "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5",
+  undo: "M6 4L3 7l3 3M3 7h6.5a3.5 3.5 0 0 1 0 7H7",
+  warning: "M8 2l6.5 11.5h-13zM8 6.5V10M8 12h.01",
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+export const ICON_NAMES = Object.keys(PATHS) as IconName[];
+
+// Icons that point along the reading direction turn round in right-to-left languages.
+const MIRRORED: ReadonlySet<IconName> = new Set(["chevron-right", "redo", "undo"]);
+// Dot icons need a thicker pen to be seen.
+const DOTTED: ReadonlySet<IconName> = new Set(["grip", "more"]);
+
+export interface IconProps {
+  name: IconName;
+  /** Width and height in CSS pixels. */
+  size?: number;
+}
+
+export function Icon({ name, size = 16 }: IconProps) {
+  return (
+    <svg
+      className={MIRRORED.has(name) ? "cs-Icon cs-Icon--mirror" : "cs-Icon"}
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={DOTTED.has(name) ? 2.5 : 1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
