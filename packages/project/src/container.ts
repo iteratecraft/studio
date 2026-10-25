@@ -35,7 +35,7 @@ import {
 } from "./project.js";
 
 /** The extension of project and autosave files. */
-export const PROJECT_EXTENSION = ".course";
+export const PROJECT_EXTENSION = ".crs";
 /** The version of the layout above this package writes; older ones are migrated on open. */
 export const PROJECT_FORMAT_VERSION = 1;
 

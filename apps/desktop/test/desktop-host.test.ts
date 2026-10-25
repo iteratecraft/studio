@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.stubGlobal("localStorage", { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() });
 
 const DATA = String.raw`C:\Users\Ana\AppData\Local\org.iteratecraft.coursesuite\data`;
-const project = { id: String.raw`D:\Courses\Safety.course`, name: "Safety.course" };
+const project = { id: String.raw`D:\Courses\Safety.crs`, name: "Safety.crs" };
 
 beforeEach(() => {
   invoke.mockReset();
@@ -35,37 +35,37 @@ test("project files reach the picked file and its autosave folder through the sh
   const files = createDesktopHost().files.projectFiles(project);
   const data = new Uint8Array([1]);
   invoke.mockResolvedValue(undefined);
-  await files.write(".Safety.course.autosave/save.tmp", data);
-  await files.rename(".Safety.course.autosave/save.tmp", "Safety.course");
-  await files.remove(".Safety.course.autosave");
-  invoke.mockResolvedValueOnce(["3.course"]);
-  expect(await files.list(".Safety.course.autosave")).toEqual(["3.course"]);
-  const autosave = String.raw`D:\Courses\.Safety.course.autosave`;
+  await files.write(".Safety.crs.autosave/save.tmp", data);
+  await files.rename(".Safety.crs.autosave/save.tmp", "Safety.crs");
+  await files.remove(".Safety.crs.autosave");
+  invoke.mockResolvedValueOnce(["3.crs"]);
+  expect(await files.list(".Safety.crs.autosave")).toEqual(["3.crs"]);
+  const autosave = String.raw`D:\Courses\.Safety.crs.autosave`;
   expect(invoke.mock.calls).toEqual([
     ["write_atomic", data, { headers: { path: encodeURIComponent(`${autosave}\\save.tmp`) } }],
     ["rename_file", { from: `${autosave}\\save.tmp`, to: project.id }, undefined],
     ["remove_path", { path: autosave }, undefined],
     ["list_folder", { path: autosave }, undefined],
   ]);
-  await expect(files.write("Other.course", data)).rejects.toMatchObject({ code: "not-allowed" });
+  await expect(files.write("Other.crs", data)).rejects.toMatchObject({ code: "not-allowed" });
   expect(invoke).toHaveBeenCalledTimes(4);
 });
 
 test("a missing project file reads as undefined; the shell's refusals become HostErrors", async () => {
   const files = createDesktopHost().files.projectFiles(project);
-  invoke.mockRejectedValueOnce(String.raw`not-found: D:\Courses\Safety.course: not there`);
-  expect(await files.read("Safety.course")).toBeUndefined();
+  invoke.mockRejectedValueOnce(String.raw`not-found: D:\Courses\Safety.crs: not there`);
+  expect(await files.read("Safety.crs")).toBeUndefined();
 
-  invoke.mockRejectedValueOnce(String.raw`not-allowed: D:\Courses\Safety.course`);
-  const refused = await files.read("Safety.course").catch((error: unknown) => error);
+  invoke.mockRejectedValueOnce(String.raw`not-allowed: D:\Courses\Safety.crs`);
+  const refused = await files.read("Safety.crs").catch((error: unknown) => error);
   expect(refused).toBeInstanceOf(HostError);
   expect(refused).toMatchObject({
     code: "not-allowed",
-    message: String.raw`D:\Courses\Safety.course`,
+    message: String.raw`D:\Courses\Safety.crs`,
   });
 
   invoke.mockRejectedValueOnce("The disk is full");
-  const failed = await files.read("Safety.course").catch((error: unknown) => error);
+  const failed = await files.read("Safety.crs").catch((error: unknown) => error);
   expect(failed).not.toBeInstanceOf(HostError);
   expect(failed).toMatchObject({ message: "The disk is full" });
 });

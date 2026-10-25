@@ -3,7 +3,7 @@
 
 /**
  * Files inside one folder, named by relative paths with forward slashes, such as
- * `Safety.course` or `.Safety.course.autosave/3.course`. One write at a time per project.
+ * `Safety.crs` or `.Safety.crs.autosave/3.crs`. One write at a time per project.
  */
 export interface ProjectFiles {
   /** The file's bytes, or undefined when it does not exist. */

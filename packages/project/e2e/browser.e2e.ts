@@ -77,9 +77,9 @@ test("a project saves, reopens and restores a snapshot in the browser, without N
     const snapshot = project.takeSnapshot(opened, { name: "v1", trigger: "manual" });
     const wanted = serializeCourse(opened.course);
     opened.course.title = "Changed";
-    await project.saveProject(files, "Course.course", opened);
-    await project.autosaveProject(files, "Course.course", opened);
-    const reopened = await project.openProject(files, "Course.course");
+    await project.saveProject(files, "Course.crs", opened);
+    await project.autosaveProject(files, "Course.crs", opened);
+    const reopened = await project.openProject(files, "Course.crs");
     if (!reopened.ok || !reopened.recovered) return { error: JSON.stringify(reopened) };
     await project.restoreSnapshot(reopened.project, snapshot.id);
     const asset = await project.readAsset(reopened.project, key);

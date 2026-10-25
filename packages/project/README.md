@@ -7,7 +7,7 @@ runs in a browser, a Web Worker and Node.js (ADR-0006) and reaches files only th
 
 ## The file
 
-A project is a `.course` file. Format version 1 holds:
+A project is a `.crs` file. Format version 1 holds:
 
 | Entry | What it is |
 |---|---|
@@ -37,7 +37,7 @@ through the format package's own `openCourse` migration and validation.
   autosave folder, flushes it, reads it back and compares it, and only then renames it over the
   project file. Until that rename the previous file is untouched, so a crash at any moment leaves
   the old file or the new one, never a broken one. It refuses a course that would not open again.
-- `autosaveProject(files, name, project)` writes `.<name>.autosave/<revision>.course` the same way,
+- `autosaveProject(files, name, project)` writes `.<name>.autosave/<revision>.crs` the same way,
   leaving out asset bytes the project file already holds, and keeps the newest three.
 - `openProject(files, name)` opens the file and, as `recovered`, the newest autosave that is newer
   than it and opens cleanly. Offer it to the author; if they decline, call `discardAutosaves`. A

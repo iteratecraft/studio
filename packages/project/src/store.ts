@@ -3,7 +3,7 @@
 // Save: write the whole file under a temporary name in the hidden autosave folder, flush it, read
 // it back and compare, and only then rename it over the project file in one step. The previous
 // file stays whole until that rename, so a crash at any point leaves either the old file or the
-// new one. Autosave: the same, into `.<name>.autosave/<revision>.course`, leaving out the asset
+// new one. Autosave: the same, into `.<name>.autosave/<revision>.crs`, leaving out the asset
 // bytes the project file already holds. Open: the project file, plus the newest autosave that is
 // newer than it and opens cleanly, offered for recovery.
 import {
