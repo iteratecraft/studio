@@ -93,7 +93,9 @@ export function createEditor(course: Course, options: EditorOptions = {}): Edito
         top.inverse.unshift(...result.inverse);
         top.ids = [...new Set([...top.ids, ...result.ids])];
       } else {
-        done.push({ ops: result.ops, inverse: result.inverse, ids: result.ids });
+        // The step owns its arrays: a later dispatch in the group grows them, and must not change
+        // the ops of a change event already sent or of a result already returned.
+        done.push({ ops: [...result.ops], inverse: [...result.inverse], ids: result.ids });
         if (done.length > limit) done.shift();
         joining = depth > 0;
       }

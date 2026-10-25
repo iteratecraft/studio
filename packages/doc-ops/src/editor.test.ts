@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import type { Command } from "./commands.js";
 import type { ChangeEvent } from "./editor.js";
 import { createEditor } from "./editor.js";
+import { applyOps } from "./ops.js";
 
 const rename = (title: string): Command => ({ type: "updateCourse", set: { title } });
 
@@ -113,6 +114,36 @@ describe("change events", () => {
     stop();
     editor.dispatch(rename("Quiet"));
     expect(events).toHaveLength(3);
+  });
+
+  test("a later dispatch in a group leaves the events and results already sent unchanged", () => {
+    const course = minimalCourse();
+    const editor = createEditor(course);
+    const events: ChangeEvent[] = [];
+    editor.subscribe((event) => events.push(event));
+    editor.beginGroup();
+    const first = editor.dispatch(rename("One"));
+    if (!first.ok) throw new Error("the rename was rejected");
+    const sent = {
+      ops: [...(events[0]?.ops ?? [])],
+      resultOps: [...first.ops],
+      inverse: [...first.inverse],
+    };
+    editor.dispatch({
+      type: "insertEntry",
+      value: { id: "lesson0001", kind: "lesson", title: "Two", blocks: [] },
+    });
+    editor.endGroup();
+    expect(events[0]?.ops).toEqual(sent.ops);
+    expect(first.ops).toEqual(sent.resultOps);
+    expect(first.inverse).toEqual(sent.inverse);
+    // A consumer that queues events (autosave, collaboration) rebuilds the document exactly.
+    const replayed = events.reduce((doc, event) => applyOps(doc, event.ops).root, course);
+    expect(serializeCourse(replayed)).toBe(serializeCourse(editor.document));
+    // The group is still one undo step that takes back both changes.
+    editor.undo();
+    expect(events.at(-1)?.ops).toHaveLength(2);
+    expect(serializeCourse(editor.document)).toBe(serializeCourse(course));
   });
 
   test("a rejected or empty dispatch sends no event and makes no undo step", () => {
