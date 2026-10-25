@@ -1,17 +1,17 @@
 {
   "identifier": "main",
-  "description": "The main window: app name and version, open and save dialogs, reading picked files and the app's local data folder, and replacing those files atomically. Nothing else.",
+  "description": "The main window: app name and version, open and save dialogs, and the shell's own file commands, which allow only the data folder, files the user picked and their autosave folders (src/files.rs). Nothing else.",
   "windows": ["main"],
   "permissions": [
     "core:app:allow-name",
     "core:app:allow-version",
-    "core:path:allow-resolve-directory",
     "dialog:allow-open",
     "dialog:allow-save",
-    {
-      "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$APPLOCALDATA/**" }]
-    },
-    "allow-write-atomic"
+    "allow-data-folder",
+    "allow-read-file",
+    "allow-write-atomic",
+    "allow-rename-file",
+    "allow-remove-path",
+    "allow-list-folder"
   ]
 }

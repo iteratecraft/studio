@@ -1,10 +1,9 @@
 import { type AppInfo, HostError, type HostInterface } from "./host.js";
-import { createJobs } from "./jobs.js";
 import { createKeyValueStorage, type KeyValueStore } from "./storage.js";
 
 /**
  * Stub host for the editor in a browser, until the server adapter (M3) talks to a server: app
- * info and storage work, files and jobs refuse with an "unsupported" HostError.
+ * info and storage work, files refuse with an "unsupported" HostError.
  */
 export function createBrowserHost(
   app: Omit<AppInfo, "edition">,
@@ -21,8 +20,14 @@ export function createBrowserHost(
       dataFile: unsupported,
       read: unsupported,
       write: unsupported,
+      projectFiles: () => ({
+        read: unsupported,
+        write: unsupported,
+        rename: unsupported,
+        remove: unsupported,
+        list: unsupported,
+      }),
     },
     storage: createKeyValueStorage(store),
-    jobs: createJobs({}),
   };
 }

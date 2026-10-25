@@ -51,11 +51,20 @@ test("the main capability grants only the commands the desktop host uses", () =>
   expect(read("capabilities/main.json").permissions).toEqual([
     "core:app:allow-name",
     "core:app:allow-version",
-    "core:path:allow-resolve-directory",
     "dialog:allow-open",
     "dialog:allow-save",
-    // Files the user picks join this scope at run time (the dialog plugin adds them).
-    { identifier: "fs:allow-read-file", allow: [{ path: "$APPLOCALDATA/**" }] },
+    // The shell's own file commands (src-tauri/src/files.rs), which check every path themselves.
+    "allow-data-folder",
+    "allow-read-file",
     "allow-write-atomic",
+    "allow-rename-file",
+    "allow-remove-path",
+    "allow-list-folder",
   ]);
+});
+
+test("no file system plugin command or scope is granted, so WebView2's profile next to the data folder stays out of reach", () => {
+  const granted = JSON.stringify(read("capabilities/main.json").permissions);
+  // No plugin command, no path variable such as $APPLOCALDATA, no glob.
+  expect(granted).not.toMatch(/fs:|\$[A-Z]|\*/);
 });

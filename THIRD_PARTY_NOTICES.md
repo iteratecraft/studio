@@ -50,7 +50,6 @@ ships with it.
 |---|---|---|---|
 | @tauri-apps/api | 2.12.3 | Apache-2.0 OR MIT | no |
 | @tauri-apps/plugin-dialog | 2.8.2 | MIT OR Apache-2.0 | no |
-| @tauri-apps/plugin-fs | 2.7.0 | MIT OR Apache-2.0 | no |
 | @xmldom/xmldom | 0.9.12 | MIT | no |
 | playwright-core | 1.64.0 | Apache-2.0 | no |
 | scorm-again | 3.4.6 | MIT | no |

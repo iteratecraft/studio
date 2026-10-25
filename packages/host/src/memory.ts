@@ -8,9 +8,9 @@ import {
   HostError,
   type HostInterface,
   type OpenOptions,
+  projectFolder,
   type SaveOptions,
 } from "./host.js";
-import { createJobs, type JobHandlers } from "./jobs.js";
 import { createKeyValueStorage, type KeyValueStore } from "./storage.js";
 
 export interface MemoryHostInit {
@@ -21,7 +21,6 @@ export interface MemoryHostInit {
   onPickOpen?: (options: OpenOptions) => string[];
   /** What the save dialog returns: the id the user picks, or `null`. Default: the suggested name. */
   onPickSave?: (options: SaveOptions) => string | null;
-  jobs?: JobHandlers;
 }
 
 export interface MemoryHost extends HostInterface {
@@ -65,15 +64,46 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
       dataFile: async (name) => ref(DATA_PREFIX + checkDataName(name).join("/")),
       read: async (file) => {
         const data = disk.get(granted(file));
-        if (!data) throw new Error(`No such file: ${file.id}`);
+        if (!data) throw new HostError("not-found", `No such file: ${file.id}`);
         return data.slice();
       },
       // A map entry is replaced in one step, which is what atomic means here.
       write: async (file, data) => {
         disk.set(granted(file), data.slice());
       },
+      projectFiles: (file) => {
+        const folder = file.id.slice(0, file.id.length - file.name.length);
+        // Checked on each call, as the desktop shell does: the file must have been picked.
+        const key = (parts: string[]) => {
+          granted(file);
+          return folder + parts.join("/");
+        };
+        return projectFolder(file.name, {
+          read: async (parts) => disk.get(key(parts))?.slice(),
+          write: async (parts, data) => {
+            disk.set(key(parts), data.slice());
+          },
+          rename: async (from, to) => {
+            const data = disk.get(key(from));
+            if (!data) throw new HostError("not-found", `No such file: ${key(from)}`);
+            disk.delete(key(from));
+            disk.set(key(to), data);
+          },
+          remove: async (parts) => {
+            const path = key(parts);
+            for (const id of [...disk.keys()]) {
+              if (id === path || id.startsWith(`${path}/`)) disk.delete(id);
+            }
+          },
+          list: async (parts) => {
+            const prefix = `${key(parts)}/`;
+            return [...disk.keys()]
+              .filter((id) => id.startsWith(prefix) && !id.includes("/", prefix.length))
+              .map((id) => id.slice(prefix.length));
+          },
+        });
+      },
     },
     storage: createKeyValueStorage(store),
-    jobs: createJobs(init.jobs ?? {}),
   };
 }

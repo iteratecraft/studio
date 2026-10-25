@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
+import * as host from "./index.js";
 import {
   checkDataName,
+  checkFolderPath,
   createBrowserHost,
-  createJobs,
   createMemoryHost,
   HostError,
   type KeyValueStore,
@@ -39,6 +40,33 @@ describe("checkDataName", () => {
     "x".repeat(101),
   ])("rejects %j", (name) => {
     expect(() => checkDataName(name)).toThrow(HostError);
+  });
+});
+
+describe("checkFolderPath", () => {
+  test.each(["Safety.course", ".Safety.course.autosave/3.course", "Jörg's course.course"])(
+    "accepts %s",
+    (path) => {
+      expect(checkFolderPath(path)).toEqual(path.split("/"));
+    },
+  );
+
+  test.each([
+    "",
+    ".",
+    "..",
+    "../x",
+    "a/../b",
+    "...",
+    "a.",
+    "a ",
+    "a//b",
+    "/abs",
+    "a\\b",
+    "C:x",
+    "a\u0001b",
+  ])("rejects %j", (path) => {
+    expect(() => checkFolderPath(path)).toThrow(HostError);
   });
 });
 
@@ -86,6 +114,12 @@ describe("memory host", () => {
     expect(await host.files.read(file)).toEqual(bytes("abc"));
   });
 
+  test("reading a missing file rejects with not-found", async () => {
+    const host = createMemoryHost();
+    const file = await host.files.dataFile("missing.json");
+    await expect(host.files.read(file)).rejects.toMatchObject({ code: "not-found" });
+  });
+
   test("storage keeps values and forgets deleted ones", async () => {
     const { storage } = createMemoryHost();
     expect(await storage.get("recent")).toBeUndefined();
@@ -96,49 +130,76 @@ describe("memory host", () => {
   });
 });
 
-describe("jobs", () => {
-  test("runs a handler and passes its progress on", async () => {
-    const jobs = createJobs({
-      double: async (input, { progress }) => {
-        progress(1, 1);
-        return (input as number) * 2;
-      },
+describe("project files", () => {
+  const picked = () => {
+    const host = createMemoryHost({
+      files: [
+        ["docs/Safety.course", bytes("v1")],
+        ["docs/Other.course", bytes("other")],
+      ],
+      onPickOpen: () => ["docs/Safety.course"],
     });
-    const seen: unknown[] = [];
-    const result = await jobs.run(
-      { kind: "double", input: 21 },
-      { onProgress: (p) => seen.push(p) },
-    );
-    expect(result).toBe(42);
-    expect(seen).toEqual([{ done: 1, total: 1 }]);
+    return host;
+  };
+
+  test("serve the project container's save: autosave folder, verify, rename over the file", async () => {
+    const host = picked();
+    const [file] = await host.files.pickOpen();
+    if (!file) throw new Error("nothing picked");
+    const project = host.files.projectFiles(file);
+    const autosave = ".Safety.course.autosave";
+    // The order @course-suite/project saves and autosaves in (D-4).
+    await project.write(`${autosave}/4.course.tmp`, bytes("v4"));
+    await project.rename(`${autosave}/4.course.tmp`, `${autosave}/4.course`);
+    expect(await project.list(autosave)).toEqual(["4.course"]);
+    await project.write(`${autosave}/save.tmp`, bytes("v5"));
+    expect(await project.read(`${autosave}/save.tmp`)).toEqual(bytes("v5"));
+    await project.rename(`${autosave}/save.tmp`, "Safety.course");
+    await project.remove(autosave);
+    expect(await project.read("Safety.course")).toEqual(bytes("v5"));
+    expect(await project.read(`${autosave}/4.course`)).toBeUndefined();
+    expect(await project.list(autosave)).toEqual([]);
+    expect([...host.disk.keys()].sort()).toEqual(["docs/Other.course", "docs/Safety.course"]);
   });
 
-  test("refuses an unknown kind, including names inherited from Object", async () => {
-    const jobs = createJobs({});
-    for (const kind of ["export", "toString"]) {
-      await expect(jobs.run({ kind, input: null })).rejects.toMatchObject({ code: "unsupported" });
+  test("reach nothing else in the project's folder, and never move or delete the project file", async () => {
+    const host = picked();
+    const [file] = await host.files.pickOpen();
+    if (!file) throw new Error("nothing picked");
+    const project = host.files.projectFiles(file);
+    const refused = [
+      () => project.read("Other.course"),
+      () => project.write("Other.course", bytes("x")),
+      () => project.write(".Other.course.autosave/1.course", bytes("x")),
+      () => project.list("Safety.course"),
+      () => project.remove("Safety.course"),
+      () => project.rename("Safety.course", ".Safety.course.autosave/x"),
+      () => project.rename(".Safety.course.autosave/x", "Other.course"),
+    ];
+    for (const call of refused) await expect(call()).rejects.toMatchObject({ code: "not-allowed" });
+    for (const call of [() => project.read("../Safety.course"), () => project.list(".")]) {
+      await expect(call()).rejects.toMatchObject({ code: "invalid" });
     }
+    expect(new TextDecoder().decode(host.disk.get("docs/Other.course"))).toBe("other");
   });
 
-  test("settles as aborted even when the handler ignores the signal", async () => {
-    const jobs = createJobs({ forever: () => new Promise(() => {}) });
-    const controller = new AbortController();
-    const running = jobs.run({ kind: "forever", input: null }, { signal: controller.signal });
-    controller.abort(new Error("stop"));
-    await expect(running).rejects.toThrow("stop");
-  });
-
-  test("does not start when the signal is already aborted", async () => {
-    let started = false;
-    const jobs = createJobs({
-      once: async () => {
-        started = true;
-      },
+  test("of a file the user did not pick are refused", async () => {
+    const host = picked();
+    const project = host.files.projectFiles({ id: "docs/Safety.course", name: "Safety.course" });
+    await expect(project.read("Safety.course")).rejects.toMatchObject({ code: "not-allowed" });
+    await expect(project.list(".Safety.course.autosave")).rejects.toMatchObject({
+      code: "not-allowed",
     });
-    const signal = AbortSignal.abort(new Error("cancelled"));
-    await expect(jobs.run({ kind: "once", input: null }, { signal })).rejects.toThrow("cancelled");
-    expect(started).toBe(false);
   });
+});
+
+test("the host has no job port: long tasks keep the one contract of @course-suite/jobs (ENG-15)", () => {
+  const ports = ["appInfo", "files", "storage"];
+  expect(Object.keys(createBrowserHost({ name: "a", version: "1" }, mapStore())).sort()).toEqual(
+    ports,
+  );
+  expect(Object.keys(createMemoryHost()).sort()).toEqual(["disk", ...ports].sort());
+  expect(Object.keys(host).filter((name) => /job/i.test(name))).toEqual([]);
 });
 
 describe("browser host", () => {
@@ -153,5 +214,7 @@ describe("browser host", () => {
     await host.storage.set("theme", "dark");
     expect([...store.map]).toEqual([["course-suite:theme", "dark"]]);
     await expect(host.files.pickOpen()).rejects.toMatchObject({ code: "unsupported" });
+    const project = host.files.projectFiles({ id: "a.course", name: "a.course" });
+    await expect(project.read("a.course")).rejects.toMatchObject({ code: "unsupported" });
   });
 });

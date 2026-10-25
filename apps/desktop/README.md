@@ -8,7 +8,7 @@ placeholder page that asks the host for the app's name and version.
 |---|---|
 | `index.html`, `src/` | The frontend, built by Vite into `dist/` |
 | `src/desktop-host.ts` | The desktop adapter of `@course-suite/host`, the only code allowed to import `@tauri-apps/*` |
-| `src-tauri/` | The Rust shell: window, default menu, the file system and dialog plugins, and `write_atomic` |
+| `src-tauri/` | The Rust shell: window, default menu, the dialog plugin and our file commands (`src/files.rs`) |
 | `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities |
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
 
@@ -17,11 +17,19 @@ placeholder page that asks the host for the app's name and version.
 - **Content security policy:** `default-src 'none'`; script, style, images and fonts only from the
   app itself; connections only to Tauri's IPC. No inline script, no eval, no remote origin.
   `devCsp` adds only inline styles and Vite's reload socket, for development.
-- **Commands:** app name and version, the local data folder's path, the open and save dialogs,
-  reading a file, and `write_atomic`. Nothing else, and only for the `main` window.
-- **Files:** the app's local data folder (`%LOCALAPPDATA%\org.iteratecraft.coursesuite`) and files
-  the user picks in a dialog, which the dialog plugin adds to the scope for the session.
-  `write_atomic` checks the same two places itself.
+- **Commands:** app name and version, the open and save dialogs, and the shell's own file commands
+  (`data_folder`, `read_file`, `write_atomic`, `rename_file`, `remove_path`, `list_folder`).
+  Nothing else, and only for the `main` window. No file system plugin command is granted: the
+  plugin only records the files the user picks in a dialog.
+- **Files:** every path goes through one rule in `src-tauri/src/files.rs`:
+  - the data folder, `%LOCALAPPDATA%\org.iteratecraft.coursesuite\data`: everything. The folder
+    above it also holds WebView2's own profile (`EBWebView`: cookies, local storage, preferences),
+    which the page can neither read nor change;
+  - a file the user picked in a dialog: read it and replace it;
+  - the picked file's autosave folder `.<name>.autosave` next to it (D-4): everything inside, and
+    renaming a file from there over the picked file. Nothing else in that folder.
+
+  Paths must be absolute, without `..` and without parts ending in a dot or space.
 
 `test/shell.test.ts` pins the policy and the capability; `e2e/app.e2e.ts` checks them in the built
 app.
@@ -44,4 +52,5 @@ the window loads the dev server instead of the built files. Installers come with
 
 The app test launches the executable with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` set to open
 WebView2's DevTools port and drives the window with Playwright over CDP. It writes and removes a
-`smoke-test` folder in the app's data folder.
+`smoke-test` folder in the app's data folder, and checks that page script cannot reach WebView2's
+profile.

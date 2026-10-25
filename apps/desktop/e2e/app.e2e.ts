@@ -1,7 +1,7 @@
 // Smoke test of the built desktop app (M2-01, M2-02): launches the release executable with
 // WebView2's DevTools port open and drives its window with Playwright over CDP. It checks the page
 // reached the shell through the host, that the content security policy holds inside the real
-// WebView2, and the file scope of our one command. It also prints the app's idle memory.
+// WebView2, and the file scope of the shell's file commands. It also prints the app's idle memory.
 // Build the app first (`pnpm build`, then `pnpm --filter @course-suite/desktop build:app`); without
 // the executable the test skips, except on CI. CI also sets the DevTools port as a WebView2 policy
 // (ci.yml), because WebView2 ignores the variable on the runner.
@@ -105,44 +105,95 @@ test("the content security policy blocks inline script, eval and other origins",
   });
 });
 
-test("writes and reads only app data files and files the user picked", async () => {
-  const dataDir = join(process.env.LOCALAPPDATA ?? "", identifier);
-  const target = join(dataDir, "smoke-test", "data é.bin");
-  const outside = join(tmpdir(), `course-suite-outside-${process.pid}.bin`);
-  const call = (path: string, write: boolean) =>
-    page.evaluate(
-      async ({ path, write }) => {
-        // biome-ignore lint/suspicious/noExplicitAny: the IPC bridge Tauri injects into the window
-        const { invoke } = (window as any).__TAURI_INTERNALS__;
-        try {
-          const result = write
-            ? await invoke("write_atomic", new Uint8Array([1, 2, 3]), {
-                headers: { path: encodeURIComponent(path) },
+/** Calls one of the shell's commands from page script, as any script in the window could. */
+const shell = (command: string, args: Record<string, string>) =>
+  page.evaluate(
+    async ({ command, args }) => {
+      // biome-ignore lint/suspicious/noExplicitAny: the IPC bridge Tauri injects into the window
+      const { invoke } = (window as any).__TAURI_INTERNALS__;
+      try {
+        const result =
+          command === "write_atomic"
+            ? await invoke(command, new Uint8Array([1, 2, 3]), {
+                headers: { path: encodeURIComponent(args.path ?? "") },
               })
-            : await invoke("plugin:fs|read_file", { path });
-          return { ok: true, bytes: result ? [...new Uint8Array(result)] : [] };
-        } catch (error) {
-          return { ok: false, error: String(error) };
-        }
-      },
-      { path, write },
-    );
-  try {
-    expect(await call(target, true)).toEqual({ ok: true, bytes: [] });
-    expect([...readFileSync(target)]).toEqual([1, 2, 3]);
-    expect(await call(target, false)).toEqual({ ok: true, bytes: [1, 2, 3] });
+            : await invoke(command, args);
+        return {
+          ok: true,
+          value: result instanceof ArrayBuffer ? [...new Uint8Array(result)] : (result ?? null),
+        };
+      } catch (error) {
+        return { ok: false, error: String(error) };
+      }
+    },
+    { command, args },
+  );
 
-    // Built by hand: join() would resolve the "..".
-    const parentPath = `${dataDir}\\..\\escape.bin`;
-    for (const path of [outside, parentPath]) {
-      expect(await call(path, true)).toMatchObject({ ok: false });
-      expect(existsSync(path)).toBe(false);
-    }
-    expect(await call(join(process.env.WINDIR ?? "C:\\Windows", "win.ini"), false)).toMatchObject({
-      ok: false,
+const localData = join(process.env.LOCALAPPDATA ?? "", identifier);
+const dataDir = join(localData, "data");
+
+test("reads, writes, lists, renames and removes files in the data folder", async () => {
+  const folder = join(dataDir, "smoke-test");
+  const file = join(folder, "data é.bin");
+  const moved = join(folder, "moved.bin");
+  try {
+    expect(await shell("data_folder", {})).toEqual({ ok: true, value: dataDir });
+    expect(await shell("write_atomic", { path: file })).toEqual({ ok: true, value: null });
+    expect([...readFileSync(file)]).toEqual([1, 2, 3]);
+    expect(await shell("read_file", { path: file })).toEqual({ ok: true, value: [1, 2, 3] });
+    expect(await shell("list_folder", { path: folder })).toEqual({
+      ok: true,
+      value: ["data é.bin"],
     });
+    expect(await shell("rename_file", { from: file, to: moved })).toMatchObject({ ok: true });
+    expect(existsSync(moved)).toBe(true);
+    expect(await shell("remove_path", { path: folder })).toMatchObject({ ok: true });
+    expect(existsSync(folder)).toBe(false);
   } finally {
-    rmSync(join(dataDir, "smoke-test"), { recursive: true, force: true });
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("page script can neither read nor change WebView2's profile or anything outside the data folder", async () => {
+  const profile = join(localData, "EBWebView");
+  const localState = join(profile, "Local State");
+  // WebView2 has made its profile by now, so the refusals below are about real files.
+  expect(existsSync(localState)).toBe(true);
+  const before = readFileSync(localState);
+  const unpicked = join(tmpdir(), "Unpicked.course");
+  // Built by hand where join() would resolve the "..".
+  const refused: [string, Record<string, string>][] = [
+    ["read_file", { path: localState }],
+    ["read_file", { path: join(profile, "Default", "Preferences") }],
+    ["read_file", { path: `${dataDir}\\..\\EBWebView\\Local State` }],
+    ["read_file", { path: join(process.env.WINDIR ?? "C:\\Windows", "win.ini") }],
+    ["write_atomic", { path: localState }],
+    ["write_atomic", { path: join(profile, "smoke-test.bin") }],
+    ["write_atomic", { path: join(localData, "smoke-test.bin") }],
+    ["write_atomic", { path: `${dataDir}\\..\\smoke-test.bin` }],
+    ["write_atomic", { path: `${localData}\\data.\\smoke-test.bin` }],
+    ["write_atomic", { path: join(tmpdir(), `course-suite-outside-${process.pid}.bin`) }],
+    ["write_atomic", { path: join(tmpdir(), ".Unpicked.course.autosave", "1.course") }],
+    ["list_folder", { path: profile }],
+    ["list_folder", { path: localData }],
+    ["remove_path", { path: localState }],
+    ["remove_path", { path: dataDir }],
+    ["rename_file", { from: localState, to: join(dataDir, "smoke-test.bin") }],
+    ["rename_file", { from: join(dataDir, "smoke-test.bin"), to: localState }],
+    ["rename_file", { from: unpicked, to: join(tmpdir(), "Moved.course") }],
+  ];
+  for (const [command, args] of refused) {
+    const result = await shell(command, args);
+    expect(result, `${command} ${JSON.stringify(args)}`).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/^not-allowed: /);
+  }
+  expect(readFileSync(localState)).toEqual(before);
+  for (const path of [
+    join(profile, "smoke-test.bin"),
+    join(localData, "smoke-test.bin"),
+    join(tmpdir(), ".Unpicked.course.autosave"),
+  ]) {
+    expect(existsSync(path), path).toBe(false);
   }
 });
 
