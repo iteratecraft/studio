@@ -178,12 +178,14 @@ export function Gallery() {
 
         <Section id="toggle-buttons" title="Toggle buttons">
           <ToggleButtonGroup
-            aria-label="View"
+            aria-label="Device"
             selectionMode="single"
-            defaultSelectedKeys={["grid"]}
+            disallowEmptySelection
+            defaultSelectedKeys={["computer"]}
           >
-            <ToggleButton id="grid" icon="grid" label="Grid" />
-            <ToggleButton id="list" icon="list" label="List" />
+            <ToggleButton id="computer" icon="computer" label="Computer" />
+            <ToggleButton id="tablet" icon="tablet" label="Tablet" />
+            <ToggleButton id="phone" icon="phone" label="Phone" />
           </ToggleButtonGroup>
         </Section>
 

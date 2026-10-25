@@ -12,14 +12,17 @@
   },
   "dependencies": {
     "@course-suite/blocks-editor": "workspace:*",
+    "@course-suite/doc-ops": "workspace:*",
+    "@course-suite/format": "workspace:*",
     "@course-suite/host": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@course-suite/format": "workspace:*",
+    "@course-suite/exporters": "workspace:*",
     "@course-suite/project": "workspace:*",
+    "@course-suite/tracking": "workspace:*",
     "@course-suite/zip": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",

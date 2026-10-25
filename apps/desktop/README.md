@@ -17,7 +17,12 @@ at a time in the editor.
 
 - **Content security policy:** `default-src 'none'`; script, style, images and fonts only from the
   app itself; connections only to Tauri's IPC. No inline script, no eval, no remote origin.
-  `devCsp` adds only inline styles and Vite's reload socket, for development.
+  `devCsp` adds only inline styles and Vite's reload socket, for development. For the course
+  preview (M2-11, `@course-suite/preview`) both add `frame-src data:` for its sandboxed frame,
+  which inherits the policy, the frame's one script by its hash in `script-src`, and `blob:` in
+  `script-src`, `style-src` and `img-src` for the package files the frame holds in memory. A
+  `blob:` address exists only once script already running in that page made it, so injected markup
+  gains nothing from it. `apps/web/preview.html` runs the preview under the release policy.
 - **Commands:** app name and version, the open and save dialogs, the shell's own file commands
   (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
   `list_folder`), and listening for the window's close request with `destroy` to close it, so the

@@ -1,0 +1,28 @@
+/* Layout of the preview test page only: the pane fills the window. */
+html,
+body,
+#root {
+  block-size: 100%;
+}
+
+.route {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+}
+
+.route-status {
+  margin: 0;
+  padding: var(--cs-space-2) var(--cs-space-4);
+  border-bottom: 1px solid var(--cs-border);
+  font-size: var(--cs-text-sm);
+}
+
+.route-status:empty {
+  display: none;
+}
+
+.route-pane {
+  flex: 1;
+  min-block-size: 0;
+}

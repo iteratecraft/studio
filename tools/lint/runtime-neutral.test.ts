@@ -19,6 +19,7 @@ const RUNTIME_NEUTRAL = [
   "zip",
   "project",
   "jobs",
+  "preview",
 ];
 const FIXTURE = `import { readFileSync } from "node:fs";\nexport const read = readFileSync;\n`;
 

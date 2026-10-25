@@ -3,8 +3,13 @@
   "extends": ["//"],
   "tags": ["app"],
   "tasks": {
+    "build": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/desktop/src-tauri/tauri.conf.json"],
+      "outputs": ["dist/**"]
+    },
     "test:e2e": {
-      "dependsOn": ["build"]
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/test-courses/blocks/**"]
     }
   }
 }

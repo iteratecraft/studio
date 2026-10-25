@@ -1,7 +1,8 @@
 // Prints the gzip size of the built pages (`pnpm --filter @course-suite/web build` first), split
-// into React, React Aria, the kit, the blocks editor with the engine packages it uses ("blocks"), and each
-// page's own code (see the chunk groups in vite.config.ts), then what each page loads in all.
-// The same gzip level a web server or installer would use: 9, the best.
+// into React, React Aria, the kit, the blocks editor with the engine packages it uses ("blocks"), the
+// preview's player (loaded when a preview opens) and each page's own code (see the chunk groups in
+// vite.config.ts), then what each page loads in all. The same gzip level a web server or installer
+// would use: 9, the best.
 /// <reference types="node" />
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ for (const [name, size] of sizes)
     `${name.padEnd(36)} ${kb(size.raw).padStart(10)} raw ${kb(size.gzip).padStart(10)} gzip`,
   );
 
-const GROUPS = ["react", "react-aria", "kit", "blocks"];
+const GROUPS = ["react", "react-aria", "kit", "blocks", "player"];
 // A built name is the chunk's name, a dash and an 8-character hash.
 const groupOf = (name: string) => name.replace(/-[\w-]{8}\.(js|css)$/, "");
 console.log("");
@@ -53,7 +54,7 @@ function loadedBy(page: string): Set<string> {
   return seen;
 }
 
-for (const page of ["index.html", "editor.html"]) {
+for (const page of ["index.html", "editor.html", "preview.html"]) {
   const loaded = [...loadedBy(page)];
   const gzip = loaded.reduce((n, name) => n + (sizes.get(name)?.gzip ?? 0), 0);
   console.log(`${page} loads ${loaded.length} files: ${kb(gzip)} gzip`);

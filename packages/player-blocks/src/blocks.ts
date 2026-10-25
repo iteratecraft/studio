@@ -5,6 +5,7 @@ import type { Block, ContentItem, Course, Response } from "@course-suite/format"
 import { isCorrect } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
+import { fileUrl } from "./hooks.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
 
@@ -57,21 +58,22 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (!content) return undefined;
   const { padding, contentWidth } = block.settings ?? {};
   const full = block.variant === "full-width";
-  return h(
+  const frame = h(
     "div",
-    {
-      class: `block block-${block.category}`,
-      "data-block": block.id,
-      style: padding
-        ? `padding-top:${padding.top}px;padding-bottom:${padding.bottom}px`
-        : undefined,
-    },
+    { class: `block block-${block.category}`, "data-block": block.id },
     h(
       "div",
       { class: full ? "block-inner width-full" : `block-inner width-${contentWidth ?? "medium"}` },
       content,
     ),
   );
+  // Through the style object, not a style attribute, which a page's content security policy may
+  // refuse (the editor's preview runs under the desktop app's policy, ENG-13).
+  if (padding) {
+    frame.style.paddingTop = `${padding.top}px`;
+    frame.style.paddingBottom = `${padding.bottom}px`;
+  }
+  return frame;
 }
 
 const firstContent = (block: Block): ContentItem | undefined =>
@@ -126,8 +128,8 @@ function imageBlock(block: Block, { course }: BlockContext): HTMLElement | undef
   });
 }
 
-/** Path of a media file in the package, relative to the index page. */
-export const mediaUrl = (key: string) => `media/${encodeURIComponent(key)}`;
+/** Address of a media file: its path in the package, relative to the index page (see fileUrl). */
+export const mediaUrl = (key: string) => fileUrl(`media/${encodeURIComponent(key)}`);
 
 /** A plain-text setting the author typed, when it is set and not blank. */
 function authoredText(block: Block, name: string): string | undefined {
