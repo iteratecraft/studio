@@ -132,6 +132,7 @@ describe("xAPI package", () => {
     expect(descriptor.ok && decode(descriptor.value[0]?.data)).not.toMatch(/lrs\.example|Basic/);
     expect(built.warnings).toEqual([
       expect.objectContaining({
+        code: "lrs-credentials",
         file: "course/data.js",
         message: expect.stringContaining("credentials"),
       }),

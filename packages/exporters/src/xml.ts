@@ -3,6 +3,9 @@
 import { DOMParser, type Element } from "@xmldom/xmldom";
 import type { Problem } from "./result.js";
 
+/** The UTF-8 bytes of `text`, as the exporters store every file they write. */
+export const utf8 = (text: string) => new TextEncoder().encode(text);
+
 /** Text and attribute values, escaped for XML. */
 export const esc = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 

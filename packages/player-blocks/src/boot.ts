@@ -18,6 +18,7 @@ import {
   RESUME_CAPS,
   readCmi5Launch,
   readXapiLaunch,
+  resumeCapFor,
   type TrackingAdapter,
 } from "@course-suite/tracking";
 import {
@@ -154,15 +155,10 @@ function boot(): void {
         adapter,
         // A preview has no package version; the last edit time stands in for it.
         packageVersion: String(data.packageVersion ?? data.course.updatedAt ?? ""),
-        // SCORM 2004 (4th edition) and an LRS state document have their own caps. Anything else, a
-        // preview too, gets the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
+        // The cap the package was published for, the same one the publish check used. Plain web
+        // and a preview get the strictest (SCORM 1.2's), so a preview warns as soon as a SCORM 1.2
         // package would.
-        resumeCap:
-          data.standard === "xapi" || data.standard === "cmi5"
-            ? RESUME_CAPS.xapi
-            : data.standard === "scorm2004"
-              ? RESUME_CAPS.scorm2004
-              : RESUME_CAPS.scorm12,
+        resumeCap: (data.standard && resumeCapFor(data.standard)) ?? RESUME_CAPS.scorm12,
       }).then((runtime) => {
         if (hooks) {
           if (adapter === memory) hooks.adapter = memory;

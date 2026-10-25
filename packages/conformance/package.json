@@ -28,10 +28,12 @@
   "devDependencies": {
     "@course-suite/exporters": "workspace:*",
     "@course-suite/format": "workspace:*",
+    "@course-suite/jobs": "workspace:*",
     "@course-suite/labels": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
+    "rolldown": "catalog:",
     "vitest": "catalog:"
   }
 }

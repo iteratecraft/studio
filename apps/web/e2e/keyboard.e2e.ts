@@ -295,17 +295,30 @@ test("reorderable list: rows reorder by keyboard alone (UI-ACCESSIBILITY-R32)", 
   // Into the row to its drag handle, Enter to pick up, arrows to the place, Enter to drop.
   await page.keyboard.press("ArrowRight");
   await expect(grid.getByRole("button", { name: /Drag Welcome/ })).toBeFocused();
+  // Each step waits for the drop target it lands on: keys sent before the drag has started
+  // were lost on a loaded CI runner.
+  const dropTargets = grid.getByRole("row", { name: /^Insert / });
   await page.keyboard.press("Enter");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  await expect(dropTargets.first()).toBeAttached();
+  // The drop target is marked, not focused (focus stays on the drag handle).
+  const dropOn = async (key: string, name: string) => {
+    await page.keyboard.press(key);
+    await expect(grid.getByRole("row", { name })).toHaveAttribute("data-drop-target", "true");
+  };
+  await dropOn("ArrowDown", "Insert between Healthy soil and Making compost");
+  await dropOn("ArrowDown", "Insert between Making compost and Final quiz");
   await page.keyboard.press("Enter");
+  await expect(dropTargets).toHaveCount(0);
   await expect.poll(names).toEqual(["Healthy soil", "Making compost", "Welcome", "Final quiz"]);
   // Escape while dragging puts the row back.
   await grid.getByRole("row", { name: "Final quiz" }).focus();
   await page.keyboard.press("ArrowRight");
+  await expect(grid.getByRole("button", { name: /Drag Final quiz/ })).toBeFocused();
   await page.keyboard.press("Enter");
-  await page.keyboard.press("ArrowUp");
+  await expect(dropTargets.first()).toBeAttached();
+  await dropOn("ArrowUp", "Insert between Welcome and Final quiz");
   await page.keyboard.press("Escape");
+  await expect(dropTargets).toHaveCount(0);
   await expect.poll(names).toEqual(["Healthy soil", "Making compost", "Welcome", "Final quiz"]);
 });
 

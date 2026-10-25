@@ -1,0 +1,28 @@
+{
+  "name": "@course-suite/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./export-worker": "./dist/export-worker.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-suite/exporters": "workspace:*",
+    "@course-suite/format": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  }
+}

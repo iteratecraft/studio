@@ -4,38 +4,27 @@
 // republished package never runs a stale cached player), and the course data file the player loads by
 // script tag. The builder adds `media/` beside them. The player uses the system font stack, so there
 // is no fonts folder yet.
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { courseDataScript, DATA_FILE, indexPage } from "@course-suite/player-blocks";
+import { courseDataScript, DATA_FILE, indexPage, largestResume } from "@course-suite/player-blocks";
+// Embedded at build time by scripts/bundle-player.ts, so building needs no file system (ADR-0006).
+import { PLAYER_SCRIPT, PLAYER_STYLE } from "../dist/assets.js";
 import type { Exporter, PlayerBundle } from "./builder.js";
 import { ok } from "./result.js";
+import { utf8 } from "./xml.js";
 
 /** The page every standard launches. */
 export const BLOCKS_LAUNCH_PAGE = "index.html";
 
-const utf8 = (text: string) => new TextEncoder().encode(text);
-
 let built: { script: Uint8Array; style: Uint8Array } | undefined;
-
-/** `player.<first 10 hex digits of the SHA-256>.<extension>`. */
-const hashed = (extension: string, data: Uint8Array) =>
-  `player.${createHash("sha256").update(data).digest("hex").slice(0, 10)}.${extension}`;
 
 /**
  * The Blocks player for the package builder. `language` goes on the index page until the player
  * sets the course's own language at start.
  */
 export function blocksPlayer({ language = "en" }: { language?: string } = {}): PlayerBundle {
-  built ??= {
-    // Written by scripts/bundle-player.ts when this package builds.
-    script: readFileSync(new URL("../dist/player/player.js", import.meta.url)),
-    style: readFileSync(
-      fileURLToPath(import.meta.resolve("@course-suite/player-blocks/player.css")),
-    ),
-  };
-  const script = hashed("js", built.script);
-  const style = hashed("css", built.style);
+  built ??= { script: utf8(PLAYER_SCRIPT.text), style: utf8(PLAYER_STYLE.text) };
+  // Named `player.<first 10 hex digits of the SHA-256>.<extension>` at build time.
+  const script = PLAYER_SCRIPT.name;
+  const style = PLAYER_STYLE.name;
   return {
     launchPage: BLOCKS_LAUNCH_PAGE,
     files: new Map([
@@ -44,6 +33,7 @@ export function blocksPlayer({ language = "en" }: { language?: string } = {}): P
       [style, built.style],
     ]),
     courseDataScript: (data) => ({ path: DATA_FILE, data: utf8(courseDataScript(data)) }),
+    largestResume,
   };
 }
 

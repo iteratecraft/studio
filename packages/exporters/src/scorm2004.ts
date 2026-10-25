@@ -2,13 +2,13 @@
 // imsmanifest.xml in IMS Content Packaging 1.1.4 with the ADL and IMS Simple Sequencing extensions,
 // LOM metadata in metadata.xml referenced from the manifest, and the 4th-edition schema files beside
 // them at the package root.
-import { readFileSync } from "node:fs";
 import type { Course } from "@course-suite/format";
 import { plainText } from "@course-suite/format";
+import { SCORM2004_SCHEMA_TEXT } from "../dist/assets.js";
 import type { DescribeInput, Exporter, PackageFile } from "./builder.js";
 import { fail, ok, type Problem, type Result } from "./result.js";
 import { SCORM12_IDS, SCORM12_MANIFEST, scormIdentifier } from "./scorm12.js";
-import { checkSco, esc, ISO_DURATION, only, parseXml, problemsIn } from "./xml.js";
+import { checkSco, esc, ISO_DURATION, only, parseXml, problemsIn, utf8 } from "./xml.js";
 
 const MANIFEST = SCORM12_MANIFEST;
 /** The LOM metadata file the manifest points at (standards.md E-9). */
@@ -65,7 +65,7 @@ let schemaFiles: PackageFile[] | undefined;
 function schemas(): PackageFile[] {
   schemaFiles ??= SCORM2004_SCHEMAS.map((name) => ({
     path: name,
-    data: readFileSync(new URL(`../schemas/scorm2004/${name}`, import.meta.url)),
+    data: utf8(SCORM2004_SCHEMA_TEXT[name]),
   }));
   return schemaFiles;
 }
@@ -139,8 +139,8 @@ function describe(input: DescribeInput, options: Scorm2004Options): Result<Packa
     ``,
   ];
   return ok([
-    { path: MANIFEST, data: Buffer.from(manifest.join("\n"), "utf8") },
-    { path: SCORM2004_METADATA, data: Buffer.from(metadata(course, packageVersion, time), "utf8") },
+    { path: MANIFEST, data: utf8(manifest.join("\n")) },
+    { path: SCORM2004_METADATA, data: utf8(metadata(course, packageVersion, time)) },
     ...schemas(),
   ]);
 }

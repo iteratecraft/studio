@@ -53,6 +53,7 @@ export {
   pruneResume,
   RESUME_CAPS,
   RESUME_FORMAT,
+  resumeCapFor,
 } from "./resume.js";
 export type { ScormWindow } from "./scorm.js";
 export { API_SEARCH_DEPTH, ScormError } from "./scorm.js";

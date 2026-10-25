@@ -19,6 +19,8 @@ export { ChunkLoadError, createLoader, type Load } from "./loader.js";
 export {
   type Attempt,
   createProgress,
+  ESTIMATED_ATTEMPTS,
+  largestResume,
   type PageStatus,
   type Progress,
   type QuizState,

@@ -2,7 +2,7 @@
 // learner state keyed by stable ids, never by position, so it survives a republish; bit-packed;
 // in a versioned envelope with the package version; within a hard size cap per target, dropping
 // the least important parts in a fixed order when it does not fit.
-import type { Response } from "@course-suite/format";
+import type { PublishSettings, Response } from "@course-suite/format";
 import { BitReader, BitWriter } from "./packing.js";
 
 /** The resume format this player writes. A payload is `<format>.<packed state>`. */
@@ -18,6 +18,24 @@ export const RESUME_CAPS = {
   scorm2004: 64_000,
   xapi: 32_000,
 } as const;
+
+/**
+ * The cap a package for `standard` keeps learner progress within; undefined for plain web, which
+ * keeps none (ADR-0005). SCORM 2004 packages are the 4th edition.
+ */
+export function resumeCapFor(standard: PublishSettings["standard"]): number | undefined {
+  switch (standard) {
+    case "scorm12":
+      return RESUME_CAPS.scorm12;
+    case "scorm2004":
+      return RESUME_CAPS.scorm2004;
+    case "xapi":
+    case "cmi5":
+      return RESUME_CAPS.xapi;
+    case "web":
+      return undefined;
+  }
+}
 
 /** What a player resumes from. Every key and id is a stable content id (ADR-0002). */
 export interface ResumeState {

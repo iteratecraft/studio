@@ -24,6 +24,7 @@ export default defineConfig({
     // request, which took close to 30 s on a cold Windows runner, inside the test's own timeout.
     url: "http://localhost:1421/e2e/memory.ts",
     timeout: 180_000,
+    env: { COURSE_SUITE_NO_WATCH: "1" },
     reuseExistingServer: !process.env.CI,
   },
 });
