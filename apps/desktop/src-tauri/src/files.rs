@@ -146,10 +146,10 @@ pub async fn write_atomic<R: Runtime>(
         .and_then(percent_decode)
         .map(PathBuf::from)
         .ok_or("invalid: write_atomic expects a percent-encoded path header")?;
-    if checked(&app, &path)? != Place::Picked {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
-        }
+    if checked(&app, &path)? != Place::Picked
+        && let Some(parent) = path.parent()
+    {
+        fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
     }
     replace_atomically(&path, data).map_err(|e| io_error(&path, e))
 }
@@ -207,10 +207,10 @@ pub async fn list_folder<R: Runtime>(
     let mut names = Vec::new();
     for entry in entries {
         let entry = entry.map_err(|e| io_error(&path, e))?;
-        if entry.file_type().map_err(|e| io_error(&path, e))?.is_file() {
-            if let Ok(name) = entry.file_name().into_string() {
-                names.push(name);
-            }
+        if entry.file_type().map_err(|e| io_error(&path, e))?.is_file()
+            && let Ok(name) = entry.file_name().into_string()
+        {
+            names.push(name);
         }
     }
     Ok(names)
