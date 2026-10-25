@@ -20,13 +20,17 @@ import {
 } from "@course-suite/zip";
 import {
   type Asset,
+  BLOBS_FOLDER,
   blobPath,
+  isStorageKey,
   keptHashes,
   type Project,
   readBlob,
   readSnapshot,
   type Snapshot,
   type SnapshotTrigger,
+  type Store,
+  sha256,
   snapshotPath,
 } from "./project.js";
 
@@ -124,12 +128,13 @@ export interface Decoded {
 
 /**
  * Opens a project file. Every entry is checked, the manifest is migrated and validated, the course
- * is opened with the format package, and every asset and snapshot must have its bytes, in the file
- * or, for an autosave, in `fallback`.
+ * is opened with the format package, every asset's bytes must match their SHA-256 and declared
+ * size, and every asset and snapshot must have its bytes, in the file or, for an autosave, in the
+ * store of the project file it builds on (`fallback`).
  */
 export async function decodeProject(
   bytes: Uint8Array,
-  fallback?: ZipArchive,
+  fallback?: Pick<Store, "sources" | "verified">,
 ): Promise<ProjectResult<Decoded>> {
   const unzipped = await readZip(bytes, LIMITS);
   if (!unzipped.ok) return unzipped;
@@ -160,19 +165,39 @@ export async function decodeProject(
     return { ok: false, problems: opened.errors.map((error) => ({ file: COURSE, ...error })) };
   }
 
-  const sources = fallback ? [archive, fallback] : [archive];
+  // Every asset's bytes are checked here, once, so that no later read, dedupe or save trusts bytes
+  // that do not match their hash. Stored entries are not inflated, so this costs one copy and one
+  // hash of each.
+  const verified = new Map(fallback?.verified);
+  for (const name of archive.names) {
+    if (!name.startsWith(`${BLOBS_FOLDER}/`)) continue;
+    const hash = name.slice(BLOBS_FOLDER.length + 1);
+    if (!HASH.test(hash)) return problem(name, "is not named by the SHA-256 of an asset");
+    const data = (await archive.read(name)) as Uint8Array;
+    if ((await sha256(data)) !== hash) {
+      return problem(name, "does not match its SHA-256; the file is damaged");
+    }
+    verified.set(hash, data.length);
+  }
+  const sources = fallback ? [archive, ...fallback.sources] : [archive];
   const project: Project = {
     course: opened.document as Course,
     assets: manifest.assets,
     snapshots: manifest.snapshots,
     revision: manifest.revision,
     savedRevision: manifest.revision,
-    store: { blobs: new Map(), snapshots: new Map(), sources, saved: new Set() },
+    store: { blobs: new Map(), snapshots: new Map(), sources, verified, saved: new Set() },
   };
-  for (const hash of keptHashes(project)) {
-    if (!sources.some((source) => source.has(blobPath(hash)))) {
+  const records = [project.assets, ...project.snapshots.map((snapshot) => snapshot.assets)];
+  for (const { hash, size } of records.flatMap((assets) => Object.values(assets))) {
+    const actual = verified.get(hash);
+    if (actual === undefined)
       return problem(blobPath(hash), "is missing; an asset needs its bytes");
+    if (actual !== size) {
+      return problem(blobPath(hash), `holds ${actual} bytes but the asset store declares ${size}`);
     }
+  }
+  for (const hash of keptHashes(project)) {
     if (archive.has(blobPath(hash))) project.store.saved.add(hash);
   }
   for (const { id } of project.snapshots) {
@@ -262,24 +287,29 @@ function parseManifest(value: unknown): Manifest | string {
 
 function parseAssets(value: unknown): Record<string, Asset> | string {
   if (!isObject(value)) return "is not an object";
-  const assets: Record<string, Asset> = {};
+  const assets: [string, Asset][] = [];
   for (const [key, item] of Object.entries(value)) {
+    if (!isStorageKey(key)) return `has an entry whose key '${key}' is not a valid storage key`;
     const bad = `has an invalid entry '${key}'`;
-    if (key === "" || !isObject(item)) return bad;
+    if (!isObject(item)) return bad;
     const { hash, size, name, type, source, licence, attribution } = item;
     if (typeof hash !== "string" || !HASH.test(hash) || !isCount(size)) return bad;
     if (typeof name !== "string" || typeof type !== "string") return bad;
     if (!SOURCES.has(source as string) || !isOptionalString(licence)) return bad;
     if (!isOptionalString(attribution)) return bad;
-    assets[key] = {
-      hash,
-      size,
-      name,
-      type,
-      source: source as Asset["source"],
-      ...(licence !== undefined && { licence: licence as string }),
-      ...(attribution !== undefined && { attribution: attribution as string }),
-    };
+    assets.push([
+      key,
+      {
+        hash,
+        size,
+        name,
+        type,
+        source: source as Asset["source"],
+        ...(licence !== undefined && { licence: licence as string }),
+        ...(attribution !== undefined && { attribution: attribution as string }),
+      },
+    ]);
   }
-  return assets;
+  // Built from entries, so no key, `__proto__` included, can reach the object's prototype.
+  return Object.fromEntries(assets);
 }

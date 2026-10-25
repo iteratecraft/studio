@@ -22,6 +22,11 @@ is the `key` the course's media entries use; `addAsset` makes one from the hash 
 extension unless you pass your own. A snapshot keeps the course document and the asset manifest of
 its time, and the file keeps the bytes of every asset a snapshot or the course still uses.
 
+Storage keys follow the course format's `StorageKey` rule (`^[a-z0-9][a-z0-9._-]{0,127}$`), in the
+manifest and in `addAsset`. On open, every `assets/<sha256>` entry must hash to its name and hold the
+size the asset store declares, or the file is refused; bytes from a file are trusted, deduplicated
+and saved again only after that check.
+
 `formatVersion` is checked on open: a newer version is refused with a message naming it, and an
 older one goes through `PROJECT_MIGRATIONS` (one step per version, none yet). The course inside goes
 through the format package's own `openCourse` migration and validation.
