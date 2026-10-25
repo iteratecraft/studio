@@ -10,5 +10,9 @@ export default defineConfig({
     // rebuilding packages/*/dist reloaded the page mid-test ("frame was detached").
     ...(process.env.COURSE_SUITE_NO_WATCH ? { watch: null } : {}),
   },
-  build: { target: "es2023" },
+  build: {
+    target: "es2023",
+    // One bundle on purpose: the window loads it from inside the executable, not over a network.
+    chunkSizeWarningLimit: 1024,
+  },
 });

@@ -44,6 +44,8 @@ test("the app turns on only the main capability, for the main window", () => {
   expect(config.app.security.capabilities).toEqual(["main"]);
   expect(readdirSync(join(shell, "capabilities"))).toEqual(["main.json"]);
   expect(config.app.windows.map((w: { label: string }) => w.label)).toEqual(["main"]);
+  // main.rs builds the window from this config, to keep its title in step with the page's.
+  expect(config.app.windows[0].create).toBe(false);
   expect(read("capabilities/main.json").windows).toEqual(["main"]);
 });
 
@@ -51,11 +53,17 @@ test("the main capability grants only the commands the desktop host uses", () =>
   expect(read("capabilities/main.json").permissions).toEqual([
     "core:app:allow-name",
     "core:app:allow-version",
+    // The close request (onCloseRequested): listen for it, and close the window when the editor
+    // allows it, so unsaved work is offered for saving first (M2-08).
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-destroy",
     "dialog:allow-open",
     "dialog:allow-save",
     // The shell's own file commands (src-tauri/src/files.rs), which check every path themselves.
     "allow-data-folder",
     "allow-read-file",
+    "allow-file-modified",
     "allow-write-atomic",
     "allow-rename-file",
     "allow-remove-path",

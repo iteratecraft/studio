@@ -19,6 +19,7 @@ export function createBrowserHost(
       pickSave: unsupported,
       dataFile: unsupported,
       read: unsupported,
+      modified: unsupported,
       write: unsupported,
       projectFiles: () => ({
         read: unsupported,
@@ -29,5 +30,7 @@ export function createBrowserHost(
       }),
     },
     storage: createKeyValueStorage(store),
+    // shortcut: no close guard; the server adapter (M3) saves as the author types.
+    onCloseRequested: () => () => {},
   };
 }

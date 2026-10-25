@@ -5,6 +5,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "data_folder",
             "read_file",
+            "file_modified",
             "write_atomic",
             "rename_file",
             "remove_path",

@@ -64,9 +64,37 @@ test.afterAll(async () => {
   app?.kill();
 });
 
-test("shows the app name and version it gets from the shell through the host", async () => {
-  await expect(page.getByRole("heading", { level: 1, name: "Course Suite" })).toBeVisible();
-  await expect(page.getByRole("status")).toHaveText("Version 0.0.0, desktop edition");
+test("shows the dashboard with the app name and version it gets from the shell through the host", async () => {
+  await expect(page.getByRole("heading", { level: 1, name: "Your courses" })).toBeVisible();
+  await expect(page.getByRole("banner")).toHaveText("Course Suite");
+  await expect(page.getByRole("contentinfo")).toHaveText("Version 0.0.0");
+});
+
+test("the editor starts under the release content security policy without a violation", async () => {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    Object.assign(window, { violations: seen });
+    document.addEventListener("securitypolicyviolation", (e) => seen.push(e.effectiveDirective));
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Your courses" })).toBeVisible();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Blank course" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(
+    await page.evaluate(() => (window as unknown as { violations: string[] }).violations),
+  ).toEqual([]);
+});
+
+test("the window title follows the page's title (M2-08)", async () => {
+  await page.evaluate(() => {
+    document.title = "Title sync check";
+  });
+  await expect.poll(() => windowTitle()).toBe("Title sync check");
+  await page.evaluate(() => {
+    document.title = "Course Suite";
+  });
+  await expect.poll(() => windowTitle()).toBe("Course Suite");
 });
 
 test("the content security policy blocks inline script, eval and other origins", async () => {
@@ -207,6 +235,26 @@ test("reports idle memory of the app and its WebView2 processes", async () => {
   test.info().annotations.push({ type: "idle memory", description: report });
   expect(tree.length).toBeGreaterThan(1);
 });
+
+test("closing the window asks the page, which lets it close with no course open", async () => {
+  // WM_CLOSE, as the window's close button sends.
+  execFileSync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `(Get-Process -Id ${app.pid}).CloseMainWindow() | Out-Null`,
+  ]);
+  await expect.poll(() => app.exitCode, { timeout: 15_000 }).not.toBeNull();
+});
+
+/** The title of the app's main window, as Windows shows it. */
+function windowTitle(): string {
+  return execFileSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${app.pid}).MainWindowTitle`],
+    { encoding: "utf8" },
+  ).trim();
+}
 
 /** The app process and every process below it (the WebView2 browser, renderer, GPU...). */
 function processTree(): {

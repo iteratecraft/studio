@@ -3,6 +3,8 @@ import {
   Button as AriaButton,
   Checkbox as AriaCheckbox,
   type CheckboxProps as AriaCheckboxProps,
+  SearchField as AriaSearchField,
+  type SearchFieldProps as AriaSearchFieldProps,
   Select as AriaSelect,
   type SelectProps as AriaSelectProps,
   Switch as AriaSwitch,
@@ -18,9 +20,10 @@ import {
   SelectValue,
   Text,
 } from "react-aria-components";
-import { cx } from "./buttons.js";
+import { cx, IconButton } from "./buttons.js";
 import { Icon } from "./icons.js";
 import { PopoverSurface } from "./overlays.js";
+import { useStrings } from "./provider.js";
 
 interface FieldTexts {
   label: ReactNode;
@@ -156,5 +159,35 @@ export function Select<T extends object>({
         </ListBox>
       </PopoverSurface>
     </AriaSelect>
+  );
+}
+
+export interface SearchFieldProps
+  extends FieldTexts,
+    Omit<AriaSearchFieldProps, "className" | "style" | "children"> {
+  placeholder?: string;
+  className?: string;
+}
+
+/** A search box: a clear button, and Escape clears it; filter as the value changes or on Enter. */
+export function SearchField({
+  label,
+  description,
+  errorMessage,
+  placeholder,
+  className,
+  ...props
+}: SearchFieldProps) {
+  const t = useStrings();
+  return (
+    <AriaSearchField {...props} className={cx("cs-Field", "cs-SearchField", className)}>
+      <Label className="cs-Label">{label}</Label>
+      <div className="cs-SearchField-box">
+        <Icon name="search" />
+        <Input className="cs-Input" {...(placeholder !== undefined && { placeholder })} />
+        <IconButton icon="close" label={t("search.clear")} className="cs-SearchField-clear" />
+      </div>
+      <FieldFooter description={description} errorMessage={errorMessage} />
+    </AriaSearchField>
   );
 }

@@ -4,10 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Course Suite</title>
-    <link rel="stylesheet" href="/src/page.css" />
-    <script type="module" src="/src/main.ts"></script>
+    <!-- Its rule is in @course-suite/ui/styles.css: the policy blocks React Aria's <style>. -->
+    <template id="react-aria-pressable-style"></template>
+    <script type="module" src="/src/main.tsx"></script>
   </head>
   <body>
-    <main id="app"></main>
+    <div id="root"></div>
   </body>
 </html>

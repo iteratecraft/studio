@@ -46,7 +46,7 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 
 - `packages/format` and `packages/labels` <- engine packages (`zip`, `player-blocks`, `tracking`, `exporters`,
   `project`, `conformance`) <-
-  `packages/ui` <- `apps/*`. Import only from layers to your left; import other packages by name, never by relative
+  `packages/ui` and the editor screens built on it (`blocks-editor`) <- `apps/*`. Import only from layers to your left; import other packages by name, never by relative
   path. `conformance` is test-only: `ui` and apps never import it (ADR-0001). `pnpm check:deps`
   enforces this.
 - Anything that ships inside a published course is MIT and may depend only on MIT packages. Everything

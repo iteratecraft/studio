@@ -11,11 +11,14 @@
     "size": "node scripts/size.ts"
   },
   "dependencies": {
+    "@course-suite/blocks-editor": "workspace:*",
+    "@course-suite/host": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@course-suite/zip": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

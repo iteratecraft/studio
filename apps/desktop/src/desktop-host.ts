@@ -15,6 +15,7 @@ import {
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { type InvokeArgs, type InvokeOptions, invoke } from "@tauri-apps/api/core";
 import { sep } from "@tauri-apps/api/path";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 
 const ref = (path: string): FileRef => ({
@@ -69,6 +70,8 @@ export function createDesktopHost(): HostInterface {
         return ref([await dataDir, ...parts].join(sep()));
       },
       read: (file) => readFile(file.id),
+      modified: async (file) =>
+        (await call<number | null>("file_modified", { path: file.id })) ?? undefined,
       write: (file, data) => writeFile(file.id, data),
       projectFiles: (file) => {
         const folder = file.id.slice(0, file.id.length - file.name.length);
@@ -88,5 +91,14 @@ export function createDesktopHost(): HostInterface {
     },
     // WebView2 keeps localStorage in the app's own profile folder, so it is private to the app.
     storage: createKeyValueStorage(localStorage),
+    onCloseRequested: (allow) => {
+      // While a page listener exists, the shell leaves closing to it (destroy when allowed).
+      const stop = getCurrentWindow().onCloseRequested(async (event) => {
+        if (!(await allow())) event.preventDefault();
+      });
+      return () => {
+        void stop.then((unlisten) => unlisten());
+      };
+    },
   };
 }

@@ -160,14 +160,26 @@ export async function restoreSnapshot(project: Project, id: string): Promise<voi
 /** A new, never saved project with the snapshot's document under a new project id, and its assets. */
 export async function restoreAsNewCourse(project: Project, id: string): Promise<Project> {
   const { course, assets } = await snapshotContent(project, id);
-  // Content-addressed bytes are shared, never copied; the new project's first save writes them.
+  return copyProject(project, withNewProjectId(course), assets);
+}
+
+/**
+ * A new, never saved project for `course` with `assets` (by default the project's current ones)
+ * and no snapshots: a duplicated course, or a snapshot restored as a new one. Content-addressed
+ * bytes are shared with `project`, never copied; the new project's first save writes them.
+ */
+export function copyProject(
+  project: Project,
+  course: Course,
+  assets: Record<string, Asset> = project.assets,
+): Project {
   const store = {
     ...emptyStore(),
     blobs: new Map(project.store.blobs),
     sources: [...project.store.sources],
     verified: new Map(project.store.verified),
   };
-  return { ...createProject(withNewProjectId(course)), assets, store };
+  return { ...createProject(course), assets: structuredClone(assets), store };
 }
 
 async function snapshotContent(project: Project, id: string) {

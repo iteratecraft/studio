@@ -1,14 +1,15 @@
 # @course-suite/desktop
 
 The desktop app (M2-01, ADR-0006): a Tauri 2 shell around the editor UI, which runs in WebView2 on
-Windows. There is no Node.js at run time. Until the editor arrives in wave G the window shows a
-placeholder page that asks the host for the app's name and version.
+Windows. There is no Node.js at run time. The window shows the blocks editor
+(`@course-suite/blocks-editor`, M2-08) over the desktop host: the dashboard on launch, one course
+at a time in the editor.
 
 | Path | What it holds |
 |---|---|
-| `index.html`, `src/` | The frontend, built by Vite into `dist/` |
+| `index.html`, `src/` | The frontend, built by Vite into `dist/`: `src/main.tsx` mounts the editor |
 | `src/desktop-host.ts` | The desktop adapter of `@course-suite/host`, the only code allowed to import `@tauri-apps/*` |
-| `src-tauri/` | The Rust shell: window, default menu, the dialog plugin and our file commands (`src/files.rs`) |
+| `src-tauri/` | The Rust shell: window, default menu, the dialog plugin, our file commands (`src/files.rs`) and the remembered picks (`src/picks.rs`) |
 | `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities |
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
 
@@ -17,10 +18,20 @@ placeholder page that asks the host for the app's name and version.
 - **Content security policy:** `default-src 'none'`; script, style, images and fonts only from the
   app itself; connections only to Tauri's IPC. No inline script, no eval, no remote origin.
   `devCsp` adds only inline styles and Vite's reload socket, for development.
-- **Commands:** app name and version, the open and save dialogs, and the shell's own file commands
-  (`data_folder`, `read_file`, `write_atomic`, `rename_file`, `remove_path`, `list_folder`).
-  Nothing else, and only for the `main` window. No file system plugin command is granted: the
-  plugin only records the files the user picks in a dialog.
+- **Commands:** app name and version, the open and save dialogs, the shell's own file commands
+  (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
+  `list_folder`), and listening for the window's close request with `destroy` to close it, so the
+  editor can offer to save first (`HostInterface.onCloseRequested`). Nothing else, and only for the
+  `main` window. No file system plugin command is granted: the plugin only records the files the
+  user picks in a dialog.
+- **Remembered picks:** `src/picks.rs` keeps the newest 100 files picked in a dialog in
+  `picked.txt` beside the data folder, out of the page's reach, and allows them again at the next
+  start, so the editor's course list reopens them without a dialog. Only a dialog adds to it.
+- **Window title:** `main.rs` builds the window from `tauri.conf.json` (`create: false`) and keeps
+  its title in step with the page's `<title>` (the open course, `*` while unsaved), so the page
+  needs no permission for it.
+- **React Aria's style element:** the policy blocks it; `index.html` holds the marker that tells
+  React Aria its rule is already in the kit's stylesheet (`packages/ui/README.md`).
 - **Files:** every path goes through one rule in `src-tauri/src/files.rs`:
   - the data folder, `%LOCALAPPDATA%\org.iteratecraft.coursesuite\data`: everything. The folder
     above it also holds WebView2's own profile (`EBWebView`: cookies, local storage, preferences),
@@ -32,7 +43,7 @@ placeholder page that asks the host for the app's name and version.
   Paths must be absolute, without `..` and without parts ending in a dot or space.
 
 `test/shell.test.ts` pins the policy and the capability; `e2e/app.e2e.ts` checks them in the built
-app.
+app, along with the editor starting without a policy violation, the window title and closing.
 
 ## Build and run
 

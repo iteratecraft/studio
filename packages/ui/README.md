@@ -20,9 +20,10 @@ const toasts = new ToastQueue();
 </UiProvider>;
 ```
 
-Components: `Button`, `IconButton`, `Toolbar`, `Tooltip`, `TextField`, `TextArea`, `Checkbox`,
-`Switch`, `Select`, `Menu`, `Tabs`, `Dialog`, `Popover`, `ToastRegion`, `ListBox`, `GridList`
-(reorder with `useReorder`), `Tree`, `Splitter`, `EmptyState`, `ProgressBar` and `Icon`.
+Components: `Button`, `IconButton`, `ToggleButtonGroup` with `ToggleButton`, `Toolbar`, `Tooltip`,
+`TextField`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`,
+`Popover`, `ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`; `layout="grid"` for
+cards), `Tree`, `Splitter`, `EmptyState`, `ProgressBar` and `Icon`.
 
 ## Tokens and themes
 
@@ -40,6 +41,13 @@ partial catalogue passed to `UiProvider` with its BCP 47 `locale`; missing keys 
 English, and right-to-left languages turn the layout round. Learner text is not here: it lives in
 `@course-suite/labels`. The pseudo-languages `en-XA` (longer, accented) and `ar-XB` (the same,
 right to left) find text that skips the catalogue and layouts that break.
+
+## Strict content security policy
+
+React Aria adds one rule of its own in a `<style>` element (`touch-action` on pressable controls),
+which a policy allowing styles only from files blocks, as the desktop app's does. `styles.css`
+carries that rule; a page under such a policy also holds `<template id="react-aria-pressable-style">`
+so React Aria does not try (see `apps/desktop/index.html`).
 
 ## Rules
 

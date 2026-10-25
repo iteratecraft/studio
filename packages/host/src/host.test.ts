@@ -120,6 +120,36 @@ describe("memory host", () => {
     await expect(host.files.read(file)).rejects.toMatchObject({ code: "not-found" });
   });
 
+  test("tells when a file last changed, without reading it, and undefined when it is missing", async () => {
+    const host = createMemoryHost({
+      files: [["docs/a.crs", bytes("a")]],
+      onPickOpen: () => ["docs/a.crs"],
+    });
+    const unpicked = { id: "docs/a.crs", name: "a.crs" };
+    await expect(host.files.modified(unpicked)).rejects.toMatchObject({ code: "not-allowed" });
+    const [file] = await host.files.pickOpen();
+    const before = Date.now();
+    expect(await host.files.modified(unpicked)).toBeLessThanOrEqual(before);
+    if (file) await host.files.write(file, bytes("b"));
+    expect(await host.files.modified(unpicked)).toBeGreaterThanOrEqual(before);
+    host.disk.delete("docs/a.crs");
+    expect(await host.files.modified(unpicked)).toBeUndefined();
+    expect(await host.files.modified(await host.files.dataFile("none.json"))).toBeUndefined();
+  });
+
+  test("closing the window asks the last close listener set, and closes without one", async () => {
+    const host = createMemoryHost();
+    expect(await host.requestClose()).toBe(true);
+    const stopFirst = host.onCloseRequested(async () => false);
+    expect(await host.requestClose()).toBe(false);
+    const stop = host.onCloseRequested(async () => true);
+    stopFirst();
+    expect(await host.requestClose()).toBe(true);
+    host.onCloseRequested(async () => false);
+    stop();
+    expect(await host.requestClose()).toBe(false);
+  });
+
   test("storage keeps values and forgets deleted ones", async () => {
     const { storage } = createMemoryHost();
     expect(await storage.get("recent")).toBeUndefined();
@@ -194,11 +224,11 @@ describe("project files", () => {
 });
 
 test("the host has no job port: long tasks keep the one contract of @course-suite/jobs (ENG-15)", () => {
-  const ports = ["appInfo", "files", "storage"];
+  const ports = ["appInfo", "files", "onCloseRequested", "storage"];
   expect(Object.keys(createBrowserHost({ name: "a", version: "1" }, mapStore())).sort()).toEqual(
     ports,
   );
-  expect(Object.keys(createMemoryHost()).sort()).toEqual(["disk", ...ports].sort());
+  expect(Object.keys(createMemoryHost()).sort()).toEqual(["disk", "requestClose", ...ports].sort());
   expect(Object.keys(host).filter((name) => /job/i.test(name))).toEqual([]);
 });
 

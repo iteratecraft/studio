@@ -20,6 +20,10 @@ editor.subscribe(({ document, ids, source }) => autosave(document, ids));
 `applyCommands(course, commands)` is the same check and apply without a session, for a server or a
 worker. It never changes its input.
 
+`copyCourse(course)` duplicates a whole course (rise.md 3J, BLK-01): a new project id and a new
+id for every object, with every reference inside the course pointing at the copies; references to
+other containers are kept.
+
 ## Commands
 
 | Command | For |

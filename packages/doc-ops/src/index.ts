@@ -14,6 +14,7 @@ export type {
   Verb,
 } from "./commands.js";
 export { applyCommands, COLLECTIONS, COMMAND_TYPES, LOCKED } from "./commands.js";
+export { copyCourse } from "./copy.js";
 export type { ChangeEvent, Editor, EditorOptions } from "./editor.js";
 export { createEditor } from "./editor.js";
 export type { Op, Path } from "./ops.js";

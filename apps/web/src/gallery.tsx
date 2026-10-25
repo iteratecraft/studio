@@ -23,6 +23,7 @@ import {
   Popover,
   ProgressBar,
   PSEUDO_LOCALES,
+  SearchField,
   Select,
   Splitter,
   Switch,
@@ -34,6 +35,8 @@ import {
   TextField,
   ToastQueue,
   ToastRegion,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   ToolbarSeparator,
   Tree,
@@ -167,6 +170,21 @@ export function Gallery() {
             errorMessage="Give the lesson a title."
           />
           <TextArea label="Description" placeholder="What learners will get from it" />
+        </Section>
+
+        <Section id="search-field" title="Search field">
+          <SearchField label="Search by title" defaultValue="Safety" />
+        </Section>
+
+        <Section id="toggle-buttons" title="Toggle buttons">
+          <ToggleButtonGroup
+            aria-label="View"
+            selectionMode="single"
+            defaultSelectedKeys={["grid"]}
+          >
+            <ToggleButton id="grid" icon="grid" label="Grid" />
+            <ToggleButton id="list" icon="list" label="List" />
+          </ToggleButtonGroup>
         </Section>
 
         <Section id="checkboxes" title="Checkbox and switch">

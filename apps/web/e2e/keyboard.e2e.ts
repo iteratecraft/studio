@@ -31,6 +31,9 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   await press(page, "Tab", page.getByRole("textbox", { name: "Course title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Lesson title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Description" }));
+  // The search field's clear button is not a stop; the toggle buttons are one.
+  await press(page, "Tab", page.getByRole("searchbox", { name: "Search by title" }));
+  await press(page, "Tab", page.getByRole("radio", { name: "Grid" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Show lesson numbers" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Some lessons are required" }));
   // The disabled switch is skipped.
@@ -52,6 +55,24 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   // Progress bars and icons are not stops; Tab leaves the page.
   await page.keyboard.press("Tab");
   await expect(page.locator("main :focus")).toHaveCount(0);
+});
+
+test("search field and toggle buttons: Escape clears the search, arrows move between toggles", async ({
+  page,
+}) => {
+  const search = page.getByRole("searchbox", { name: "Search by title" });
+  await search.focus();
+  await expect(search).toHaveValue("Safety");
+  await press(page, "Escape", search);
+  await expect(search).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Clear search" })).toBeHidden();
+  const grid = page.getByRole("radio", { name: "Grid" });
+  const list = page.getByRole("radio", { name: "List" });
+  await grid.focus();
+  await press(page, "ArrowRight", list);
+  await page.keyboard.press("Space");
+  await expect(list).toBeChecked();
+  await expect(grid).not.toBeChecked();
 });
 
 test("buttons: an icon button shows its name as a tooltip on focus, Escape hides it", async ({

@@ -62,6 +62,11 @@ export interface HostFiles {
    */
   write(file: FileRef, data: Uint8Array): Promise<void>;
   /**
+   * When a file the user picked, or one in the app data folder, last changed, in milliseconds
+   * since 1970; `undefined` when it does not exist. The file is not read.
+   */
+  modified(file: FileRef): Promise<number | undefined>;
+  /**
    * The files of a project the user picked, for the project container (`ProjectFiles` of
    * @course-suite/project): the picked file, by its `name`, and everything in its autosave folder
    * `.<name>.autosave` next to it (`autosaveFolderOf`, D-4). Nothing else in that folder is
@@ -115,6 +120,12 @@ export interface HostInterface {
   appInfo(): Promise<AppInfo>;
   readonly files: HostFiles;
   readonly storage: HostStorage;
+  /**
+   * Asks `allow` before the app window closes, for example to offer to save unsaved work: the
+   * window closes when it resolves to true and stays open otherwise. One listener at a time, the
+   * last one set; returns a function that removes it.
+   */
+  onCloseRequested(allow: () => Promise<boolean>): () => void;
 }
 
 export type HostErrorCode =

@@ -4,9 +4,9 @@
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadBlocksCorpus, TEST_COURSES_DIR } from "@course-suite/conformance";
 import type { Course } from "@course-suite/format";
 import { addAsset, createProject, openProject, saveProject } from "@course-suite/project";
+import { loadBlocksCorpus, TEST_COURSES_DIR } from "./corpus.ts";
 import { nodeProjectFiles } from "./node-files.ts";
 
 const corpus = loadBlocksCorpus();

@@ -11,6 +11,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Course Suite",
         "width": 1280,
         "height": 800,
