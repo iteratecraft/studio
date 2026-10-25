@@ -30,14 +30,14 @@ const flaggedLines = FIXTURE.split("\n").flatMap((line, i) =>
 const scratch = mkdtempSync(join(tmpdir(), "editor-imports-"));
 afterAll(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 3 }));
 
-/** Lints FIXTURE saved at `path` with the repository's overrides; returns the reported lines. */
+/** Lints FIXTURE saved at `path` with the repository's import rules; returns the reported lines. */
 function lint(path: string): number[] {
-  const { overrides } = JSON.parse(readFileSync(join(repoRoot, "biome.json"), "utf8"));
+  const { linter, overrides } = JSON.parse(readFileSync(join(repoRoot, "biome.json"), "utf8"));
   const editorOverrides = overrides.filter((o: { plugins?: unknown }) => !o.plugins);
   const dir = mkdtempSync(join(scratch, "case-"));
   writeFileSync(
     join(dir, "biome.json"),
-    JSON.stringify({ root: true, overrides: editorOverrides }),
+    JSON.stringify({ root: true, linter, overrides: editorOverrides }),
   );
   mkdirSync(dirname(join(dir, path)), { recursive: true });
   writeFileSync(join(dir, path), FIXTURE);
@@ -60,8 +60,10 @@ test("the rule covers the web app's UI code", () => {
   expect(lint("apps/web/src/gallery.tsx")).toEqual(flaggedLines);
 });
 
-test("tests, browser-test files and other packages may import them", () => {
-  expect(lint("packages/ui/src/tokens.test.ts")).toEqual([]);
-  expect(lint("apps/web/e2e/axe.ts")).toEqual([]);
+test("tests and browser-test files may import Node.js; only the desktop app may import Tauri", () => {
+  const lines = FIXTURE.split("\n");
+  const tauriLines = flaggedLines.filter((n) => lines[n - 1]?.includes("@tauri-apps"));
+  expect(lint("packages/ui/src/tokens.test.ts")).toEqual(tauriLines);
+  expect(lint("apps/web/e2e/axe.ts")).toEqual(tauriLines);
   expect(lint("apps/desktop/src/host.ts")).toEqual([]);
 });

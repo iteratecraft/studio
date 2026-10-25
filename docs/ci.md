@@ -4,7 +4,7 @@
 
 | Job | Runner | What it does |
 |---|---|---|
-| `check (windows-latest)` | Windows | Install, build, typecheck, lint, unit tests, guards, licences and the browser tests (`pnpm test:e2e`): everything in the command table of `AGENTS.md` |
+| `check (windows-latest)` | Windows | Install, build, typecheck, lint, unit tests, guards, licences, the desktop app (Rust formatting and unit tests, release build, 15 MB size gate) and the browser tests (`pnpm test:e2e`, including a launch of the built desktop app): everything in the command table of `AGENTS.md` |
 | `moodle (SCORM 1.2 end to end)` | Linux | Our SCORM 1.2 packages in a real Moodle (M1-21) |
 
 The product is Windows-first (ADR-0001). The Moodle job is the one Linux job, an exception the

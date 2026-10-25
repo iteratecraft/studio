@@ -53,6 +53,8 @@ ships with it.
 | @internationalized/string | 3.2.10 | Apache-2.0 | no |
 | @react-types/shared | 3.37.0 | Apache-2.0 | no |
 | @swc/helpers | 0.5.23 | Apache-2.0 | no |
+| @tauri-apps/api | 2.12.3 | Apache-2.0 OR MIT | no |
+| @tauri-apps/plugin-dialog | 2.8.2 | MIT OR Apache-2.0 | no |
 | @xmldom/xmldom | 0.9.12 | MIT | no |
 | aria-hidden | 1.2.6 | MIT | no |
 | client-only | 0.0.1 | MIT | no |

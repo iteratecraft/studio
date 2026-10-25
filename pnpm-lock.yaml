@@ -52,10 +52,29 @@ importers:
         version: 7.0.2
 
   apps/desktop:
+    dependencies:
+      '@course-suite/host':
+        specifier: workspace:*
+        version: link:../../packages/host
+      '@tauri-apps/api':
+        specifier: 2.12.3
+        version: 2.12.3
+      '@tauri-apps/plugin-dialog':
+        specifier: 2.8.2
+        version: 2.8.2
     devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@24.19.1)
       vitest:
         specifier: 'catalog:'
-        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.4(@types/node@24.19.1))
 
   apps/server:
     devDependencies:
@@ -128,6 +147,19 @@ importers:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
 
+  packages/doc-ops:
+    dependencies:
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+
   packages/exporters:
     dependencies:
       '@course-suite/format':
@@ -154,6 +186,12 @@ importers:
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
 
   packages/format:
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+
+  packages/host:
     devDependencies:
       vitest:
         specifier: 'catalog:'
@@ -544,6 +582,12 @@ packages:
 
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
+
+  '@tauri-apps/api@2.12.3':
+    resolution: {integrity: sha512-9s0PKw0p4r3kFq92jhpivYSp+cSht15o0gXpZxuQd0+dV9KCexEVkNaLELVoLdJWyoH4KlfQo5h3W2LIM8siJg==}
+
+  '@tauri-apps/plugin-dialog@2.8.2':
+    resolution: {integrity: sha512-LFqp8OTx0bHOwhKRhMMDyRDlo/2IO5XxoOclpf8+yvjAfM2ytVdbB6tk63dBlicsR8pRw38maj/GxrU6cW8mXw==}
 
   '@turbo/darwin-64@2.11.7':
     resolution: {integrity: sha512-Z2LFOxwbiJueD1miByXJS/BrW21vv6YaQXZustty5jEX4vQYw6zyh101Sz1QO7WG0mqBzKagZ/DoAeeujI0/Sw==}
@@ -1274,6 +1318,12 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@tauri-apps/api@2.12.3': {}
+
+  '@tauri-apps/plugin-dialog@2.8.2':
+    dependencies:
+      '@tauri-apps/api': 2.12.3
+
   '@turbo/darwin-64@2.11.7':
     optional: true
 
@@ -1372,6 +1422,15 @@ snapshots:
 
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
+
+  '@vitest/mocker@5.0.3(vite@8.3.4(@types/node@24.19.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      '@vitest/spy': 5.0.3
+      estree-walker: 3.0.3
+      magic-string: 1.4.3
+    optionalDependencies:
+      vite: 8.3.4(@types/node@24.19.1)
 
   '@vitest/mocker@5.0.3(vite@8.3.5(@types/node@24.19.1))':
     dependencies:
@@ -1656,6 +1715,27 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.19.1
       fsevents: 2.3.3
+
+  vitest@5.0.3(@types/node@24.19.1)(vite@8.3.4(@types/node@24.19.1)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.0.3(vite@8.3.4(@types/node@24.19.1))
+      chai: 6.3.0
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.3
+      obug: 2.2.1
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 6.2.2
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      vite: 8.3.4(@types/node@24.19.1)
+      why-is-node-running: 3.2.1
+    optionalDependencies:
+      '@types/node': 24.19.1
+    transitivePeerDependencies:
+      - msw
 
   vitest@5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1)):
     dependencies:
