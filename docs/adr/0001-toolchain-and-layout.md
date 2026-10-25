@@ -25,7 +25,7 @@ must not put obligations on the companies that publish courses.
 | Unit tests | Vitest | pnpm `catalog` |
 | Lint and format | Biome (one tool, one config) | `biome.json` |
 | Browser tests | Playwright | added by M0-03 |
-| Desktop installers | electron-builder | added by M0-08 |
+| Desktop shell and installers | Tauri 2 and its bundler (ADR-0006 replaced electron-builder) | added by M2-01, M2-19 |
 | Server | Fastify | added by M0-10 |
 
 - Dependency versions are exact, never ranges. A version shared by several packages lives once in the
@@ -66,7 +66,7 @@ packages/tracking        SCORM / xAPI / cmi5 runtime          MIT
 packages/exporters       builds course packages               Apache-2.0
 packages/conformance     package reader and test LMS          Apache-2.0
 packages/ui              shared React UI for the apps         Apache-2.0
-apps/desktop             Electron app                         Apache-2.0
+apps/desktop             Tauri app (ADR-0006)                 Apache-2.0
 apps/server              self-hosted server                   Apache-2.0
 apps/web                 browser app                          Apache-2.0
 tools/                   repository tooling and its tests     Apache-2.0

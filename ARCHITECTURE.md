@@ -48,10 +48,10 @@ Shared web UI (React): editors, review, admin, learner portal
 Shared engine (TypeScript): course format (JSON Schema) · player (DOM/SVG, accessible) ·
   trigger/state/variable engine · exporters (SCORM 1.2/2004, xAPI, cmi5, web, video, PDF) ·
   importers (.story, PPTX, XLIFF) · AI provider layer
-Desktop shell: Electron (one Chromium on every OS, so rendering is identical)
+Desktop shell: Tauri 2 (uses the system web engine, WebView2 on Windows; no Node.js at run time; ADR-0006)
 Server: Node.js + TypeScript · PostgreSQL · S3-compatible storage (MinIO when self-hosted) ·
   Yjs CRDT co-editing via Hocuspocus · learner tracking (xAPI statements, SCORM runtime)
-Media: ffmpeg (bundled) · local text-to-speech (optional)
+Media: ffmpeg (sidecar, downloaded on first use) · local text-to-speech (optional)
 ```
 
 ## Stack decisions
@@ -59,7 +59,7 @@ Media: ffmpeg (bundled) · local text-to-speech (optional)
 | Area | Choice | Reason |
 |---|---|---|
 | Language | TypeScript everywhere | One language for the player, editors, server and tooling |
-| Desktop | Electron | No Rust to maintain; identical rendering on Windows and macOS |
+| Desktop | Tauri 2 (ADR-0006) | Installer of about 5–15 MB and low memory; WebView2 is Chromium on Windows; Rust side kept to setup and official plugins |
 | UI | React | Widely known; AI agents write it well |
 | Server | Node.js (TypeScript) | Reuses engine code directly |
 | Data | PostgreSQL + S3-compatible storage | Standard, and scales horizontally |
