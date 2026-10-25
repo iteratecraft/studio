@@ -117,6 +117,34 @@ describe("asset store", () => {
   });
 });
 
+describe("storage keys", () => {
+  test.each([
+    ["__proto__", "__proto__"],
+    ["../../escape.png", "../../escape.png"],
+    ["a/b.png", "a/b.png"],
+    ["Photo.png", "Photo.png"],
+    ["an empty key", ""],
+    ["a 129-character key", "x".repeat(129)],
+  ])("addAsset refuses %s and leaves the store unchanged", async (_, key) => {
+    const project = createProject(sample().course);
+    await expect(addAsset(project, new Uint8Array([1]), FONT, key)).rejects.toThrow(
+      "is not a valid storage key",
+    );
+    expect(Object.getPrototypeOf(project.assets)).toBe(Object.prototype);
+    expect(project.assets).toEqual({});
+    expect(project.store.blobs.size).toBe(0);
+  });
+
+  test("readAsset finds only the store's own keys, not inherited ones", async () => {
+    const project = createProject(sample().course);
+    await addAsset(project, new Uint8Array([1]), FONT, "x".repeat(128));
+    expect(await readAsset(project, "x".repeat(128))).toEqual(new Uint8Array([1]));
+    expect(await readAsset(project, "constructor")).toBeUndefined();
+    expect(await readAsset(project, "toString")).toBeUndefined();
+    expect(await readAsset(project, "__proto__")).toBeUndefined();
+  });
+});
+
 describe("snapshots (ENG-11 done-when: restoring a snapshot reproduces the exact document and assets)", () => {
   for (const fixture of fixtures()) {
     test(`${fixture.name}: restore, after a save and reopen, gives back the snapshot's document and assets`, async () => {
@@ -377,6 +405,124 @@ describe("opening damaged or foreign files", () => {
     const problems = await problemsOf(entries);
     expect(problems.length).toBeGreaterThan(0);
     expect(problems[0]?.message).toContain(message);
+  });
+
+  // `__proto__` is spliced into the JSON text: as an object literal key it would set a prototype.
+  const record = { hash: "0".repeat(64), size: 1, name: "a", type: "", source: "upload" };
+  const withKey = (key: string, place: (assets: object) => object) =>
+    manifest(place({ KEY: record })).replace('"KEY"', JSON.stringify(key));
+  const inSnapshot = (assets: object) => ({
+    snapshots: [{ id: "a000000000", name: "v", trigger: "manual", createdAt: "", assets }],
+  });
+  test.each([
+    ["__proto__", (assets: object) => ({ assets })],
+    ["../../../evil.png", (assets: object) => ({ assets })],
+    ["assets/a.png", (assets: object) => ({ assets })],
+    ["Photo.png", (assets: object) => ({ assets })],
+    ["", (assets: object) => ({ assets })],
+    ["__proto__", inSnapshot],
+    ["../evil.png", inSnapshot],
+  ])(
+    "refuses the asset key '%s' in the manifest: storage keys follow the course format's rule",
+    async (key, place) => {
+      const problems = await problemsOf({
+        "project.json": withKey(key, place),
+        "course.json": course,
+      });
+      expect(problems).toEqual([
+        { file: "project.json", message: expect.stringContaining("is not a valid storage key") },
+      ]);
+    },
+  );
+
+  /** The project file with some entries replaced, written with valid CRCs. */
+  async function rewritten(data: Uint8Array, change: Record<string, Uint8Array | string>) {
+    const zip = await readZip(data);
+    if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
+    const entries = new Map<string, Uint8Array | string>();
+    for (const name of zip.value.names) entries.set(name, (await zip.value.read(name)) ?? "");
+    for (const [name, value] of Object.entries(change)) entries.set(name, value);
+    return writeZip(
+      [...entries].map(([name, value]) => ({
+        name,
+        data: typeof value === "string" ? new TextEncoder().encode(value) : value,
+      })),
+    );
+  }
+
+  async function savedWithAsset() {
+    const files = memoryProjectFiles();
+    const project = createProject(sample().course);
+    const genuine = new TextEncoder().encode("the genuine font, 29 bytes...");
+    const key = await addAsset(project, genuine, FONT, "body.woff2");
+    const hash = project.assets[key]?.hash as string;
+    await saveProject(files, NAME, project);
+    return { files, genuine, key, hash, data: files.files.get(NAME) as Uint8Array };
+  }
+
+  test.each([
+    ["other bytes of another size", new TextEncoder().encode("19 bytes, not ours")],
+    ["other bytes of the same size", new TextEncoder().encode("a forged font of 29 bytes....")],
+  ])(
+    "refuses a file whose asset bytes were replaced with %s and a valid CRC",
+    async (_, forged) => {
+      const { files, hash, data } = await savedWithAsset();
+      files.files.set(NAME, await rewritten(data, { [`assets/${hash}`]: forged }));
+      const result = await openProject(files, NAME);
+      expect(result).toEqual({
+        ok: false,
+        problems: [
+          { file: `assets/${hash}`, message: "does not match its SHA-256; the file is damaged" },
+        ],
+      });
+    },
+  );
+
+  test("refuses forged bytes the manifest does not list, so adding the genuine file never keeps them", async () => {
+    const { files, genuine, hash } = await savedWithAsset();
+    const empty = memoryProjectFiles();
+    await saveProject(empty, NAME, createProject(sample().course));
+    const forged = genuine.map((byte) => byte ^ 1);
+    const data = await rewritten(empty.files.get(NAME) as Uint8Array, {
+      [`assets/${hash}`]: forged,
+    });
+    files.files.set(NAME, data);
+    const result = await openProject(files, NAME);
+    expect(result.ok).toBe(false);
+    expect(result.ok || result.problems[0]?.message).toContain("does not match its SHA-256");
+  });
+
+  test("refuses a file whose asset store declares another size than the bytes hold", async () => {
+    const { files, key, hash, data } = await savedWithAsset();
+    const zip = await readZip(data);
+    if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
+    const text = new TextDecoder().decode(await zip.value.read("project.json"));
+    const manifest = JSON.parse(text);
+    manifest.assets[key].size = 30;
+    files.files.set(NAME, await rewritten(data, { "project.json": JSON.stringify(manifest) }));
+    expect(await openProject(files, NAME)).toEqual({
+      ok: false,
+      problems: [
+        { file: `assets/${hash}`, message: "holds 29 bytes but the asset store declares 30" },
+      ],
+    });
+  });
+
+  test("skips an autosave whose asset bytes do not match their hash", async () => {
+    const { files } = await savedWithAsset();
+    const project = await opened(files);
+    const added = new Uint8Array([7, 7, 7]);
+    const key = await addAsset(project, added, FONT, "added.woff2");
+    await autosaveProject(files, NAME, project);
+    const autosave = `${autosaveFolder(NAME)}/2.course`;
+    const hash = project.assets[key]?.hash as string;
+    const forged = await rewritten(files.files.get(autosave) as Uint8Array, {
+      [`assets/${hash}`]: new Uint8Array([6, 6, 6]),
+    });
+    files.files.set(autosave, forged);
+    const result = await openProject(files, NAME);
+    expect(result.ok).toBe(true);
+    expect(result.recovered).toBeUndefined();
   });
 
   test("refuses bytes that are not a ZIP archive", async () => {

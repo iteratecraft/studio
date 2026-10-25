@@ -85,7 +85,7 @@ async function newestAutosave(files: ProjectFiles, name: string, main?: Project)
     if (main && revision <= main.revision) return undefined;
     const bytes = await files.read(`${folder}/${revision}${PROJECT_EXTENSION}`);
     if (!bytes) continue;
-    const decoded = await decodeProject(bytes, main?.store.sources[0]);
+    const decoded = await decodeProject(bytes, main?.store);
     if (!decoded.ok || decoded.value.project.revision !== revision) continue;
     const { project } = decoded.value;
     // It builds on the project file: saving it next replaces that file, not an autosave.

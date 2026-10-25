@@ -2,7 +2,13 @@
 // snapshots (ENG-11). Asset and snapshot bytes stay in the file the project was opened from until
 // they are needed; only what was added since is held in memory.
 import type { Course, MediaEntry } from "@course-suite/format";
-import { newContentId, openCourse, serializeCourse, withNewProjectId } from "@course-suite/format";
+import {
+  courseSchema,
+  newContentId,
+  openCourse,
+  serializeCourse,
+  withNewProjectId,
+} from "@course-suite/format";
 import type { ZipArchive } from "@course-suite/zip";
 
 /** One file in the asset store: media, fonts (a `font/` type) and anything else the course uses. */
@@ -60,6 +66,11 @@ export interface Store {
   snapshots: Map<string, string>;
   /** The opened files, searched in order: an autosave first, then the project file. */
   sources: ZipArchive[];
+  /**
+   * Size in bytes of each asset in `sources`, by hash, once its bytes matched the hash. Bytes from
+   * a file are trusted only when listed here.
+   */
+  verified: Map<string, number>;
   /** Hashes of the asset bytes in the project file on disk; autosaves leave them out. */
   saved: Set<string>;
 }
@@ -73,8 +84,17 @@ const emptyStore = (): Store => ({
   blobs: new Map(),
   snapshots: new Map(),
   sources: [],
+  verified: new Map(),
   saved: new Set(),
 });
+
+// The course format owns the storage key rule; the asset store uses the media entries' keys.
+const STORAGE_KEY = new RegExp(
+  (courseSchema.$defs as { StorageKey: { pattern: string } }).StorageKey.pattern,
+);
+
+/** Whether `key` is a valid storage key: lowercase, no slashes, at most 128 characters. */
+export const isStorageKey = (key: string) => STORAGE_KEY.test(key);
 
 /** A new, never saved project for `course`. */
 export function createProject(course: Course): Project {
@@ -91,6 +111,9 @@ export async function addAsset(
   info: AssetInfo,
   key?: string,
 ): Promise<string> {
+  if (key !== undefined && !isStorageKey(key)) {
+    throw new Error(`'${key}' is not a valid storage key (${STORAGE_KEY.source})`);
+  }
   const hash = await sha256(data);
   const extension = /\.[A-Za-z0-9]{1,8}$/.exec(info.name)?.[0].toLowerCase() ?? "";
   const storageKey = key ?? `${hash}${extension}`;
@@ -101,7 +124,7 @@ export async function addAsset(
 
 /** The bytes of the asset with this storage key, or undefined when the store has none. */
 export async function readAsset(project: Project, key: string): Promise<Uint8Array | undefined> {
-  const asset = project.assets[key];
+  const asset = Object.hasOwn(project.assets, key) ? project.assets[key] : undefined;
   return asset && readBlob(project.store, asset.hash);
 }
 
@@ -142,6 +165,7 @@ export async function restoreAsNewCourse(project: Project, id: string): Promise<
     ...emptyStore(),
     blobs: new Map(project.store.blobs),
     sources: [...project.store.sources],
+    verified: new Map(project.store.verified),
   };
   return { ...createProject(withNewProjectId(course)), assets, store };
 }
@@ -166,12 +190,13 @@ export function keptHashes(project: Project): Set<string> {
 }
 
 export function hasBlob(store: Store, hash: string): boolean {
-  return store.blobs.has(hash) || store.sources.some((source) => source.has(blobPath(hash)));
+  return store.blobs.has(hash) || store.verified.has(hash);
 }
 
 export async function readBlob(store: Store, hash: string): Promise<Uint8Array | undefined> {
   const added = store.blobs.get(hash);
   if (added) return added;
+  if (!store.verified.has(hash)) return undefined;
   const source = store.sources.find((item) => item.has(blobPath(hash)));
   return source?.read(blobPath(hash));
 }
@@ -184,7 +209,8 @@ export async function readSnapshot(store: Store, id: string): Promise<string | u
   return data && new TextDecoder().decode(data);
 }
 
-async function sha256(data: Uint8Array): Promise<string> {
+/** SHA-256 of `data` in lowercase hex. */
+export async function sha256(data: Uint8Array): Promise<string> {
   const digest = new Uint8Array(
     await crypto.subtle.digest("SHA-256", data as Uint8Array<ArrayBuffer>),
   );
