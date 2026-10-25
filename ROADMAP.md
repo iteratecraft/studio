@@ -354,11 +354,11 @@ planning.
 - [x] **M0-04** Licences and licence gate: Apache-2.0 root, MIT for every course-shipped package, NOTICE, scanner of built contents
 - [x] **M0-05** Clean-room and trademark guard in CI, PR template citing spec ids
 - [x] **M0-06** Spec traceability report: every numbered spec rule mapped to tagged tests
-- [ ] **M0-07** Desktop shell with a strict security boundary *(now M2-01, Tauri per ADR-0006)*
+- [x] **M0-07** Desktop shell with a strict security boundary *(now M2-01, Tauri per ADR-0006)*
 - [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(now M2-19, Windows first)*
 - [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(now M2-20, Windows first)*
 - [ ] **M0-10** Server skeleton: Fastify, /health, migrations; **one all-in-one image** (SQLite + local files by default, PostgreSQL + S3 by env vars), plus `compose.yaml`; documented single `docker run` command proven in CI *(before M3)*
-- [ ] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(now M2-05)*
+- [x] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(now M2-05)*
 - [x] **M0-12** `test-courses` repo scaffold, pinned in CI
 - [ ] **M0-13** Scheduler: recompute milestone dates from `depends_on` and team count; publish in CI
 - [x] **M0-14** Build-agent configuration: no REA server, no research checkout, vendor domains and spec-source hosts blocked
@@ -404,13 +404,13 @@ planning.
 
 Wave F, foundation:
 
-- [ ] **M2-01** Tauri shell: strict CSP, capability files allowing only the needed commands and paths, no Node.js at run time (M0-07, ADR-0006)
-- [ ] **M2-02** Host interface the editors code against, and its desktop adapter (ENG-12)
-- [ ] **M2-03** Document command layer: typed commands, validation, integrity, undo and redo, change events (ENG-10)
-- [ ] **M2-04** Project container: one file per course, autosave folder, crash-safe save, asset store, snapshots (ENG-11, D-4)
-- [ ] **M2-05** UI kit: design tokens, light and dark themes, keyboard patterns, string catalogue, web app skeleton (ENG-12, M0-11)
-- [ ] **M2-06** Job runner: Web Workers on desktop, progress, cancel, retry, resume after restart (ENG-15); the engine and exporters run without Node.js (ADR-0006)
-- [ ] **M2-07** Long-resume author warning at publish (carried from M1)
+- [x] **M2-01** Tauri shell: strict CSP, capability files allowing only the needed commands and paths, no Node.js at run time (M0-07, ADR-0006)
+- [x] **M2-02** Host interface the editors code against, and its desktop adapter (ENG-12)
+- [x] **M2-03** Document command layer: typed commands, validation, integrity, undo and redo, change events (ENG-10)
+- [x] **M2-04** Project container: one file per course, autosave folder, crash-safe save, asset store, snapshots (ENG-11, D-4)
+- [x] **M2-05** UI kit: design tokens, light and dark themes, keyboard patterns, string catalogue, web app skeleton (ENG-12, M0-11)
+- [x] **M2-06** Job runner: Web Workers on desktop, progress, cancel, retry, resume after restart (ENG-15); the engine and exporters run without Node.js (ADR-0006)
+- [x] **M2-07** Long-resume author warning at publish (carried from M1)
 
 Wave G, editor core:
 
@@ -488,6 +488,11 @@ Wave I, release:
 | D-30 | Product name | real name chosen before Desktop 0.1 goes public; options brought at the start of wave I | before Desktop 0.1 |
 | D-31 | Desktop shell | **Decided 2026-10-25:** Tauri 2 instead of Electron, for a small download and low memory; the engine runs without Node.js (ADR-0006) | done |
 | D-32 | Editor UI tooling | **Decided 2026-10-25:** Vite for building, React Aria Components for accessible controls with our own styling, our own zip code for the project file, newest stable versions at least two weeks old, pinned exactly | done |
+| D-33 | Course file name | **Decided 2026-10-25:** `<name>.crs`, with autosaves in a hidden `.<name>.crs.autosave` folder next to it | done |
+| D-34 | App identifier | **Decided 2026-10-25:** `org.iteratecraft.coursesuite` (names the app data folder) until the product name (D-30) is chosen; changed then, before any release | before Desktop 0.1 |
+| D-35 | Long-resume author warning | **Decided 2026-10-25:** counts only the data the player really stores; a course under the SCORM 1.2 limit of 4,096 characters gets no warning | done |
+| D-36 | Deleting a lesson that buttons point to | **Decided 2026-10-25:** the buttons that point to it are removed with it, in the same undo step | done |
+| D-37 | Built-in control text | **Decided 2026-10-25:** React Aria's text for 34 languages (27 KB) stays until the editor's languages are chosen | revisit with editor languages |
 
 ## How to read the backlog
 
