@@ -10,13 +10,17 @@ import {
   card,
   courseIn,
   create,
+  files,
   heading,
   launch,
   openFixture,
+  retitle,
   status,
 } from "./helpers.ts";
 
 const FILE = "Workshop basics.crs";
+/** A description with formatting a plain field cannot keep. */
+const RICH = "<p><strong>Bold</strong> start</p><ul><li>One</li></ul>";
 const SAW = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path d="M0 4h8"/></svg>';
 
 /**
@@ -97,6 +101,21 @@ async function saved(page: Page): Promise<Course> {
 }
 
 const outlineOf = (course: Course) => course.entries.map((entry) => `${entry.kind} ${entry.title}`);
+
+/** Rests the pointer on the outline's heading, away from every control, and waits for no tooltip. */
+async function pointerAway(page: Page): Promise<void> {
+  await page.getByRole("heading", { level: 2, name: "Outline" }).hover();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+}
+
+/** The course in the newest autosave next to course file `file`, if there is one. */
+async function autosaved(page: Page, file = FILE): Promise<Course | undefined> {
+  const folder = `.${file}.autosave/`;
+  const saves = (await files(page)).filter((name) => name.startsWith(folder));
+  const number = (name: string) => Number.parseInt(name.slice(folder.length), 10);
+  const newest = saves.sort((a, b) => number(a) - number(b)).at(-1);
+  return newest === undefined ? undefined : courseIn(page, newest);
+}
 
 async function rowAction(page: Page, title: string, action: string): Promise<void> {
   await row(page, title)
@@ -179,6 +198,70 @@ test.describe("course outline", () => {
     expect(course.entries[3]?.title).toBe("Shop notes");
   });
 
+  test("UI-BLOCKS-EDITOR-R13, BLK-01: a row title is kept while typing: autosaved after a pause, as one undo step, and closing the window asks to save it", async ({
+    page,
+  }) => {
+    await launch(page);
+    await openFixture(page, FILE, workshop());
+    // The third lesson's title, Notes: the row's name follows its title as it is typed.
+    const field = outline(page).getByRole("textbox", { name: "Lesson title" }).nth(2);
+    await expect(field).toHaveValue("Notes");
+    await field.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" and");
+    // A pause in typing hands the text to the course; the field keeps focus.
+    await expect(status(page)).toHaveText("Unsaved changes");
+    await expect(field).toBeFocused();
+    await page.keyboard.type(" sketches");
+    // BLK-01: a crash loses at most 10 seconds of typing.
+    await expect
+      .poll(async () => (await autosaved(page))?.entries[3]?.title, { timeout: 10_000 })
+      .toBe("Notes and sketches");
+    await expect(field).toBeFocused();
+
+    // Closing the window while the field is still being typed in asks first.
+    await page.keyboard.type("!");
+    const closing = page.evaluate(() => window.editorTest.host.requestClose());
+    const guard = page.getByRole("alertdialog", { name: "Save changes to Workshop basics?" });
+    await guard.getByRole("button", { name: "Cancel" }).click();
+    expect(await closing).toBe(false);
+    await expect(field).toHaveValue("Notes and sketches!");
+    // Everything typed in the one visit to the field is one undo step.
+    await button(page, "Undo").click();
+    await expect(field).toHaveValue("Notes");
+    await expect(button(page, "Undo")).toBeDisabled();
+  });
+
+  test("blocks-editor 2.2: a description with formatting is shown read-only and kept as it is", async ({
+    page,
+  }) => {
+    const course = workshop();
+    course.description = RICH;
+    const welcome = course.entries[1] as LessonEntry;
+    welcome.description = "<p>Read <em>this</em> first.</p>";
+    await launch(page);
+    await openFixture(page, FILE, course);
+    const description = page.getByRole("textbox", { name: "Description" });
+    await expect(description).toHaveAttribute("readonly", "");
+    await expect(description).toHaveValue("Bold start\nOne");
+    await expect(description).toHaveAccessibleDescription(/has formatting this field cannot keep/);
+    await description.click();
+    await page.keyboard.type(" end");
+    await expect(description).toHaveValue("Bold start\nOne");
+    await retitle(page, "Workshop basics, revised");
+    expect((await saved(page)).description).toBe(RICH);
+
+    await row(page, "Welcome").getByRole("button", { name: "Open Welcome" }).click();
+    await expect(description).toHaveAttribute("readonly", "");
+    await expect(description).toHaveValue("Read this first.");
+    const title = page.getByRole("textbox", { name: "Lesson title" });
+    await title.fill("Welcome aboard");
+    await title.press("Enter");
+    const lesson = (await saved(page)).entries[1] as LessonEntry;
+    expect(lesson.title).toBe("Welcome aboard");
+    expect(lesson.description).toBe("<p>Read <em>this</em> first.</p>");
+  });
+
   test("UI-BLOCKS-EDITOR-R11, R12, blocks-editor C10, D-36: delete offers undo in one step, and buttons to a deleted lesson go with it", async ({
     page,
   }) => {
@@ -192,6 +275,11 @@ test.describe("course outline", () => {
     await row(page, "Notes").getByRole("button", { name: "Delete Notes" }).click();
     await expect(row(page, "Notes")).toHaveCount(0);
     await row(page, "Checking").getByRole("button", { name: "Delete Checking" }).click();
+    await expect(row(page, "Checking")).toHaveCount(0);
+    // The row under the pointer went, so the pointer now rests on the next row's bin. Its tooltip
+    // stays open while hovered (WCAG 1.4.13) and would cover the row above: leave the controls
+    // first, and wait until no tooltip shows.
+    await pointerAway(page);
 
     // A lesson with content is deleted from its menu; the notice undoes only the latest delete.
     await rowAction(page, "Tools", "Delete");
@@ -407,6 +495,55 @@ test.describe("course outline", () => {
     await expect(page.getByRole("listitem")).toHaveText(["Image"]);
   });
 
+  test("blocks-editor W5, BLK-01: copying a lesson into a course that a crash left autosaved work in asks first, as opening it does", async ({
+    page,
+  }) => {
+    const GARDEN = "Garden tools.crs";
+    await launch(page);
+    await create(page, "Garden tools");
+    await newField(page).fill("Spades");
+    await newField(page).press("Enter");
+    await page.keyboard.press("Control+S");
+    await expect(status(page)).toHaveText("Saved");
+    await newField(page).fill("Rakes");
+    await newField(page).press("Enter");
+    await expect
+      .poll(async () => (await autosaved(page, GARDEN))?.entries.length, { timeout: 10_000 })
+      .toBe(2);
+    // The app dies without asking anything.
+    await page.evaluate(() => window.editorTest.restart());
+    await expect(heading(page, "Your courses")).toBeVisible();
+    await openFixture(page, FILE, workshop());
+
+    const copy = async () => {
+      await rowAction(page, "Tools", "Copy to another course…");
+      const dialog = page.getByRole("dialog", { name: "Copy Tools to another course" });
+      await dialog.getByRole("option", { name: "Garden tools" }).click();
+      await dialog.getByRole("button", { name: "Copy" }).click();
+    };
+    await copy();
+    const offer = page.getByRole("alertdialog", { name: "Recover unsaved changes?" });
+    await expect(offer).toContainText(`${GARDEN} was not closed properly last time.`);
+    // Escape copies nothing, and leaves that course's file and its autosaved work alone.
+    await page.keyboard.press("Escape");
+    await expect(offer).toHaveCount(0);
+    expect(outlineOf(await courseIn(page, GARDEN))).toEqual(["lesson Spades"]);
+    expect((await autosaved(page, GARDEN))?.entries).toHaveLength(2);
+
+    // Recovering copies into the recovered work, which the author chose to keep.
+    await copy();
+    await offer.getByRole("button", { name: "Recover changes" }).click();
+    await expect(
+      page.getByRole("alertdialog", { name: "Copied Tools to the end of Garden tools" }),
+    ).toBeVisible();
+    expect(outlineOf(await courseIn(page, GARDEN))).toEqual([
+      "lesson Spades",
+      "lesson Rakes",
+      "lesson Tools",
+    ]);
+    expect(await autosaved(page, GARDEN)).toBeUndefined();
+  });
+
   test("blocks-editor W5, BLK-02: a lesson with a buttons block that leads elsewhere is copied without that button", async ({
     page,
   }) => {
@@ -488,6 +625,30 @@ test.describe("lessons", () => {
     await expect(page.getByRole("heading", { level: 2, name: "Final check" })).toBeFocused();
   });
 
+  test("UI-BLOCKS-EDITOR-R13: what is typed in the course and lesson fields, without leaving them, is kept when the window closes", async ({
+    page,
+  }) => {
+    await launch(page);
+    await openFixture(page, FILE, workshop());
+    // The course author: typed, and the window closed at once, before any pause.
+    await page.getByRole("textbox", { name: "Author shown to learners" }).click();
+    await page.keyboard.type("Sam Example");
+    const guard = page.getByRole("alertdialog", { name: "Save changes to Workshop basics?" });
+    let closing = page.evaluate(() => window.editorTest.host.requestClose());
+    await guard.getByRole("button", { name: "Cancel" }).click();
+    expect(await closing).toBe(false);
+
+    await row(page, "Welcome").getByRole("button", { name: "Open Welcome" }).click();
+    await page.getByRole("textbox", { name: "Description" }).click();
+    await page.keyboard.type("Who this is for.");
+    closing = page.evaluate(() => window.editorTest.host.requestClose());
+    await guard.getByRole("button", { name: "Save", exact: true }).click();
+    expect(await closing).toBe(true);
+    const course = await courseIn(page, FILE);
+    expect(course.authors).toEqual([{ name: "Sam Example" }]);
+    expect((course.entries[1] as LessonEntry).description).toBe("<p>Who this is for.</p>");
+  });
+
   test("blocks-editor C2, 2.2, W6: the course author and description are kept in the file; an empty author hides it", async ({
     page,
   }) => {
@@ -515,7 +676,7 @@ test.describe("lessons", () => {
     expect(course.description).toBeUndefined();
   });
 
-  test("[rise:3A] blocks-editor 2.2, W2: a microlearning shows its one lesson and no outline", async ({
+  test("[rise:3A] blocks-editor 2.2, W2, BLK-02: a microlearning shows its one lesson, and no outline to add a quiz to", async ({
     page,
   }) => {
     await launch(page);
@@ -523,6 +684,7 @@ test.describe("lessons", () => {
     await expect(page.getByRole("heading", { name: "No blocks yet" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Outline" })).toHaveCount(0);
     await expect(newField(page)).toHaveCount(0);
+    await expect(button(page, "Add")).toHaveCount(0);
   });
 });
 
@@ -536,8 +698,8 @@ for (const theme of ["light", "dark"] as const) {
     await create(page, "Garden tools");
     await check("empty outline");
     await back(page);
-    await openFixture(page, FILE, workshop());
-    await check("outline");
+    await openFixture(page, FILE, { ...workshop(), description: RICH });
+    await check("outline, with a read-only description");
     await row(page, "Tools").getByRole("button", { name: "Actions for Tools" }).click();
     await check("row menu");
     await page.getByRole("menuitem", { name: "Copy to another course…" }).click();

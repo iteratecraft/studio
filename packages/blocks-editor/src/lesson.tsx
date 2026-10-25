@@ -5,7 +5,7 @@ import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
 import { EmptyState, ListBoxItem, Select, type StringKey, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
-import { DraftField, htmlOf, textOf } from "./fields.js";
+import { DescriptionField, DraftField } from "./fields.js";
 import type { CourseSession } from "./session.js";
 
 const OVERVIEW = "overview";
@@ -63,15 +63,10 @@ export function LessonView({ session, entry, onGo }: LessonViewProps) {
           value={entry.title}
           onCommit={(title) => update({ title })}
         />
-        <DraftField
+        <DescriptionField
           label={t("editor.description")}
-          multiline
-          value={textOf(entry.description ?? "")}
-          onCommit={(value) => {
-            const html = htmlOf(value);
-            if (html) update({ description: html });
-            else unset("description");
-          }}
+          value={entry.description ?? ""}
+          onCommit={(html) => (html ? update({ description: html }) : unset("description"))}
         />
         <DraftField
           label={t("lesson.author")}

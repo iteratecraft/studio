@@ -10,9 +10,9 @@ import {
   ToolbarSeparator,
   useStrings,
 } from "@course-suite/ui";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { shownTitle, TITLE_MAX } from "./course.js";
-import { DraftField, htmlOf, keepDrafts, textOf } from "./fields.js";
+import { DescriptionField, DraftEditor, DraftField, keepDrafts } from "./fields.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import { Outline } from "./outline.js";
 import type { CourseSession } from "./session.js";
@@ -50,6 +50,7 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
   const [view, setView] = useState<View>({ kind: "overview" });
   // UI-BLOCKS-EDITOR-R15: undo history belongs to one screen and goes when the author leaves it.
   const go = (next: View) => {
+    keepDrafts();
     editor.clearHistory();
     setView(next);
   };
@@ -64,6 +65,11 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
   // A new screen: focus starts at its heading, for keyboard and screen reader users.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
+  /** Saves the file with what the text fields hold. */
+  const save = useCallback(() => {
+    keepDrafts();
+    onSave();
+  }, [onSave]);
 
   // Keyboard (blocks-editor.md 5.1): Ctrl/Cmd+Z undoes, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo,
   // Ctrl/Cmd+S keeps what the fields hold and saves the file. In a text field the field's own undo
@@ -74,8 +80,7 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
       const key = event.key.toLowerCase();
       if (key === "s") {
         event.preventDefault();
-        keepDrafts();
-        onSave();
+        save();
       } else if (!isTextEntry(event.target) && (key === "z" || key === "y")) {
         event.preventDefault();
         if (key === "y" || event.shiftKey) editor.redo();
@@ -84,7 +89,7 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editor, onSave]);
+  }, [editor, save]);
 
   const stateText = {
     saved: t("save.saved"),
@@ -94,68 +99,70 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
   }[state.kind];
 
   return (
-    <div className="be-editor">
-      <header className="be-bar">
-        <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
-        <h1 ref={heading} tabIndex={-1} className="be-bar-title">
-          {title}
-        </h1>
-        <span role="status" className="be-save-state" data-state={state.kind}>
-          {stateText}
-        </span>
-        <Toolbar aria-label={t("editor.tools")} className="be-tools">
-          <IconButton
-            icon="undo"
-            label={t("editor.undo")}
-            isDisabled={!editor.canUndo}
-            onPress={() => editor.undo()}
-          />
-          <IconButton
-            icon="redo"
-            label={t("editor.redo")}
-            isDisabled={!editor.canRedo}
-            onPress={() => editor.redo()}
-          />
-          <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
-          <ToolbarSeparator />
-          {/* Theme arrives with M2-17, preview with M2-11, publish with M2-18. */}
-          <Button variant="quiet" isDisabled>
-            {t("editor.theme")}
-          </Button>
-          <Button isDisabled>{t("editor.preview")}</Button>
-          <Button variant="primary" isDisabled>
-            {t("editor.publish")}
-          </Button>
-        </Toolbar>
-      </header>
-      <main className="be-overview">
-        {open ? (
-          <LessonView
-            key={open.id}
-            session={session}
-            entry={open}
-            onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
-          />
-        ) : (
-          <>
-            <CourseFields session={session} />
-            {course.kind === "microlearning" ? (
-              // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
-              // outline.
-              course.entries[0] && <LessonContent entry={course.entries[0]} />
-            ) : (
-              <Outline
-                session={session}
-                toasts={toasts}
-                focusEntry={view.kind === "overview" ? view.from : undefined}
-                onOpen={(id) => go({ kind: "entry", id })}
-                onCopy={onCopyEntry}
-              />
-            )}
-          </>
-        )}
-      </main>
-    </div>
+    <DraftEditor.Provider value={editor}>
+      <div className="be-editor">
+        <header className="be-bar">
+          <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
+          <h1 ref={heading} tabIndex={-1} className="be-bar-title">
+            {title}
+          </h1>
+          <span role="status" className="be-save-state" data-state={state.kind}>
+            {stateText}
+          </span>
+          <Toolbar aria-label={t("editor.tools")} className="be-tools">
+            <IconButton
+              icon="undo"
+              label={t("editor.undo")}
+              isDisabled={!editor.canUndo}
+              onPress={() => editor.undo()}
+            />
+            <IconButton
+              icon="redo"
+              label={t("editor.redo")}
+              isDisabled={!editor.canRedo}
+              onPress={() => editor.redo()}
+            />
+            <IconButton icon="save" label={t("editor.save")} onPress={save} />
+            <ToolbarSeparator />
+            {/* Theme arrives with M2-17, preview with M2-11, publish with M2-18. */}
+            <Button variant="quiet" isDisabled>
+              {t("editor.theme")}
+            </Button>
+            <Button isDisabled>{t("editor.preview")}</Button>
+            <Button variant="primary" isDisabled>
+              {t("editor.publish")}
+            </Button>
+          </Toolbar>
+        </header>
+        <main className="be-overview">
+          {open ? (
+            <LessonView
+              key={open.id}
+              session={session}
+              entry={open}
+              onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+            />
+          ) : (
+            <>
+              <CourseFields session={session} />
+              {course.kind === "microlearning" ? (
+                // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
+                // outline.
+                course.entries[0] && <LessonContent entry={course.entries[0]} />
+              ) : (
+                <Outline
+                  session={session}
+                  toasts={toasts}
+                  focusEntry={view.kind === "overview" ? view.from : undefined}
+                  onOpen={(id) => go({ kind: "entry", id })}
+                  onCopy={onCopyEntry}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </DraftEditor.Provider>
   );
 }
 
@@ -191,19 +198,17 @@ function CourseFields({ session }: { session: CourseSession }) {
           );
         }}
       />
-      <DraftField
+      <DescriptionField
         label={t("editor.description")}
         description={t("editor.descriptionHelp")}
-        multiline
-        value={textOf(description)}
-        onCommit={(value) => {
-          const html = htmlOf(value);
+        value={description}
+        onCommit={(html) =>
           editor.dispatch(
             html
               ? { type: "updateCourse", set: { description: html } }
               : { type: "updateCourse", unset: ["description"] },
-          );
-        }}
+          )
+        }
       />
     </div>
   );

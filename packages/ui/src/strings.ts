@@ -110,6 +110,8 @@ export const english = {
   "editor.authorHelp": "Leave it empty to hide the author.",
   "editor.description": "Description",
   "editor.descriptionHelp": "Shown on the cover, above the outline.",
+  "editor.descriptionFormatted":
+    "This description has formatting this field cannot keep yet, so it is shown here read-only.",
 
   // Blocks editor: the course outline and lessons (M2-09)
   "action.open": "Open",
@@ -149,6 +151,9 @@ export const english = {
   "copyTo.open": "Open that course",
   "copyTo.failed": "The lesson was not copied",
   "copyTo.custom": "{title} has a custom block, which cannot be copied to another course yet.",
+  "copyTo.microlearning":
+    "A microlearning holds one lesson and no quiz, so {title} cannot be added to it.",
+  "copyTo.gone": "{title} is no longer in this course.",
   "lesson.goTo": "Go to",
   "lesson.author": "Author shown on this lesson",
   "lesson.authorHelp": "Leave it empty to show the course author.",

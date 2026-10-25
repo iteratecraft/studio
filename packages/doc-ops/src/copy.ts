@@ -33,26 +33,38 @@ export function copyCourse(course: Course): Course {
   return { ...(copy(course) as Course), id: newProjectId() };
 }
 
-/** What copying an outline entry to another course needs: see copyEntryTo. */
-export interface EntryCopy {
-  /** Commands for the target course, applied as one list. */
-  commands: Command[];
-  /** Storage keys of the media files the copy uses, whose bytes the target project needs. */
-  keys: string[];
-}
+/** What copying an outline entry to another course needs, or why it cannot be copied. */
+export type EntryCopy =
+  | {
+      ok: true;
+      /** Commands for the target course, applied as one list. */
+      commands: Command[];
+      /** Storage keys of the media files the copy uses, whose bytes the target project needs. */
+      keys: string[];
+    }
+  | {
+      ok: false;
+      /**
+       * `not-found`: `source` has no such entry. `custom-block`: the entry uses a custom-block
+       * document, which has no commands yet. `microlearning`: the target is a microlearning, which
+       * holds exactly one lesson and no quiz (rise.md 3A, BLK-02).
+       */
+      reason: "not-found" | "custom-block" | "microlearning";
+    };
 
 /**
  * Copies outline entry `id` of `source` to the end of `target`'s outline (rise.md 3B,
  * UI-BLOCKS-EDITOR-R10, BLK-02): the entry with a new id for every object in it, unused in both
  * courses, and a media index entry for each media file it uses that `target` has not. What cannot
  * point across courses goes as when the entry it points at is deleted (D-36): a button to another
- * entry is removed and a quiz's skip-ahead is turned off. Undefined when `source` has no such
- * entry, or when the entry uses a custom-block document, which has no commands yet.
+ * entry is removed and a quiz's skip-ahead is turned off.
  */
-export function copyEntryTo(source: Course, id: string, target: Course): EntryCopy | undefined {
+export function copyEntryTo(source: Course, id: string, target: Course): EntryCopy {
   const entry = source.entries.find((candidate) => candidate.id === id);
-  if (!entry || (entry.kind === "lesson" && entry.blocks.some((block) => block.customBlock))) {
-    return undefined;
+  if (!entry) return { ok: false, reason: "not-found" };
+  if (target.kind === "microlearning") return { ok: false, reason: "microlearning" };
+  if (entry.kind === "lesson" && entry.blocks.some((block) => block.customBlock)) {
+    return { ok: false, reason: "custom-block" };
   }
   const taken = new Set([...indexDocument(source).keys(), ...indexDocument(target).keys()]);
   const fresh = () => {
@@ -96,5 +108,5 @@ export function copyEntryTo(source: Course, id: string, target: Course): EntryCo
       value: { ...(known.get(key) as MediaEntry), id: fresh() },
     }));
   commands.push({ type: "insertEntry", value });
-  return { commands, keys: [...keys] };
+  return { ok: true, commands, keys: [...keys] };
 }
