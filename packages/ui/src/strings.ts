@@ -15,6 +15,14 @@ export const english = {
   "dialog.close": "Close",
   "toast.dismiss": "Dismiss",
   "list.items": { one: "{count} item", other: "{count} items" },
+  "preview.label": "Preview",
+  "preview.frame": "Course preview",
+  "preview.edit": "Edit",
+  "preview.restart": "Restart",
+  "preview.device": "Device",
+  "preview.computer": "Computer",
+  "preview.tablet": "Tablet",
+  "preview.phone": "Phone",
 } as const satisfies Record<string, Message>;
 
 export type StringKey = keyof typeof english;

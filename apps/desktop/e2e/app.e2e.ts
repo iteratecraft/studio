@@ -9,6 +9,8 @@ import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sampleCourse } from "@course-suite/format/test/courses";
+import { FRAME_URL, previewPackage } from "@course-suite/preview";
 import { type Browser, chromium, expect, type Page, test } from "@playwright/test";
 
 const exe = join(import.meta.dirname, "../src-tauri/target/release/course-suite-desktop.exe");
@@ -206,6 +208,66 @@ test("reports idle memory of the app and its WebView2 processes", async () => {
   console.log(`Idle memory after 5 s: ${report}`);
   test.info().annotations.push({ type: "idle memory", description: report });
   expect(tree.length).toBeGreaterThan(1);
+});
+
+test("the course preview runs the real player in WebView2 under the shell's policy (M2-11)", async () => {
+  const course = sampleCourse();
+  const svg = (text: string) =>
+    new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg">${text}</svg>`);
+  const media: Record<string, Uint8Array> = { "cover.svg": svg("c"), "compost-bin.svg": svg("b") };
+  const { index, files } = await previewPackage(course, (key) => media[key]);
+  // What createPreview does, by hand: the page bundle has no preview yet (the editor brings it).
+  const violations = await page.evaluate(
+    async ({ url, index, files }) => {
+      const found: string[] = [];
+      document.addEventListener("securitypolicyviolation", (e) => found.push(e.effectiveDirective));
+      const frame = document.createElement("iframe");
+      frame.title = "Course preview";
+      frame.sandbox.add("allow-scripts");
+      frame.src = url;
+      await new Promise<void>((resolve) => {
+        addEventListener("message", (event) => {
+          if (event.source !== frame.contentWindow) return;
+          if (event.data.type === "rendered") resolve();
+          if (event.data.type !== "ready") return;
+          const bytes = files.map(([path, base64, type]) => [
+            path,
+            Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
+            type,
+          ]);
+          const load = { type: "load", index, files: bytes, hash: "", scrollY: 0, state: [] };
+          frame.contentWindow?.postMessage(load, "*");
+        });
+        document.body.append(frame);
+      });
+      return found;
+    },
+    {
+      url: FRAME_URL,
+      index,
+      files: files.map(([path, data, type]): [string, string, string] => [
+        path,
+        Buffer.from(data).toString("base64"),
+        type,
+      ]),
+    },
+  );
+  expect(violations).toEqual([]);
+  const frame = page.frameLocator("iframe[title='Course preview']");
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText(course.title);
+  // The media come from the frame's own in-memory addresses.
+  const image = frame.locator("img").first();
+  await expect(image).toHaveAttribute("src", /^blob:/);
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+
+  const tree = processTree();
+  const sum = (key: "workingSet" | "privateBytes") => tree.reduce((n, p) => n + p[key], 0);
+  const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+  const report = `${tree.length} processes, working set ${mb(sum("workingSet"))} MiB, private ${mb(sum("privateBytes"))} MiB`;
+  console.log(`Memory with a course in the preview: ${report}`);
+  test.info().annotations.push({ type: "memory with preview", description: report });
 });
 
 /** The app process and every process below it (the WebView2 browser, renderer, GPU...). */

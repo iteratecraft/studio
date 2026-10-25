@@ -34,6 +34,8 @@ import {
   TextField,
   ToastQueue,
   ToastRegion,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   ToolbarSeparator,
   Tree,
@@ -167,6 +169,19 @@ export function Gallery() {
             errorMessage="Give the lesson a title."
           />
           <TextArea label="Description" placeholder="What learners will get from it" />
+        </Section>
+
+        <Section id="toggle-buttons" title="Toggle buttons">
+          <ToggleButtonGroup
+            aria-label="Device"
+            selectionMode="single"
+            disallowEmptySelection
+            defaultSelectedKeys={["computer"]}
+          >
+            <ToggleButton id="computer" icon="computer" label="Computer" />
+            <ToggleButton id="tablet" icon="tablet" label="Tablet" />
+            <ToggleButton id="phone" icon="phone" label="Phone" />
+          </ToggleButtonGroup>
         </Section>
 
         <Section id="checkboxes" title="Checkbox and switch">

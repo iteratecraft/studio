@@ -8,6 +8,7 @@ const COMPONENT_SECTIONS = [
   "Buttons",
   "Toolbar",
   "Text fields",
+  "Toggle buttons",
   "Checkbox and switch",
   "Select",
   "Menu",

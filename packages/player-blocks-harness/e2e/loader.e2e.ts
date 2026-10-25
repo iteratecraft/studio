@@ -247,7 +247,7 @@ test.describe("load timeouts, over http:// with a held request", () => {
       const { url, server } = await serve(dir, held);
       try {
         await page.addInitScript(() => {
-          window.blocksPlayerTestHooks = { timeoutMs: 500 };
+          window.blocksPlayerHooks = { timeoutMs: 500 };
         });
         await open("", url);
         if (part === "stalled") {

@@ -13,8 +13,6 @@ import {
   createXapiAdapter,
   findScorm12Api,
   findScorm2004Api,
-  type KeyValueStorage,
-  type MemoryAdapter,
   RESUME_CAPS,
   readCmi5Launch,
   readXapiLaunch,
@@ -33,6 +31,7 @@ import {
   REGISTRY_GLOBAL,
 } from "./data.js";
 import { h } from "./dom.js";
+import { fileUrl, hooks } from "./hooks.js";
 import { ChunkLoadError, createLoader } from "./loader.js";
 import { startRuntime, type TimedEvent } from "./runtime.js";
 import { startShell } from "./shell.js";
@@ -45,18 +44,6 @@ export interface PlayerRegistry {
   load(name: string): Promise<unknown>;
 }
 
-/** Test-only hooks a browser test sets before the player starts. */
-export interface TestHooks {
-  /** Shorter load timeouts. */
-  timeoutMs?: number;
-  /** Where the debug adapter keeps the saved state, so that a reload resumes. */
-  storage?: KeyValueStorage;
-  /** Set by the player when no LMS is connected: the debug adapter, with every call it received. */
-  adapter?: MemoryAdapter;
-  /** Set by the player: every player event so far. */
-  events?: TimedEvent[];
-}
-const hooks = (globalThis as { blocksPlayerTestHooks?: TestHooks }).blocksPlayerTestHooks;
 const testTimeout = hooks?.timeoutMs;
 
 const root = document.getElementById("app") ?? document.body;
@@ -89,7 +76,7 @@ const player: PlayerRegistry = {
 (globalThis as Record<string, unknown>)[REGISTRY_GLOBAL] = player;
 
 function load(name: string, src: string, timeoutMs: number, retry: () => void): Promise<unknown> {
-  return loadScript(name, src, testTimeout ?? timeoutMs).catch((error: unknown) => {
+  return loadScript(name, fileUrl(src), testTimeout ?? timeoutMs).catch((error: unknown) => {
     fail(name, error, retry);
     throw error;
   });

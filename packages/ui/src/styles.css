@@ -20,6 +20,18 @@ body {
   line-height: var(--cs-leading);
 }
 
+/*
+ * React Aria's pressable controls (usePress) add this rule in a <style> element, which a strict
+ * content security policy blocks (the desktop app allows styles only from its own files). It is
+ * here instead; a page with such a policy also holds an element with the id
+ * "react-aria-pressable-style", which tells React Aria the rule is already there.
+ */
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+
 .cs-Icon {
   flex: none;
   vertical-align: middle;
@@ -91,6 +103,20 @@ body {
   padding: 0;
 }
 
+/* ToggleButtonGroup: buttons that stay pressed, such as a grid or list view switch. */
+.cs-ToggleButtonGroup {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.cs-ToggleButton[data-selected] {
+  background: var(--cs-accent-soft);
+  color: var(--cs-text);
+}
+
 /* Toolbar */
 .cs-Toolbar {
   display: flex;
@@ -108,6 +134,61 @@ body {
   width: 1px;
   margin: var(--cs-space-1);
   background: var(--cs-border);
+}
+
+/* PreviewPane: the course in the real player, at the width of the device picked. */
+.cs-Preview {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.cs-Preview-bar {
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.cs-Preview-spacer {
+  flex: 1;
+}
+
+.cs-Preview-stage {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  background: var(--cs-surface);
+}
+
+/*
+ * The width (--cs-preview-width) is the frame's own: a border must not take from it. Centred on a
+ * whole pixel, so the course is drawn as sharply as in a browser window of that width.
+ */
+.cs-Preview-device {
+  position: relative;
+  flex: none;
+  box-sizing: content-box;
+  inline-size: var(--cs-preview-width);
+  margin-inline-start: max(0px, round(down, (100% - var(--cs-preview-width)) / 2 - 1px, 1px));
+}
+
+.cs-Preview-device:not([data-device="computer"]) {
+  border-inline: 1px solid var(--cs-border);
+}
+
+.cs-Preview-device > iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+}
+
+/* A new load waits unseen over the frame on show until the player shows its page. */
+.cs-Preview-device > iframe[data-pending] {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
 }
 
 /* Fields: TextField, TextArea, Select */
@@ -704,7 +785,7 @@ body {
 
 /* High-contrast themes force most colours; selection and "on" states take system colours. */
 @media (forced-colors: active) {
-  :is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-Tab)[data-selected],
+  :is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-Tab, .cs-ToggleButton)[data-selected],
   .cs-Checkbox:is([data-selected], [data-indeterminate]) .cs-Checkbox-box,
   .cs-Switch[data-selected] .cs-Switch-track,
   .cs-Button--primary,

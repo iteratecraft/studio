@@ -19,6 +19,8 @@
     "@tauri-apps/plugin-dialog": "2.8.2"
   },
   "devDependencies": {
+    "@course-suite/format": "workspace:*",
+    "@course-suite/preview": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "vite": "8.3.4",

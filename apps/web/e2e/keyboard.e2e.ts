@@ -31,6 +31,8 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   await press(page, "Tab", page.getByRole("textbox", { name: "Course title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Lesson title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Description" }));
+  // A group of toggle buttons is one stop, on the one that is on.
+  await press(page, "Tab", page.getByRole("radio", { name: "Computer" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Show lesson numbers" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Some lessons are required" }));
   // The disabled switch is skipped.
@@ -52,6 +54,18 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   // Progress bars and icons are not stops; Tab leaves the page.
   await page.keyboard.press("Tab");
   await expect(page.locator("main :focus")).toHaveCount(0);
+});
+
+test("toggle buttons: arrow keys move along a group, Space turns one on", async ({ page }) => {
+  const group = page.getByRole("radiogroup", { name: "Device" });
+  await group.getByRole("radio", { name: "Computer" }).focus();
+  await press(page, "ArrowRight", group.getByRole("radio", { name: "Tablet" }));
+  await press(page, "ArrowRight", group.getByRole("radio", { name: "Phone" }));
+  await expect(group.getByRole("radio", { name: "Computer" })).toBeChecked();
+  await page.keyboard.press("Space");
+  await expect(group.getByRole("radio", { name: "Phone" })).toBeChecked();
+  await expect(group.getByRole("radio", { name: "Computer" })).not.toBeChecked();
+  await press(page, "ArrowLeft", group.getByRole("radio", { name: "Tablet" }));
 });
 
 test("buttons: an icon button shows its name as a tooltip on focus, Escape hides it", async ({

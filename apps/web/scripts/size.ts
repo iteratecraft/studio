@@ -1,6 +1,6 @@
-// Prints the gzip size of the built gallery (`pnpm --filter @course-suite/web build` first), split
-// into React, React Aria, the kit and the gallery's own code (see the chunk groups in
-// vite.config.ts). The same gzip level a web server or installer would use: 9, the best.
+// Prints the gzip size of the built pages (`pnpm --filter @course-suite/web build` first), split
+// into React, React Aria, the kit, the preview's player (loaded when a preview opens) and the pages'
+// own code (see the chunk groups in vite.config.ts). The same gzip level a web server or installer would use: 9, the best.
 /// <reference types="node" />
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,13 +16,15 @@ const sizes = files.map((name) => {
   return { name, raw: bytes.length, gzip: gzipSync(bytes, { level: 9 }).length };
 });
 const total = (list: typeof sizes) => list.reduce((sum, file) => sum + file.gzip, 0);
-const groupOf = (name: string) => /^(react|react-aria|kit)-/.exec(name)?.[1] ?? "gallery";
+const of = (...groups: string[]) => total(sizes.filter((f) => groups.includes(groupOf(f.name))));
+const groupOf = (name: string) => /^(react|react-aria|kit|player)-/.exec(name)?.[1] ?? "page";
 
 for (const file of sizes)
   console.log(
     `${file.name.padEnd(36)} ${kb(file.raw).padStart(10)} raw ${kb(file.gzip).padStart(10)} gzip`,
   );
 console.log(
-  `\nReact plus the kit (react, react-aria, kit): ${kb(total(sizes.filter((f) => groupOf(f.name) !== "gallery")))} gzip`,
+  `\nReact plus the kit (react, react-aria, kit): ${kb(of("react", "react-aria", "kit"))} gzip`,
 );
-console.log(`Whole gallery: ${kb(total(sizes))} gzip`);
+console.log(`The preview's player, loaded when a preview opens (player): ${kb(of("player"))} gzip`);
+console.log(`Everything built: ${kb(total(sizes))} gzip`);

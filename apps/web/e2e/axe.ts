@@ -5,7 +5,7 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import type { AxeResults, RunOptions } from "axe-core";
 
 declare global {
@@ -22,10 +22,10 @@ const axeSource = readFileSync(
 const WCAG_A_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /**
- * One line per violation, of any impact: rule, what it asks, and where. The kit's bar (no serious
+ * One line per violation, of any impact, in a page or a frame: rule, what it asks, and where. The kit's bar (no serious
  * or critical violation) is met by expecting none at all.
  */
-export async function violations(page: Page): Promise<string[]> {
+export async function violations(page: Page | Frame): Promise<string[]> {
   if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource);
   // Wait for running animations, so colours and positions are the settled ones; endless ones,
   // such as a busy progress bar, never settle.

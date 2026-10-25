@@ -44,6 +44,7 @@
         "packages/zip/src/**",
         "packages/project/src/**",
         "packages/jobs/src/**",
+        "packages/preview/src/**",
         "packages/ui/src/**",
         "apps/web/src/**",
         "!**/*.test.ts"

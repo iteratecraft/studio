@@ -127,6 +127,22 @@ export const packagedMediaKeys = (course: Course): string[] => [
   ...new Set(course.media.map(packagedKey)),
 ];
 
+/**
+ * What a package tells the player about its course, which the editor's preview gives the player
+ * too (ENG-13): the course without `ext` data and the package path of each media file.
+ */
+export function courseDataFor(
+  course: Course,
+  standard: Standard,
+  packageVersion: number,
+  lrs?: LrsSettings,
+): CourseData {
+  const media = Object.fromEntries(
+    course.media.map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
+  );
+  return { course: withoutExt(course), standard, packageVersion, media, ...(lrs && { lrs }) };
+}
+
 /** Validates and builds a package. Every problem found is reported, not only the first. */
 export async function buildPackage(input: BuildInput): Promise<Result<BuiltPackage>> {
   const { course, player, exporter, packageVersion } = input;
@@ -165,13 +181,9 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
   }
 
   // Asset collector: every media index entry, as its optimised variant when it has one.
-  const media: Record<string, string> = {};
   const collected = new Set<string>();
-  for (const entry of course.media) {
-    const key = packagedKey(entry);
+  for (const key of packagedMediaKeys(course)) {
     const path = `${MEDIA_FOLDER}/${key}`;
-    media[entry.key] = path;
-    if (collected.has(path)) continue;
     collected.add(path);
     const data = await input.media(key);
     if (data === undefined) {
@@ -179,13 +191,9 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     } else add(path, data);
   }
 
-  const data = player.courseDataScript({
-    course: withoutExt(course),
-    standard: exporter.standard,
-    packageVersion,
-    media,
-    ...(exporter.lrs && { lrs: exporter.lrs }),
-  });
+  const data = player.courseDataScript(
+    courseDataFor(course, exporter.standard, packageVersion, exporter.lrs),
+  );
   add(data.path, data.data);
 
   const content = [...files.keys()].sort();

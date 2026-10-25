@@ -20,9 +20,16 @@ const toasts = new ToastQueue();
 </UiProvider>;
 ```
 
-Components: `Button`, `IconButton`, `Toolbar`, `Tooltip`, `TextField`, `TextArea`, `Checkbox`,
-`Switch`, `Select`, `Menu`, `Tabs`, `Dialog`, `Popover`, `ToastRegion`, `ListBox`, `GridList`
-(reorder with `useReorder`), `Tree`, `Splitter`, `EmptyState`, `ProgressBar` and `Icon`.
+Components: `Button`, `IconButton`, `ToggleButton`, `ToggleButtonGroup`, `Toolbar`, `Tooltip`,
+`TextField`, `TextArea`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`, `Popover`,
+`ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`), `Tree`, `Splitter`, `EmptyState`,
+`ProgressBar` and `Icon`.
+
+`PreviewPane` (M2-11, UI-BLOCKS-EDITOR P1) shows a course in the real player from
+`@course-suite/preview`, with an edit button back to the lesson on show, Restart, and device
+buttons for computer, tablet (768 px) and phone (375 px) widths. It loads the player bundle the first
+time a pane opens, so an editor that never previews does not download it. `apps/web/preview.html`
+is its dev and test page.
 
 ## Tokens and themes
 
@@ -46,4 +53,5 @@ right to left) find text that skips the catalogue and layouts that break.
 - Editor UI code (`packages/ui/src`, `apps/web/src`) never imports Node.js modules or
   `@tauri-apps/*`: files, dialogs and processes go through the host interface (ADR-0006).
   `pnpm lint` enforces it; `tools/lint/editor-imports.test.ts` shows what it reports.
-- No ports: the kit needs no files, storage or time of its own.
+- No ports: the kit needs no files, storage or time of its own. `PreviewPane` takes the media
+  bytes it shows from its caller.

@@ -9,7 +9,10 @@ import { courseDataScript, DATA_FILE, indexPage, largestResume } from "@course-s
 import { PLAYER_SCRIPT, PLAYER_STYLE } from "../dist/assets.js";
 import type { Exporter, PlayerBundle } from "./builder.js";
 import { ok } from "./result.js";
-import { utf8 } from "./xml.js";
+
+// Not xml.ts's helper: that module brings the XML parser, which the player files never need (the
+// editor's preview loads this module, ENG-13).
+const utf8 = (text: string) => new TextEncoder().encode(text);
 
 /** The page every standard launches. */
 export const BLOCKS_LAUNCH_PAGE = "index.html";

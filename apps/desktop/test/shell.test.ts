@@ -2,6 +2,7 @@
 // to the policy or the granted commands must change this file too, in a reviewed pull request.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { FRAME_SCRIPT_HASH } from "@course-suite/preview";
 import { describe, expect, test } from "vitest";
 
 const shell = join(import.meta.dirname, "..", "src-tauri");
@@ -14,11 +15,21 @@ describe.each([
 ])("content security policy (%s)", (_name, csp: Record<string, string>) => {
   const sources = Object.values(csp).join(" ").split(" ");
 
-  test("denies everything not listed and allows script only from the app itself", () => {
+  test("denies everything not listed and allows script only from the app itself and the preview", () => {
     expect(csp["default-src"]).toBe("'none'");
-    expect(csp["script-src"]).toBe("'self'");
+    // The preview frame (ENG-13): its one inline script by hash, and the package files it holds
+    // in memory as blob: addresses, which only script already running can make.
+    expect(csp["script-src"]).toBe(`'self' blob: ${FRAME_SCRIPT_HASH}`);
     expect(csp["object-src"]).toBe("'none'");
     expect(csp["base-uri"]).toBe("'none'");
+  });
+
+  test("allows blob: only for the preview's in-memory files and data: only for its frame", () => {
+    const using = (scheme: string) =>
+      Object.keys(csp).filter((directive) => csp[directive]?.split(" ").includes(scheme));
+    expect(using("blob:")).toEqual(["script-src", "style-src", "img-src"]);
+    expect(using("data:")).toEqual(["frame-src"]);
+    expect(csp["frame-src"]).toBe("data:");
   });
 
   test("allows no eval and no remote origin", () => {
@@ -26,10 +37,13 @@ describe.each([
     expect(sources).not.toContain("'wasm-unsafe-eval'");
     expect(sources).not.toContain("*");
     const origins = sources.filter((s) => /^[a-z][a-z0-9+.-]*:/i.test(s));
-    // Tauri's IPC, and Vite's live-reload socket in development only.
+    // Tauri's IPC, the preview's in-memory files and frame, and Vite's live-reload socket in
+    // development only.
     const allowed = [
       "ipc:",
       "http://ipc.localhost",
+      "blob:",
+      "data:",
       ...(csp === config.app.security.devCsp ? ["ws://localhost:1420"] : []),
     ];
     expect(origins.filter((origin) => !allowed.includes(origin))).toEqual([]);
