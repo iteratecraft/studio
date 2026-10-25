@@ -43,9 +43,11 @@ test.beforeAll(async () => {
     } catch (error) {
       if (Date.now() > deadline || app.exitCode !== null) {
         throw new Error(
-          `The app opened no DevTools port (exit code ${app.exitCode}, WebView2 processes: ` +
-            `${processTree().filter((p) => /msedgewebview2/i.test(p.name)).length}, ` +
-            `WebView2 runtime ${webView2Version()})`,
+          `The app opened no DevTools port (exit code ${app.exitCode}, WebView2 runtime ` +
+            `${webView2Version()}). Its processes:\n` +
+            processTree()
+              .map((p) => `${p.name}: ${p.commandLine}`)
+              .join("\n"),
           { cause: error },
         );
       }
@@ -155,13 +157,18 @@ test("reports idle memory of the app and its WebView2 processes", async () => {
 });
 
 /** The app process and every process below it (the WebView2 browser, renderer, GPU...). */
-function processTree(): { name: string; workingSet: number; privateBytes: number }[] {
+function processTree(): {
+  name: string;
+  commandLine: string;
+  workingSet: number;
+  privateBytes: number;
+}[] {
   const script = `
     $all = Get-CimInstance Win32_Process
     $ids = @(${app.pid}); $i = 0
     while ($i -lt $ids.Count) { $ids += @($all | ? ParentProcessId -eq $ids[$i] | % ProcessId); $i++ }
     ConvertTo-Json -Compress @($all | ? { $ids -contains $_.ProcessId } |
-      % { @{ name = $_.Name; workingSet = $_.WorkingSetSize; privateBytes = $_.PrivatePageCount } })`;
+      % { @{ name = $_.Name; commandLine = $_.CommandLine; workingSet = $_.WorkingSetSize; privateBytes = $_.PrivatePageCount } })`;
   const output = execFileSync(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", script],
