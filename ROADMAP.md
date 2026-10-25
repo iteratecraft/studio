@@ -147,7 +147,7 @@ applied these by hand.)
 - **Epics:** ENG-07 (VTT captions only), ENG-08, ENG-10, ENG-11 (slice), ENG-12, ENG-13, ENG-14 (basic
   import only), ENG-15, ENG-40 (start), BLK-01 to BLK-10, STD-08.
 - **Exit:**
-  - A scripted end-to-end run on all three OS: create a course, add 3 lessons using every MVP block type
+  - A scripted end-to-end run on Windows (D-29; macOS and Linux follow the platform order): create a course, add 3 lessons using every MVP block type
     and a quiz lesson, set theme and navigation, preview, export SCORM 1.2, and pass in Moodle, all
     offline.
   - Preview and export are pixel-identical for corpus courses.
@@ -344,7 +344,7 @@ planning.
 | Translate and AI | ENG-34, ENG-35, LOC-* | week 36 (ENG-34 contracts first) |
 | Accessibility, security and clean-room QA | gates, audits, checklists | M1 |
 
-## First tasks: M0 and M1
+## Tasks: M0, M1 and M2
 
 ### M0
 
@@ -354,11 +354,11 @@ planning.
 - [x] **M0-04** Licences and licence gate: Apache-2.0 root, MIT for every course-shipped package, NOTICE, scanner of built contents
 - [x] **M0-05** Clean-room and trademark guard in CI, PR template citing spec ids
 - [x] **M0-06** Spec traceability report: every numbered spec rule mapped to tagged tests
-- [ ] **M0-07** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC *(before M2)*
-- [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(before M2)*
-- [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(before M2)*
+- [ ] **M0-07** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC *(now M2-01)*
+- [ ] **M0-08** Installers on tag (Windows, macOS arm64/x64 dmg, AppImage, deb), signing wired but skipped without secrets *(now M2-19, Windows first)*
+- [ ] **M0-09** Auto-update from GitHub Releases: Windows and AppImage update in place; macOS and deb notify-and-download; signed metadata *(now M2-20, Windows first)*
 - [ ] **M0-10** Server skeleton: Fastify, /health, migrations; **one all-in-one image** (SQLite + local files by default, PostgreSQL + S3 by env vars), plus `compose.yaml`; documented single `docker run` command proven in CI *(before M3)*
-- [ ] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(before M3)*
+- [ ] **M0-11** Web app and UI kit skeleton with design tokens and axe checks *(now M2-05)*
 - [x] **M0-12** `test-courses` repo scaffold, pinned in CI
 - [ ] **M0-13** Scheduler: recompute milestone dates from `depends_on` and team count; publish in CI
 - [x] **M0-14** Build-agent configuration: no REA server, no research checkout, vendor domains and spec-source hosts blocked
@@ -400,6 +400,42 @@ planning.
 - [x] **M1-30** No-network guarantee tests for every output
 - [x] **M1-31** M1 demo and exit review
 
+### M2
+
+Wave F, foundation:
+
+- [ ] **M2-01** Electron shell: context isolation, sandboxed renderer, strict CSP, allow-listed IPC (M0-07)
+- [ ] **M2-02** Host interface the editors code against, and its desktop adapter (ENG-12)
+- [ ] **M2-03** Document command layer: typed commands, validation, integrity, undo and redo, change events (ENG-10)
+- [ ] **M2-04** Project container: one file per course, autosave folder, crash-safe save, asset store, snapshots (ENG-11, D-4)
+- [ ] **M2-05** UI kit: design tokens, light and dark themes, keyboard patterns, string catalogue, web app skeleton (ENG-12, M0-11)
+- [ ] **M2-06** Job runner: desktop worker processes, progress, cancel, retry, resume after restart (ENG-15)
+- [ ] **M2-07** Long-resume author warning at publish (carried from M1)
+
+Wave G, editor core:
+
+- [ ] **M2-08** Authoring shell, project files and dashboard (BLK-01)
+- [ ] **M2-09** Course outline, lessons and sections (BLK-02)
+- [ ] **M2-10** Block editing core and common block settings (BLK-03)
+- [ ] **M2-11** Real-player preview (ENG-13)
+
+Wave H, content:
+
+- [ ] **M2-12** Text and static content blocks (BLK-04)
+- [ ] **M2-13** Media intake, media blocks and VTT captions (ENG-14 basic, BLK-05, ENG-07 captions)
+- [ ] **M2-14** Core interactive blocks (BLK-06)
+- [ ] **M2-15** Knowledge checks and quiz lessons (BLK-07)
+- [ ] **M2-16** Completion gating and navigation settings (BLK-08)
+- [ ] **M2-17** Theme, fonts and contrast (BLK-09, ENG-08)
+
+Wave I, release:
+
+- [ ] **M2-18** Publish settings panel, responsive preview and export (BLK-10, STD-08)
+- [ ] **M2-19** Windows installer on tag, signing wired but skipped without secrets (M0-08, D-2)
+- [ ] **M2-20** Auto-update from GitHub Releases with signed metadata (M0-09)
+- [ ] **M2-21** Carried from M1 (D-26): ILIAS, an open-source LRS, CATAPULT cmi5 content tests, player performance budget
+- [ ] **M2-22** User guide, release notes and the Desktop 0.1 exit review (ENG-40 start)
+
 ## Top risks
 
 | Risk | Mitigation |
@@ -421,9 +457,9 @@ planning.
 | Id | Decision | Default proposal | Needed by |
 |---|---|---|---|
 | D-1 | Product name (organisation **iteratecraft** is done) | — | before Desktop 0.1 |
-| D-2 | Code signing: Apple about US$99/yr, Windows about US$10/mo | unsigned + checksums until funded | before Desktop 0.1 |
+| D-2 | Code signing: Apple about US$99/yr, Windows about US$10/mo | **Decided 2026-10-25:** unsigned with published checksums for Desktop 0.1 | before Desktop 0.1 |
 | D-3 | Toolchain (ADR-0001) | pnpm + Turborepo, Vitest, Playwright, electron-builder, Fastify | M0 start |
-| D-4 | Desktop project file container | single zip-based file with autosave folder | before M2 |
+| D-4 | Desktop project file container | **Decided 2026-10-25:** one zip-based file per course, with a hidden autosave folder for crash recovery | done |
 | D-5 | Co-editing granularity for Blocks | one editor per lesson, with live presence | **M1 start** |
 | D-6 | Standalone web output: keep progress in browser storage or not, per app | Blocks no, Slides yes (follow specs) | before M1-17 |
 | D-7 | One organisation per server for 1.0 | yes; multi-org later | before M3 |
@@ -431,7 +467,7 @@ planning.
 | D-9 | .story import go/no-go | wait for the study spec | before M6c |
 | D-10 | Project-editing chat assistant parked after 1.1 | yes | M6 |
 | D-11 | First AI providers and local runtimes | one OpenAI-compatible API, Anthropic, Ollama, whisper.cpp, Piper | before M6 |
-| D-12 | ffmpeg build and codecs bundled | LGPL build, royalty-free codecs plus OS decoders | before M2 |
+| D-12 | ffmpeg build and codecs bundled | **Decided 2026-10-25:** LGPL build, royalty-free codecs plus OS decoders | done |
 | D-13 | Licences for test-courses and library repos; who makes original art | CC-BY-4.0 content, CC0 icons; AI-assisted original art | before M2b |
 | D-14 | How many agent teams the lead can review at once | start with 6, raise when gates hold | M0 |
 | D-15 | Publish engine packages to npm | after M1 exit | M1 exit |
@@ -448,6 +484,8 @@ planning.
 | D-26 | Which M1 exit items must be met before M1 closes | **Decided 2026-10-25:** Moodle only. ILIAS, an open-source LRS, the CATAPULT cmi5 content tests and the player performance budget move to the M2 exit | done |
 | D-27 | Moodle version for the end-to-end job | **Decided 2026-10-25:** Moodle 5.3, pinned by release checksum and image digests | done |
 | D-28 | Sign-in names and passwords of the throwaway test Moodle | **Decided 2026-10-25:** fixed values committed in the repo; they work only inside the local test container | done |
+| D-29 | Platforms for Desktop 0.1 | **Decided 2026-10-25:** Windows only; the M2 exit run is on Windows, macOS and Linux follow the platform order | done |
+| D-30 | Product name | real name chosen before Desktop 0.1 goes public; options brought at the start of wave I | before Desktop 0.1 |
 
 ## How to read the backlog
 
