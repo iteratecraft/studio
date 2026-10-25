@@ -32,7 +32,9 @@ function text(bytes: Uint8Array, name: string): string {
 
 /** `player.<first 10 hex digits of the SHA-256>.<extension>`, with the file's text. */
 async function playerFile(extension: string, bytes: Uint8Array) {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>),
+  );
   const hex = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return {
     name: `player.${hex.slice(0, 10)}.${extension}`,
