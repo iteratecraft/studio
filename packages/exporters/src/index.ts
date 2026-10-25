@@ -35,4 +35,3 @@ export type { Scorm2004Options } from "./scorm2004.js";
 export { SCORM2004_METADATA, SCORM2004_SCHEMAS, scorm2004Exporter } from "./scorm2004.js";
 export type { XapiOptions } from "./xapi.js";
 export { TINCAN_XML, xapiExporter } from "./xapi.js";
-export { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "./zip.js";

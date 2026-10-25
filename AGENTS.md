@@ -44,7 +44,8 @@ supported for now, but write cross-platform code: `path.join`, no shell-specific
 
 ## Layout, layers and licences
 
-- `packages/format` and `packages/labels` <- engine packages (`player-blocks`, `tracking`, `exporters`, `conformance`) <-
+- `packages/format` and `packages/labels` <- engine packages (`zip`, `player-blocks`, `tracking`, `exporters`,
+  `project`, `conformance`) <-
   `packages/ui` <- `apps/*`. Import only from layers to your left; import other packages by name, never by relative
   path. `conformance` is test-only: `ui` and apps never import it (ADR-0001). `pnpm check:deps`
   enforces this.

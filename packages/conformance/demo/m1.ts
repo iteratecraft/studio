@@ -14,7 +14,6 @@ import {
   firstRead,
   loadBlocksCorpus,
   readPackage,
-  readZip,
   startTestLms,
   TEST_CMI5_AUTH,
   TEST_COURSES_DIR,
@@ -35,6 +34,7 @@ import {
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
 import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
+import { readZip } from "@course-suite/zip";
 
 /** The root of the studio checkout. */
 const ROOT = join(import.meta.dirname, "..", "..", "..");
@@ -126,15 +126,15 @@ export async function startDemo(options: DemoOptions = {}): Promise<Demo> {
       rmSync(folder, { recursive: true, force: true });
       mkdirSync(folder, { recursive: true });
       writeFileSync(`${folder}.zip`, built.value.zip);
-      const unzipped = readZip(built.value.zip);
+      const unzipped = await readZip(built.value.zip);
       if (!unzipped.ok) throw new Error(`${key}: ${JSON.stringify(unzipped.problems)}`);
       for (const name of unzipped.value.names) {
         mkdirSync(dirname(join(folder, name)), { recursive: true });
-        writeFileSync(join(folder, name), unzipped.value.read(name) as Uint8Array);
+        writeFileSync(join(folder, name), (await unzipped.value.read(name)) as Uint8Array);
       }
       let pkg: Launch["pkg"] = { files: unzipped.value, launchHref: BLOCKS_LAUNCH_PAGE };
       if (standard !== "web") {
-        const read = readPackage(built.value.zip);
+        const read = await readPackage(built.value.zip);
         if (!read.ok) throw new Error(`${key}: ${JSON.stringify(read.problems)}`);
         pkg = read.value;
       }

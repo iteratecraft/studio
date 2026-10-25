@@ -3,8 +3,16 @@
 // the archive declares, so a hostile archive fails with a problem instead of exhausting memory.
 // Files are inflated one at a time to verify them, and again when read, so the archive never
 // holds all of its inflated files at once.
-import { crc32, inflateRawSync } from "node:zlib";
-import { fail, ok, type Problem, type Result } from "./result.js";
+import { crc32 } from "./crc32.js";
+
+/** One reason an archive was rejected. */
+export interface ZipProblem {
+  /** Entry name, or "" for the archive itself. */
+  file: string;
+  message: string;
+}
+
+export type ZipResult<T> = { ok: true; value: T } | { ok: false; problems: ZipProblem[] };
 
 export interface ZipLimits {
   /** Most entries, directories included. */
@@ -33,7 +41,7 @@ export interface ZipArchive {
   readonly names: readonly string[];
   has(name: string): boolean;
   /** The file's bytes, or undefined when the archive has no such file. */
-  read(name: string): Uint8Array | undefined;
+  read(name: string): Promise<Uint8Array | undefined>;
 }
 
 const EOCD = 0x06054b50;
@@ -48,6 +56,10 @@ const FORBIDDEN = /[\u0000-\u001f<>:"|?*]/;
 // Windows allows 255 UTF-16 units per name and most Unix file systems 255 UTF-8 bytes. The UTF-8
 // byte count is never the smaller of the two, so one check covers both.
 const MAX_SEGMENT_BYTES = 255;
+/** Compressed bytes fed to the inflater at a time, so a lying entry overshoots by little. */
+const INFLATE_SLICE = 16 * 1024;
+
+const encoder = new TextEncoder();
 
 /** Why `name` cannot be extracted safely on every supported OS, or undefined when it can. */
 export function unsafeEntryName(name: string): string | undefined {
@@ -61,7 +73,7 @@ export function unsafeEntryName(name: string): string | undefined {
     if (FORBIDDEN.test(segment)) return "contains a character Windows does not allow in names";
     if (RESERVED.test(segment)) return `uses the reserved Windows device name '${segment}'`;
     if (/[. ]$/.test(segment)) return "has a segment ending in a dot or space";
-    if (Buffer.byteLength(segment) > MAX_SEGMENT_BYTES) {
+    if (encoder.encode(segment).length > MAX_SEGMENT_BYTES) {
       return `has a segment longer than ${MAX_SEGMENT_BYTES} bytes`;
     }
   }
@@ -82,12 +94,13 @@ interface CentralEntry {
 }
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
+const fail = <T>(problems: ZipProblem[]): ZipResult<T> => ({ ok: false, problems });
 
 /** Checks every entry of `bytes` and returns its files. The archive keeps a view of `bytes`. */
-export function readZip(
+export async function readZip(
   bytes: Uint8Array,
   limits: ZipLimits = defaultZipLimits,
-): Result<ZipArchive> {
+): Promise<ZipResult<ZipArchive>> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const archive = (message: string) => fail<ZipArchive>([{ file: "", message }]);
 
@@ -105,7 +118,7 @@ export function readZip(
   if (view.getUint16(eocd + 4, true) !== 0 || view.getUint16(eocd + 8, true) !== count) {
     return archive("spans several disks, which is not supported");
   }
-  // shortcut: no ZIP64, so packages stay under 4 GiB and 65,535 entries; add ZIP64 if one needs more.
+  // shortcut: no ZIP64, so archives stay under 4 GiB and 65,535 entries; add ZIP64 if one needs more.
   if (count === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) {
     return archive("is a ZIP64 archive, which is not supported");
   }
@@ -114,7 +127,7 @@ export function readZip(
   }
   if (cdOffset + cdSize > eocd) return archive("has a central directory outside the archive");
 
-  const problems: Problem[] = [];
+  const problems: ZipProblem[] = [];
   const entries: CentralEntry[] = [];
   const seen = new Map<string, string>();
   // Every folder that holds an entry, keyed like `seen`, to catch a file with a folder's name.
@@ -250,24 +263,27 @@ export function readZip(
 
   // Verify each file and drop its bytes before the next; stop at the first bad one.
   for (const entry of entries) {
-    const data = inflate(bytes, entry);
+    const data = await inflate(bytes, entry);
     if (typeof data === "string") return fail([{ file: entry.name, message: data }]);
   }
 
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
-  return ok({
-    names: entries.map((entry) => entry.name),
-    has: (name) => byName.has(name),
-    read(name) {
-      const entry = byName.get(name);
-      if (!entry) return undefined;
-      const data = inflate(bytes, entry);
-      if (typeof data === "string") {
-        throw new Error(`'${name}' changed after the archive was verified: it ${data}`);
-      }
-      return data;
+  return {
+    ok: true,
+    value: {
+      names: entries.map((entry) => entry.name),
+      has: (name) => byName.has(name),
+      async read(name) {
+        const entry = byName.get(name);
+        if (!entry) return undefined;
+        const data = await inflate(bytes, entry);
+        if (typeof data === "string") {
+          throw new Error(`'${name}' changed after the archive was verified: it ${data}`);
+        }
+        return data;
+      },
     },
-  });
+  };
 }
 
 /** How names are compared: without a trailing slash, NFC-normalised and ignoring case. */
@@ -276,22 +292,58 @@ function nameKey(name: string): string {
 }
 
 /** The entry's inflated bytes, or why they are wrong. */
-function inflate(bytes: Uint8Array, entry: CentralEntry): Uint8Array | string {
+async function inflate(bytes: Uint8Array, entry: CentralEntry): Promise<Uint8Array | string> {
   const raw = bytes.subarray(entry.start, entry.end);
-  let data: Uint8Array;
-  try {
-    // maxOutputLength makes zlib stop one byte past the declared size, whatever the data says.
-    // A stored file is copied so that no reader can change the archive's bytes through it.
-    data =
-      entry.method === 0 ? raw.slice() : inflateRawSync(raw, { maxOutputLength: entry.size + 1 });
-  } catch {
+  // A stored file is copied so that no reader can change the archive's bytes through it.
+  const data = entry.method === 0 ? raw.slice() : await inflateRaw(raw, entry.size);
+  if (data === undefined) {
     return "has compressed data that is damaged or inflates beyond its declared size";
   }
   if (data.length !== entry.size) {
     return `inflates to ${data.length} bytes but declares ${entry.size}`;
   }
-  if (crc32(data) >>> 0 !== entry.crc) return "fails its CRC-32 check";
+  if (crc32(data) !== entry.crc) return "fails its CRC-32 check";
   return data;
+}
+
+/**
+ * Inflates raw deflate data, or returns undefined when it is damaged or inflates past `size`. The
+ * input goes in slices and the output is counted as it comes, so inflation stops soon after `size`
+ * whatever the data says.
+ */
+async function inflateRaw(raw: Uint8Array, size: number): Promise<Uint8Array | undefined> {
+  const { readable, writable } = new DecompressionStream("deflate-raw");
+  const writer = writable.getWriter();
+  const reader = readable.getReader();
+  let stop = false;
+  // Errors reach the reader too, which reports them; the writer's own rejection is not needed.
+  const writing = (async () => {
+    for (let i = 0; i < raw.length && !stop; i += INFLATE_SLICE) {
+      await writer.write(raw.subarray(i, i + INFLATE_SLICE) as Uint8Array<ArrayBuffer>);
+    }
+    if (!stop) await writer.close();
+  })().catch(() => {});
+  const out = new Uint8Array(size);
+  let length = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (length + value.length > size) {
+        stop = true;
+        await reader.cancel();
+        return undefined;
+      }
+      out.set(value, length);
+      length += value.length;
+    }
+  } catch {
+    stop = true;
+    return undefined;
+  } finally {
+    await writing;
+  }
+  return length === size ? out : out.slice(0, length);
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {

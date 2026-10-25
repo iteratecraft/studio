@@ -19,6 +19,7 @@
     "@course-suite/format": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
     "@course-suite/tracking": "workspace:*",
+    "@course-suite/zip": "workspace:*",
     "@xmldom/xmldom": "catalog:"
   },
   "devDependencies": {

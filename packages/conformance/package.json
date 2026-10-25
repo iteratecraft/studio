@@ -20,6 +20,7 @@
     "test:moodle": "playwright test -c moodle"
   },
   "dependencies": {
+    "@course-suite/zip": "workspace:*",
     "@xmldom/xmldom": "catalog:",
     "playwright-core": "1.64.0",
     "scorm-again": "3.4.6"

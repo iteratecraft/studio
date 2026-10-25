@@ -1,5 +1,6 @@
 // Reads a course package: safe unzip, then the one descriptor at its root, then a check that the
 // launch href is an http(s) URL or names a file the package contains.
+import { defaultZipLimits, readZip, type ZipArchive, type ZipLimits } from "@course-suite/zip";
 import { fail, ok, type Result } from "./result.js";
 import { parseScormManifest, SCORM_MANIFEST, type ScormManifest } from "./scorm-manifest.js";
 import {
@@ -10,7 +11,6 @@ import {
   TINCAN_XML,
   type TincanDescriptor,
 } from "./xapi-descriptors.js";
-import { defaultZipLimits, readZip, type ZipArchive, type ZipLimits } from "./zip.js";
 
 export type PackageDescriptor =
   | { kind: "scorm"; manifest: ScormManifest }
@@ -27,11 +27,11 @@ export interface CoursePackage {
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
-export function readPackage(
+export async function readPackage(
   zip: Uint8Array,
   limits: ZipLimits = defaultZipLimits,
-): Result<CoursePackage> {
-  const unzipped = readZip(zip, limits);
+): Promise<Result<CoursePackage>> {
+  const unzipped = await readZip(zip, limits);
   if (!unzipped.ok) return unzipped;
   const files = unzipped.value;
 
@@ -46,7 +46,7 @@ export function readPackage(
   const name = found[0] ?? "";
   let xml: string;
   try {
-    xml = utf8.decode(files.read(name));
+    xml = utf8.decode(await files.read(name));
   } catch {
     return fail([{ file: name, message: "is not valid UTF-8" }]);
   }

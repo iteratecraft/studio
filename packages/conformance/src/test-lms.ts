@@ -281,9 +281,12 @@ export async function startTestLms(
         return send(400, "text/plain", "bad path");
       }
       // Files are looked up by entry name in memory, so no request can reach the disk.
-      const data = pkg.files.read(name);
       const type = CONTENT_TYPES[extname(name).toLowerCase()] ?? "application/octet-stream";
-      if (data) return send(200, type, data);
+      pkg.files.read(name).then(
+        (data) => (data ? send(200, type, data) : send(404, "text/plain", "not found")),
+        () => send(500, "text/plain", "unreadable"),
+      );
+      return;
     }
     send(404, "text/plain", "not found");
   });

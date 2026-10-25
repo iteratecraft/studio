@@ -98,7 +98,7 @@ async function scormPackage(
   exporter: Exporter,
   media?: TestCourse["media"],
 ): Promise<CoursePackage> {
-  const read = readPackage(await blocksZip(course, exporter, media));
+  const read = await readPackage(await blocksZip(course, exporter, media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }
@@ -109,7 +109,7 @@ export async function xapiPackage(
   media?: TestCourse["media"],
   exporter = xapiExporter(),
 ): Promise<CoursePackage> {
-  const read = readPackage(await blocksZip(course, exporter, media));
+  const read = await readPackage(await blocksZip(course, exporter, media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }
@@ -119,7 +119,7 @@ export async function cmi5Package(
   course: Course,
   media?: TestCourse["media"],
 ): Promise<CoursePackage> {
-  const read = readPackage(await blocksZip(course, cmi5Exporter(), media));
+  const read = await readPackage(await blocksZip(course, cmi5Exporter(), media));
   if (!read.ok) throw new Error(JSON.stringify(read.problems, null, 2));
   return read.value;
 }
