@@ -161,7 +161,6 @@ test("page script can neither read nor change WebView2's profile or anything out
   const localState = join(profile, "Local State");
   // WebView2 has made its profile by now, so the refusals below are about real files.
   expect(existsSync(localState)).toBe(true);
-  const before = readFileSync(localState);
   const unpicked = join(tmpdir(), "Unpicked.crs");
   // Built by hand where join() would resolve the "..".
   const refused: [string, Record<string, string>][] = [
@@ -189,7 +188,12 @@ test("page script can neither read nor change WebView2's profile or anything out
     expect(result, `${command} ${JSON.stringify(args)}`).toMatchObject({ ok: false });
     expect(result.error).toMatch(/^not-allowed: /);
   }
-  expect(readFileSync(localState)).toEqual(before);
+  // WebView2 rewrites its own Local State whenever it likes (on CI it once added a captions
+  // setting mid-test), so the check is that the file is still WebView2's JSON, not the bytes the
+  // refused write would have put there.
+  const after = readFileSync(localState);
+  expect([...after]).not.toEqual([1, 2, 3]);
+  expect(() => JSON.parse(after.toString("utf8"))).not.toThrow();
   for (const path of [
     join(profile, "smoke-test.bin"),
     join(localData, "smoke-test.bin"),
