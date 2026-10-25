@@ -35,7 +35,8 @@ describe("previewPackage", () => {
     expect(new Map(preview.files.map(([path, data]) => [path, data]))).toEqual(
       new Map([...exported].filter(([name]) => name !== "index.html")),
     );
-  });
+    // It builds, zips and unzips the real player: about 0.3 s alone, over 5 s on a busy CI runner.
+  }, 30_000);
 
   test("gives each file the type a web server would, SVG images included", async () => {
     const preview = await previewPackage(sampleCourse(), (key) => media[key]);
