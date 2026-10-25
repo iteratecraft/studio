@@ -27,19 +27,28 @@ let browser: Browser;
 let page: Page;
 
 test.beforeAll(async () => {
+  // WebView2's first start on a fresh machine creates its profile, which can take a while.
+  test.setTimeout(120_000);
   app = spawn(exe, [], {
     env: {
       ...process.env,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
     },
   });
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 90_000;
   for (;;) {
     try {
       browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
       break;
     } catch (error) {
-      if (Date.now() > deadline || app.exitCode !== null) throw error;
+      if (Date.now() > deadline || app.exitCode !== null) {
+        throw new Error(
+          `The app opened no DevTools port (exit code ${app.exitCode}, WebView2 processes: ` +
+            `${processTree().filter((p) => /msedgewebview2/i.test(p.name)).length}, ` +
+            `WebView2 runtime ${webView2Version()})`,
+          { cause: error },
+        );
+      }
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
@@ -136,24 +145,44 @@ test("writes and reads only app data files and files the user picked", async () 
 
 test("reports idle memory of the app and its WebView2 processes", async () => {
   await page.waitForTimeout(5_000);
-  // Sums the app process and every process below it (the WebView2 browser, renderer, GPU...).
+  const tree = processTree();
+  const sum = (key: "workingSet" | "privateBytes") => tree.reduce((n, p) => n + p[key], 0);
+  const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+  const report = `${tree.length} processes, working set ${mb(sum("workingSet"))} MiB, private ${mb(sum("privateBytes"))} MiB`;
+  console.log(`Idle memory after 5 s: ${report}`);
+  test.info().annotations.push({ type: "idle memory", description: report });
+  expect(tree.length).toBeGreaterThan(1);
+});
+
+/** The app process and every process below it (the WebView2 browser, renderer, GPU...). */
+function processTree(): { name: string; workingSet: number; privateBytes: number }[] {
   const script = `
     $all = Get-CimInstance Win32_Process
     $ids = @(${app.pid}); $i = 0
     while ($i -lt $ids.Count) { $ids += @($all | ? ParentProcessId -eq $ids[$i] | % ProcessId); $i++ }
-    $tree = $all | ? { $ids -contains $_.ProcessId }
-    "{0} {1} {2}" -f $tree.Count, ($tree | Measure-Object WorkingSetSize -Sum).Sum, (($tree | Measure-Object PrivatePageCount -Sum).Sum)`;
-  const [count, workingSet, privateBytes] = execFileSync(
+    ConvertTo-Json -Compress @($all | ? { $ids -contains $_.ProcessId } |
+      % { @{ name = $_.Name; workingSet = $_.WorkingSetSize; privateBytes = $_.PrivatePageCount } })`;
+  const output = execFileSync(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", script],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split(" ")
-    .map(Number);
-  const mb = (n = 0) => (n / 1024 / 1024).toFixed(1);
-  const report = `${count} processes, working set ${mb(workingSet)} MiB, private ${mb(privateBytes)} MiB`;
-  console.log(`Idle memory after 5 s: ${report}`);
-  test.info().annotations.push({ type: "idle memory", description: report });
-  expect(count).toBeGreaterThan(1);
-});
+    {
+      encoding: "utf8",
+    },
+  );
+  return JSON.parse(output);
+}
+
+/** The installed WebView2 runtime's version, for the message when the app does not start. */
+function webView2Version(): string {
+  const key = String.raw`HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`;
+  try {
+    return (
+      execFileSync("reg", ["query", key, "/v", "pv"], { encoding: "utf8" })
+        .trim()
+        .split(/\s+/)
+        .at(-1) ?? ""
+    );
+  } catch {
+    return "not found";
+  }
+}
