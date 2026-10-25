@@ -1,6 +1,7 @@
 // The real-player preview (M2-11, ENG-13) in a browser, on the preview test page, which runs under
-// the desktop app's release content security policy (vite.config.ts). Corpus courses come from the
-// private iteratecraft/test-courses checkout at `test-courses/`; without it these tests skip.
+// the desktop app's release content security policy (vite.config.ts). The journeys use the format
+// package's sample course; the identity test also takes every corpus course from the private
+// iteratecraft/test-courses checkout at `test-courses/`, when there is one.
 /// <reference types="node" />
 import {
   existsSync,
@@ -16,6 +17,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
 import { type Course, openCourse } from "@course-suite/format";
+import { sampleCourse } from "@course-suite/format/test/courses";
 import type { AdapterCall } from "@course-suite/tracking";
 import { readZip } from "@course-suite/zip";
 import {
@@ -29,16 +31,31 @@ import {
 import { violations } from "./axe.ts";
 
 const corpus = join(import.meta.dirname, "..", "..", "..", "test-courses", "blocks");
-const COURSES = existsSync(corpus)
+const CORPUS = existsSync(corpus)
   ? readdirSync(corpus).filter((name) => existsSync(join(corpus, name, "course.json")))
   : [];
-test.skip(COURSES.length === 0, `No test-courses checkout at ${corpus}`);
 
 interface Fixture {
   name: string;
   course: Course;
   media: Record<string, Uint8Array>;
 }
+
+/** The format package's sample course, with plain SVG drawings for its two images. */
+function sample(): Fixture {
+  const course = sampleCourse();
+  const svg = (fill: string) =>
+    new TextEncoder().encode(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="${fill}"/></svg>`,
+    );
+  return {
+    name: "sample",
+    course,
+    media: { "cover.svg": svg("#dfead8"), "compost-bin.svg": svg("#6b8f4e") },
+  };
+}
+
+const fixture = (name: string): Fixture => (name === "sample" ? sample() : corpusCourse(name));
 
 function corpusCourse(name: string): Fixture {
   const opened = openCourse(readFileSync(join(corpus, name, "course.json"), "utf8"));
@@ -179,19 +196,19 @@ function errorsOf(page: Page): string[] {
 }
 
 test.describe("the preview and the exported web package", () => {
-  for (const name of COURSES) {
+  for (const name of ["sample", ...CORPUS]) {
     test(`UI-BLOCKS-EDITOR-R52 UI-BLOCKS-EDITOR-R55 [rise:R20] ${name}: the overview and the first lesson render identically at computer, tablet and phone width`, async ({
       page,
       browser,
     }) => {
-      const fixture = corpusCourse(name);
+      const course = fixture(name);
       const errors = errorsOf(page);
-      const dir = await exportedWebPackage(fixture);
+      const dir = await exportedWebPackage(course);
       const exported = await browser.newPage();
       try {
-        for (const lesson of [undefined, firstPage(fixture.course).id]) {
+        for (const lesson of [undefined, firstPage(course.course).id]) {
           await page.goto("about:blank");
-          await openPreview(page, fixture, lesson ? { lesson } : {});
+          await openPreview(page, course, lesson ? { lesson } : {});
           for (const device of ["Computer", "Tablet", "Phone"]) {
             await page.getByRole("radio", { name: device }).click();
             await expect(page.getByRole("radio", { name: device })).toBeChecked();
@@ -235,10 +252,16 @@ test.describe("the preview and the exported web package", () => {
   }
 });
 
+// The sample course: "What compost is" opens with a continue block (no requirement) that holds
+// back a knowledge check; "Greens and browns" comes next.
+const FIRST = "What compost is";
+const SECOND = "Greens and browns";
+const CHECK = '[data-block="blkcheck01"]';
+
 test("UI-BLOCKS-EDITOR-R53 each device button sets the frame's width, and at tablet width the contents start closed", async ({
   page,
 }) => {
-  await openPreview(page, corpusCourse("gated-continue"));
+  await openPreview(page, sample());
   const frame = page.frameLocator(FRAME);
   const width = () => page.locator(FRAME).evaluate((element) => element.clientWidth);
   const paneWidth = await page.locator(".cs-Preview-stage").evaluate((stage) => stage.clientWidth);
@@ -261,12 +284,12 @@ test("UI-BLOCKS-EDITOR-R52 updates after a command once the author pauses, at th
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 420 });
-  const fixture = corpusCourse("gated-continue");
-  const lesson = firstPage(fixture.course);
+  const course = sample();
+  const lesson = firstPage(course.course);
   if (lesson.kind !== "lesson") throw new Error("the first page is not a lesson");
-  const frame = await openPreview(page, fixture, { lesson: lesson.id });
+  const frame = await openPreview(page, course, { lesson: lesson.id });
   await saved(page, () => frame.getByRole("button", { name: "Continue", exact: true }).click());
-  await expect(frame.getByRole("button", { name: "I have read all three" })).toBeVisible();
+  await expect(frame.locator(CHECK)).toBeVisible();
   const before = await shownFrame(page);
   await before.evaluate(() => scrollTo(0, 200));
   await expect.poll(() => page.evaluate(() => window.previewHandle?.scrollY)).toBe(200);
@@ -275,22 +298,22 @@ test("UI-BLOCKS-EDITOR-R52 updates after a command once the author pauses, at th
   await page.evaluate(
     ({ id, block }) => {
       const result = window.previewEditor?.dispatch([
-        { type: "updateEntry", id, set: { title: "Picking a pitch" } },
+        { type: "updateEntry", id, set: { title: "What compost really is" } },
         { type: "updateBlock", id: block, set: { settings: { padding: { top: 48, bottom: 48 } } } },
       ]);
       if (!result?.ok) throw new Error(JSON.stringify(result));
     },
     { id: lesson.id, block: first },
   );
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Picking a pitch");
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("What compost really is");
   const after = await shownFrame(page);
   expect(after).not.toBe(before);
-  // The same lesson, scrolled as far, with the first continue still pressed.
+  // The same lesson, scrolled as far, with the continue still pressed.
   expect(await after.evaluate(() => [location.hash, scrollY])).toEqual([
     `#/lessons/${lesson.id}`,
     200,
   ]);
-  await expect(frame.getByRole("button", { name: "I have read all three" })).toBeVisible();
+  await expect(frame.locator(CHECK)).toBeVisible();
   // Block settings reach the player under the desktop app's content security policy.
   await expect(frame.locator(`[data-block="${first}"]`)).toHaveCSS("padding-top", "48px");
   expect(await page.evaluate(() => window.previewRenders?.length)).toBe(2);
@@ -299,17 +322,17 @@ test("UI-BLOCKS-EDITOR-R52 updates after a command once the author pauses, at th
 test("ENG-13: progress lasts through a live update, and Restart clears all of it and opens the start page again", async ({
   page,
 }) => {
-  const frame = await openPreview(page, corpusCourse("gated-continue"));
+  const frame = await openPreview(page, sample());
   await frame.getByRole("link", { name: "Begin course" }).click();
   await saved(page, () => frame.getByRole("button", { name: "Continue", exact: true }).click());
-  await expect(frame.getByRole("button", { name: "I have read all three" })).toBeVisible();
-  await frame.getByRole("link", { name: "Raising and packing", exact: true }).click();
+  await expect(frame.locator(CHECK)).toBeVisible();
+  await frame.getByRole("link", { name: SECOND, exact: true }).click();
   await page.evaluate(() =>
-    window.previewEditor?.dispatch({ type: "updateCourse", set: { title: "Pitching a tent" } }),
+    window.previewEditor?.dispatch({ type: "updateCourse", set: { title: "Home composting" } }),
   );
-  await expect(frame.locator(".topbar-title")).toHaveText("Pitching a tent");
-  await frame.getByRole("link", { name: "Choosing a spot", exact: true }).click();
-  await expect(frame.getByRole("button", { name: "I have read all three" })).toBeVisible();
+  await expect(frame.locator(".topbar-title")).toHaveText("Home composting");
+  await frame.getByRole("link", { name: FIRST, exact: true }).click();
+  await expect(frame.locator(CHECK)).toBeVisible();
 
   await page.getByRole("button", { name: "Restart" }).click();
   // Back at the overview, as a learner who never started: no resume, nothing pressed.
@@ -317,7 +340,7 @@ test("ENG-13: progress lasts through a live update, and Restart clears all of it
   await expect(frame.getByRole("link", { name: "Resume where you stopped" })).toBeHidden();
   await frame.getByRole("link", { name: "Begin course" }).click();
   await expect(frame.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
-  await expect(frame.getByRole("button", { name: "I have read all three" })).toBeHidden();
+  await expect(frame.locator(CHECK)).toBeHidden();
   expect((await page.evaluate(() => window.previewHandle?.calls() ?? []))[0]).toEqual({
     method: "initialize",
     args: [],
@@ -328,7 +351,7 @@ test("[rise:R2] [rise:R3] ENG-13: the debug adapter in the preview gets the same
   page,
   browser,
 }) => {
-  const fixture = corpusCourse("gated-continue");
+  const course = sample();
   /**
    * Begin the course, then press the first continue. Progress is saved a moment after it changes
    * (rise.md rule 3), so each step waits for its save, or two quick steps would share one.
@@ -347,7 +370,7 @@ test("[rise:R2] [rise:R3] ENG-13: the debug adapter in the preview gets the same
     return comparable(await calls());
   }
 
-  const dir = await exportedWebPackage(fixture);
+  const dir = await exportedWebPackage(course);
   const exported = await browser.newPage();
   try {
     await exported.addInitScript(() => {
@@ -365,7 +388,7 @@ test("[rise:R2] [rise:R3] ENG-13: the debug adapter in the preview gets the same
       ),
     );
 
-    const frame = await openPreview(page, fixture);
+    const frame = await openPreview(page, course);
     const calls = await steps(frame, () =>
       page.evaluate(() => window.previewHandle?.calls() ?? []),
     );
@@ -389,18 +412,17 @@ test("ENG-13: the preview makes no network request; the frame runs only on files
     else if (!url.startsWith(`${baseURL}/`)) outside.push(url);
   });
   page.on("websocket", (socket) => outside.push(socket.url()));
-  const fixture = corpusCourse("gated-continue");
-  const frame = await openPreview(page, fixture);
+  const frame = await openPreview(page, sample());
   // Learner steps that track (begin, a continue, a lesson change) and a live update.
   await frame.getByRole("link", { name: "Begin course" }).click();
   await frame.getByRole("button", { name: "Continue", exact: true }).click();
-  await frame.getByRole("link", { name: "Raising and packing", exact: true }).click();
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Raising and packing");
+  await frame.getByRole("link", { name: SECOND, exact: true }).click();
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText(SECOND);
   await page.evaluate(
     (id) => window.previewEditor?.dispatch({ type: "updateCourse", set: { title: id } }),
-    "Pitching a tent, revised",
+    "Composting at home, revised",
   );
-  await expect(frame.locator(".topbar-title")).toHaveText("Pitching a tent, revised");
+  await expect(frame.locator(".topbar-title")).toHaveText("Composting at home, revised");
   expect(await page.evaluate(() => window.previewHandle?.calls() ?? [])).not.toEqual([]);
 
   expect(outside).toEqual([]);
@@ -411,7 +433,7 @@ test("ENG-13: the preview makes no network request; the frame runs only on files
 test("UI-BLOCKS-EDITOR-R52 keyboard only: pick a device, take the course in the frame, and return to the editor at that lesson", async ({
   page,
 }) => {
-  const frame = await openPreview(page, corpusCourse("gated-continue"));
+  const frame = await openPreview(page, sample());
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Edit" })).toBeFocused();
   await page.keyboard.press("ArrowRight");
@@ -430,26 +452,26 @@ test("UI-BLOCKS-EDITOR-R52 keyboard only: pick a device, take the course in the 
   const begin = frame.getByRole("link", { name: "Begin course" });
   await pressUntilFocused(page, "Tab", begin);
   await page.keyboard.press("Enter");
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Choosing a spot");
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText(FIRST);
 
   // Back out of the frame to the toolbar, which remembers its last control, then along it to Edit.
   await pressUntilFocused(page, "Shift+Tab", page.getByRole("radio", { name: "Tablet" }));
   await pressUntilFocused(page, "ArrowLeft", page.getByRole("button", { name: "Edit" }));
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveText("Editing Choosing a spot");
+  await expect(page.getByRole("status")).toHaveText(`Editing ${FIRST}`);
 });
 
 test("UI-BLOCKS-EDITOR-R52 pointer: the edit button returns to the editor at the lesson on show, or at the overview", async ({
   page,
 }) => {
-  const frame = await openPreview(page, corpusCourse("gated-continue"));
+  const frame = await openPreview(page, sample());
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("status")).toHaveText("Editing the course overview");
   await frame.getByRole("link", { name: "Begin course" }).click();
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Choosing a spot");
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText(FIRST);
   await page.getByRole("radio", { name: "Phone" }).click();
   await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByRole("status")).toHaveText("Editing Choosing a spot");
+  await expect(page.getByRole("status")).toHaveText(`Editing ${FIRST}`);
 });
 
 for (const theme of ["light", "dark"] as const) {
@@ -457,7 +479,7 @@ for (const theme of ["light", "dark"] as const) {
     page,
   }) => {
     const errors = errorsOf(page);
-    await openPreview(page, corpusCourse("gated-continue"), { theme });
+    await openPreview(page, sample(), { theme });
     expect(await violations(page)).toEqual([]);
     expect(await violations(await shownFrame(page))).toEqual([]);
     await page.getByRole("radio", { name: "Phone" }).click();
@@ -467,15 +489,15 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("ENG-13: time to first render of the largest corpus course", async ({ page }) => {
-  const largest = [...COURSES].sort(
-    (a, b) =>
-      readFileSync(join(corpus, b, "course.json")).length -
-      readFileSync(join(corpus, a, "course.json")).length,
-  )[0] as string;
-  await openPreview(page, corpusCourse(largest));
+test("ENG-13: time to first render of the largest course at hand", async ({ page }) => {
+  const [largest] = ["sample", ...CORPUS]
+    .map(fixture)
+    .sort((a, b) => JSON.stringify(b.course).length - JSON.stringify(a.course).length);
+  if (!largest) throw new Error("no course");
+  await openPreview(page, largest);
   const [ms] = (await page.evaluate(() => window.previewRenders)) ?? [];
   expect(ms).toBeGreaterThan(0);
-  test.info().annotations.push({ type: "first render", description: `${largest}: ${ms} ms` });
-  console.log(`Preview first render, ${largest}: ${Math.round(ms ?? 0)} ms`);
+  const report = `${largest.name}: ${Math.round(ms ?? 0)} ms`;
+  test.info().annotations.push({ type: "first render", description: report });
+  console.log(`Preview first render, ${report}`);
 });
