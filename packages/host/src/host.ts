@@ -71,8 +71,8 @@ export interface HostFiles {
 }
 
 /**
- * Files in one folder by relative paths with forward slashes, such as `Safety.course` or
- * `.Safety.course.autosave/3.course`. A path outside what the folder grants is refused with
+ * Files in one folder by relative paths with forward slashes, such as `Safety.crs` or
+ * `.Safety.crs.autosave/3.crs`. A path outside what the folder grants is refused with
  * `HostError("not-allowed")`.
  */
 export interface HostFolder {

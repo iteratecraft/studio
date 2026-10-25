@@ -44,7 +44,7 @@ describe("checkDataName", () => {
 });
 
 describe("checkFolderPath", () => {
-  test.each(["Safety.course", ".Safety.course.autosave/3.course", "Jörg's course.course"])(
+  test.each(["Safety.crs", ".Safety.crs.autosave/3.crs", "Jörg's course.crs"])(
     "accepts %s",
     (path) => {
       expect(checkFolderPath(path)).toEqual(path.split("/"));
@@ -134,10 +134,10 @@ describe("project files", () => {
   const picked = () => {
     const host = createMemoryHost({
       files: [
-        ["docs/Safety.course", bytes("v1")],
-        ["docs/Other.course", bytes("other")],
+        ["docs/Safety.crs", bytes("v1")],
+        ["docs/Other.crs", bytes("other")],
       ],
-      onPickOpen: () => ["docs/Safety.course"],
+      onPickOpen: () => ["docs/Safety.crs"],
     });
     return host;
   };
@@ -147,19 +147,19 @@ describe("project files", () => {
     const [file] = await host.files.pickOpen();
     if (!file) throw new Error("nothing picked");
     const project = host.files.projectFiles(file);
-    const autosave = ".Safety.course.autosave";
+    const autosave = ".Safety.crs.autosave";
     // The order @course-suite/project saves and autosaves in (D-4).
-    await project.write(`${autosave}/4.course.tmp`, bytes("v4"));
-    await project.rename(`${autosave}/4.course.tmp`, `${autosave}/4.course`);
-    expect(await project.list(autosave)).toEqual(["4.course"]);
+    await project.write(`${autosave}/4.crs.tmp`, bytes("v4"));
+    await project.rename(`${autosave}/4.crs.tmp`, `${autosave}/4.crs`);
+    expect(await project.list(autosave)).toEqual(["4.crs"]);
     await project.write(`${autosave}/save.tmp`, bytes("v5"));
     expect(await project.read(`${autosave}/save.tmp`)).toEqual(bytes("v5"));
-    await project.rename(`${autosave}/save.tmp`, "Safety.course");
+    await project.rename(`${autosave}/save.tmp`, "Safety.crs");
     await project.remove(autosave);
-    expect(await project.read("Safety.course")).toEqual(bytes("v5"));
-    expect(await project.read(`${autosave}/4.course`)).toBeUndefined();
+    expect(await project.read("Safety.crs")).toEqual(bytes("v5"));
+    expect(await project.read(`${autosave}/4.crs`)).toBeUndefined();
     expect(await project.list(autosave)).toEqual([]);
-    expect([...host.disk.keys()].sort()).toEqual(["docs/Other.course", "docs/Safety.course"]);
+    expect([...host.disk.keys()].sort()).toEqual(["docs/Other.crs", "docs/Safety.crs"]);
   });
 
   test("reach nothing else in the project's folder, and never move or delete the project file", async () => {
@@ -168,26 +168,26 @@ describe("project files", () => {
     if (!file) throw new Error("nothing picked");
     const project = host.files.projectFiles(file);
     const refused = [
-      () => project.read("Other.course"),
-      () => project.write("Other.course", bytes("x")),
-      () => project.write(".Other.course.autosave/1.course", bytes("x")),
-      () => project.list("Safety.course"),
-      () => project.remove("Safety.course"),
-      () => project.rename("Safety.course", ".Safety.course.autosave/x"),
-      () => project.rename(".Safety.course.autosave/x", "Other.course"),
+      () => project.read("Other.crs"),
+      () => project.write("Other.crs", bytes("x")),
+      () => project.write(".Other.crs.autosave/1.crs", bytes("x")),
+      () => project.list("Safety.crs"),
+      () => project.remove("Safety.crs"),
+      () => project.rename("Safety.crs", ".Safety.crs.autosave/x"),
+      () => project.rename(".Safety.crs.autosave/x", "Other.crs"),
     ];
     for (const call of refused) await expect(call()).rejects.toMatchObject({ code: "not-allowed" });
-    for (const call of [() => project.read("../Safety.course"), () => project.list(".")]) {
+    for (const call of [() => project.read("../Safety.crs"), () => project.list(".")]) {
       await expect(call()).rejects.toMatchObject({ code: "invalid" });
     }
-    expect(new TextDecoder().decode(host.disk.get("docs/Other.course"))).toBe("other");
+    expect(new TextDecoder().decode(host.disk.get("docs/Other.crs"))).toBe("other");
   });
 
   test("of a file the user did not pick are refused", async () => {
     const host = picked();
-    const project = host.files.projectFiles({ id: "docs/Safety.course", name: "Safety.course" });
-    await expect(project.read("Safety.course")).rejects.toMatchObject({ code: "not-allowed" });
-    await expect(project.list(".Safety.course.autosave")).rejects.toMatchObject({
+    const project = host.files.projectFiles({ id: "docs/Safety.crs", name: "Safety.crs" });
+    await expect(project.read("Safety.crs")).rejects.toMatchObject({ code: "not-allowed" });
+    await expect(project.list(".Safety.crs.autosave")).rejects.toMatchObject({
       code: "not-allowed",
     });
   });
@@ -214,7 +214,7 @@ describe("browser host", () => {
     await host.storage.set("theme", "dark");
     expect([...store.map]).toEqual([["course-suite:theme", "dark"]]);
     await expect(host.files.pickOpen()).rejects.toMatchObject({ code: "unsupported" });
-    const project = host.files.projectFiles({ id: "a.course", name: "a.course" });
-    await expect(project.read("a.course")).rejects.toMatchObject({ code: "unsupported" });
+    const project = host.files.projectFiles({ id: "a.crs", name: "a.crs" });
+    await expect(project.read("a.crs")).rejects.toMatchObject({ code: "unsupported" });
   });
 });

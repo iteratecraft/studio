@@ -9,8 +9,8 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { sampleCourse } from "@course-suite/format/test/courses";
 import { DATA_FILE, pagesOf } from "@course-suite/player-blocks";
+import { readZip } from "@course-suite/zip";
 import { expect, type Page, test } from "@playwright/test";
-import { readZip } from "../src/zip.js";
 import { STORED, webZip } from "../test/blocks.js";
 
 const course = sampleCourse();
@@ -18,13 +18,13 @@ let dir = "";
 let names: readonly string[] = [];
 
 test.beforeAll(async () => {
-  const zip = readZip(await webZip(course));
+  const zip = await readZip(await webZip(course));
   if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
   names = zip.value.names;
   dir = mkdtempSync(join(tmpdir(), "web-output-"));
   for (const name of names) {
     mkdirSync(dirname(join(dir, name)), { recursive: true });
-    writeFileSync(join(dir, name), zip.value.read(name) as Uint8Array);
+    writeFileSync(join(dir, name), (await zip.value.read(name)) as Uint8Array);
   }
 });
 

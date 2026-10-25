@@ -4,9 +4,9 @@
 import type { Course, PublishSettings } from "@course-suite/format";
 import { validateCourse } from "@course-suite/format";
 import type { LrsSettings } from "@course-suite/tracking";
+import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "@course-suite/zip";
 import { fail, ok, type Problem, type Result } from "./result.js";
 import { findModuleCode, findOutboundUrls, urlsIn } from "./scan.js";
-import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "./zip.js";
 
 export type Standard = PublishSettings["standard"];
 
@@ -185,7 +185,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
 
   let zip: Uint8Array;
   try {
-    zip = writeZip([...files].map(([name, bytes]) => ({ name, data: bytes })));
+    zip = await writeZip([...files].map(([name, bytes]) => ({ name, data: bytes })));
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
     return fail([{ file: "", message: error.message }]);

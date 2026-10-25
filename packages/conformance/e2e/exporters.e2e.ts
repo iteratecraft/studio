@@ -11,7 +11,7 @@ test("a built SCORM 1.2 package launches in the test LMS and loads its course da
 }) => {
   const built = await buildPackage(stubInput());
   if (!built.ok) throw new Error(JSON.stringify(built.problems));
-  const read = readPackage(built.value.zip);
+  const read = await readPackage(built.value.zip);
   if (!read.ok) throw new Error(JSON.stringify(read.problems));
   const run = await runPackage(read.value, { browser });
   expect(run.pageErrors).toEqual([]);

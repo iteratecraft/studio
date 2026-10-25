@@ -160,7 +160,7 @@ test("page script can neither read nor change WebView2's profile or anything out
   // WebView2 has made its profile by now, so the refusals below are about real files.
   expect(existsSync(localState)).toBe(true);
   const before = readFileSync(localState);
-  const unpicked = join(tmpdir(), "Unpicked.course");
+  const unpicked = join(tmpdir(), "Unpicked.crs");
   // Built by hand where join() would resolve the "..".
   const refused: [string, Record<string, string>][] = [
     ["read_file", { path: localState }],
@@ -173,14 +173,14 @@ test("page script can neither read nor change WebView2's profile or anything out
     ["write_atomic", { path: `${dataDir}\\..\\smoke-test.bin` }],
     ["write_atomic", { path: `${localData}\\data.\\smoke-test.bin` }],
     ["write_atomic", { path: join(tmpdir(), `course-suite-outside-${process.pid}.bin`) }],
-    ["write_atomic", { path: join(tmpdir(), ".Unpicked.course.autosave", "1.course") }],
+    ["write_atomic", { path: join(tmpdir(), ".Unpicked.crs.autosave", "1.crs") }],
     ["list_folder", { path: profile }],
     ["list_folder", { path: localData }],
     ["remove_path", { path: localState }],
     ["remove_path", { path: dataDir }],
     ["rename_file", { from: localState, to: join(dataDir, "smoke-test.bin") }],
     ["rename_file", { from: join(dataDir, "smoke-test.bin"), to: localState }],
-    ["rename_file", { from: unpicked, to: join(tmpdir(), "Moved.course") }],
+    ["rename_file", { from: unpicked, to: join(tmpdir(), "Moved.crs") }],
   ];
   for (const [command, args] of refused) {
     const result = await shell(command, args);
@@ -191,7 +191,7 @@ test("page script can neither read nor change WebView2's profile or anything out
   for (const path of [
     join(profile, "smoke-test.bin"),
     join(localData, "smoke-test.bin"),
-    join(tmpdir(), ".Unpicked.course.autosave"),
+    join(tmpdir(), ".Unpicked.crs.autosave"),
   ]) {
     expect(existsSync(path), path).toBe(false);
   }

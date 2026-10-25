@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { makeZip } from "@course-suite/zip/test/make-zip";
 import { expect, test } from "@playwright/test";
 import { readPackage } from "../src/package.js";
 import { runPackage } from "../src/run-package.js";
-import { makeZip, zipDirectory } from "../test/make-zip.js";
+import { zipDirectory } from "../test/make-zip.js";
 
-const load = (name: string) => {
-  const result = readPackage(
-    zipDirectory(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url))),
+const load = async (name: string) => {
+  const result = await readPackage(
+    await zipDirectory(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url))),
   );
   if (!result.ok) throw new Error(JSON.stringify(result.problems));
   return result.value;
@@ -15,7 +16,7 @@ const load = (name: string) => {
 
 // Golden call order of the hand-written SCOs (standards.md S-1, T-6, T-7; section 4.1 elements).
 test("records the SCORM 1.2 call trace of the test SCO", async ({ browser }) => {
-  const run = await runPackage(load("scorm12-sco"), { browser });
+  const run = await runPackage(await load("scorm12-sco"), { browser });
   expect(run.pageErrors).toEqual([]);
   expect(run.finished).toBe(true);
   expect(run.trace).toEqual([
@@ -45,7 +46,7 @@ test("records the SCORM 1.2 call trace of the test SCO", async ({ browser }) => 
 });
 
 test("records the SCORM 2004 call trace of the test SCO", async ({ browser }) => {
-  const run = await runPackage(load("scorm2004-sco"), { browser });
+  const run = await runPackage(await load("scorm2004-sco"), { browser });
   expect(run.pageErrors).toEqual([]);
   expect(run.finished).toBe(true);
   expect(run.trace.map((call) => [call.method, ...call.args, call.result, call.errorCode])).toEqual(
@@ -66,8 +67,8 @@ test("returns the partial trace when the SCO never finishes", async () => {
     new URL("../fixtures/scorm12-sco/imsmanifest.xml", import.meta.url),
   );
   const sco = '<!doctype html><title>Stuck</title><script>parent.API.LMSInitialize("");</script>';
-  const result = readPackage(
-    makeZip([
+  const result = await readPackage(
+    await makeZip([
       { name: "imsmanifest.xml", data: manifest },
       { name: "index.html", data: sco },
     ]),
@@ -88,8 +89,8 @@ test("keeps running after a finish call that fails", async ({ browser }) => {
 parent.API.LMSFinish("");
 setTimeout(() => { parent.API.LMSInitialize(""); parent.API.LMSFinish(""); }, 300);
 </script>`;
-  const result = readPackage(
-    makeZip([
+  const result = await readPackage(
+    await makeZip([
       { name: "imsmanifest.xml", data: manifest },
       { name: "index.html", data: sco },
     ]),

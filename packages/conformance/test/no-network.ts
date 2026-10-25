@@ -23,11 +23,11 @@ import {
   type Standard,
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
+import { readZip, type ZipArchive } from "@course-suite/zip";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { type CoursePackage, launchFile, readPackage } from "../src/package.js";
 import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
 import { startTestLms } from "../src/test-lms.js";
-import { readZip, type ZipArchive } from "../src/zip.js";
 import { revisit, walkCourse } from "./learner.js";
 
 /**
@@ -128,11 +128,11 @@ export async function outboundRequests(
   internet: Internet,
   run: Run,
 ): Promise<string[]> {
-  const zip = readZip(run.zip);
+  const zip = await readZip(run.zip);
   if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
   let pkg: CoursePackage | undefined;
   if (run.standard !== "web") {
-    const read = readPackage(run.zip);
+    const read = await readPackage(run.zip);
     if (!read.ok) throw new Error(JSON.stringify(read.problems));
     pkg = read.value;
   }
@@ -144,8 +144,8 @@ export async function outboundRequests(
     ? {
         names: zip.value.names,
         has: (name) => zip.value.has(name),
-        read: (name) => {
-          const data = zip.value.read(name);
+        read: async (name) => {
+          const data = await zip.value.read(name);
           return name === launch && data
             ? utf8.encode(patch(new TextDecoder().decode(data)))
             : data;
@@ -161,7 +161,7 @@ export async function outboundRequests(
     try {
       for (const name of files.names) {
         mkdirSync(dirname(join(dir, name)), { recursive: true });
-        writeFileSync(join(dir, name), files.read(name) as Uint8Array);
+        writeFileSync(join(dir, name), (await files.read(name)) as Uint8Array);
       }
       const base = pathToFileURL(join(dir, "/")).href;
       allowed = [base];
