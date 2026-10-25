@@ -8,10 +8,31 @@
     "lineWidth": 100,
     "lineEnding": "lf"
   },
+  "linter": {
+    "rules": {
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["@tauri-apps", "@tauri-apps/**"],
+                "message": "Only apps/desktop may use Tauri; editor code goes through the host interface in @course-suite/host (ADR-0006)."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
   "overrides": [
     {
       "includes": ["packages/player-*/src/**", "!**/*.test.ts"],
       "plugins": ["./tools/lint/learner-text.grit"]
+    },
+    {
+      "includes": ["apps/desktop/**"],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
     }
   ]
 }

@@ -29,7 +29,8 @@ jobs:
         # On Linux the Playwright step also needs `--with-deps`.
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # The first desktop build without a Rust cache takes about ten minutes.
+    timeout-minutes: 45
     env:
       # Secrets cannot appear in `if:`; this says only whether the key exists, never its value.
       TEST_COURSES_KEY_SET: ${{ secrets.TEST_COURSES_DEPLOY_KEY != '' }}
@@ -79,6 +80,24 @@ jobs:
       - run: pnpm report:trace
       - run: pnpm check:licences
 
+      # Desktop app (M2-01, ADR-0006): the Rust toolchain pinned in rust-toolchain.toml, the Rust
+      # build cached between runs, and the release executable gated at 15 MB (WebView2 is part of
+      # Windows and not counted). The browser tests below then launch that executable
+      # (apps/desktop/e2e/app.e2e.ts), which also prints its idle memory.
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Rust formatting
+        run: cargo fmt --check --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Rust unit tests
+        run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Build the desktop app
+        run: pnpm --filter @course-suite/desktop build:app
+      - name: Desktop executable size gate (15 MB)
+        run: pnpm --filter @course-suite/desktop check:size
+
       - name: Install Chromium for Playwright
         run: pnpm --filter @course-suite/web exec playwright install --only-shell chromium
       - name: Browser smoke test
@@ -91,6 +110,8 @@ jobs:
           path: |
             apps/web/playwright-report/
             apps/web/test-results/
+            apps/desktop/playwright-report/
+            apps/desktop/test-results/
             packages/conformance/playwright-report/
           if-no-files-found: ignore
 

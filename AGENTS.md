@@ -74,6 +74,7 @@ Node 24.2 or later within 24 (`.nvmrc`) and pnpm (`packageManager` in `package.j
 | `pnpm specs:build-copy --from <dir> --out <dir>` | Build copy of the specs with every URL replaced by a stable id (lead or study team only, see `docs/build-agents.md`) |
 | `pnpm format:types` | Regenerate `packages/format/src/course.ts` from `course.schema.json` after a schema change (a test fails while it is stale) |
 | `pnpm check:licences` | Package licences, production dependency licences and `THIRD_PARTY_NOTICES.md` (`--write` regenerates it) |
+| `pnpm --filter @course-suite/desktop build:app` | Builds the desktop executable after `pnpm build` (needs `rustup` and the Visual Studio C++ build tools; ADR-0006); `check:size` then gates it at 15 MB. See `apps/desktop/README.md` |
 
 Run all of them before you open a PR. The Moodle end-to-end tests (`moodle:up`, `test:moodle`) need
 Docker and run in their own CI job; see [docs/ci.md](docs/ci.md).
