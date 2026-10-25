@@ -48,11 +48,27 @@ ships with it.
 
 | Package | Version | Licence | Ships in courses |
 |---|---|---|---|
+| @internationalized/date | 3.12.4 | Apache-2.0 | no |
+| @internationalized/number | 3.6.9 | Apache-2.0 | no |
+| @internationalized/string | 3.2.10 | Apache-2.0 | no |
+| @react-types/shared | 3.37.0 | Apache-2.0 | no |
+| @swc/helpers | 0.5.23 | Apache-2.0 | no |
 | @tauri-apps/api | 2.12.3 | Apache-2.0 OR MIT | no |
 | @tauri-apps/plugin-dialog | 2.8.2 | MIT OR Apache-2.0 | no |
 | @xmldom/xmldom | 0.9.12 | MIT | no |
+| aria-hidden | 1.2.6 | MIT | no |
+| client-only | 0.0.1 | MIT | no |
+| clsx | 2.1.1 | MIT | no |
 | playwright-core | 1.64.0 | Apache-2.0 | no |
+| react | 19.3.0 | MIT | no |
+| react-aria | 3.53.1 | Apache-2.0 | no |
+| react-aria-components | 1.22.1 | Apache-2.0 | no |
+| react-dom | 19.3.0 | MIT | no |
+| react-stately | 3.51.0 | Apache-2.0 | no |
+| scheduler | 0.28.0 | MIT | no |
 | scorm-again | 3.4.6 | MIT | no |
+| tslib | 2.8.1 | 0BSD | no |
+| use-sync-external-store | 1.7.0 | MIT | no |
 
 ### NOTICE of playwright-core 1.64.0
 
