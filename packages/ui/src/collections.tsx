@@ -82,16 +82,30 @@ export function GridListItem<T extends object>({ children, ...props }: GridListI
   );
 }
 
+/** Where reordered items go: before or after the item with `key`. */
+export interface ReorderTarget {
+  key: Key;
+  position: "before" | "after";
+}
+
 /**
- * Drag-and-drop hooks that reorder `list` within its GridList, by pointer or by keyboard (Enter on
- * a drag handle, arrows to the place, Enter to drop). `text` names an item for other apps.
+ * Drag-and-drop hooks that reorder the items of a GridList, by pointer or by keyboard (Enter on a
+ * drag handle, arrows to the place, Enter to drop). `list` is the ListData to reorder, or a
+ * function that moves the dragged `keys` itself, such as by an editing command. `text` names an
+ * item for other apps.
  */
-export function useReorder<T extends object>(list: ListData<T>, text: (item: T) => string) {
+export function useReorder<T extends object>(
+  list: ListData<T> | ((keys: Set<Key>, target: ReorderTarget) => void),
+  text: (item: T) => string,
+) {
   return useDragAndDrop<T>({
     getItems: (_keys, items) => items.map((item) => ({ "text/plain": text(item) })),
     onReorder({ keys, target }) {
-      if (target.dropPosition === "before") list.moveBefore(target.key, keys);
-      else if (target.dropPosition === "after") list.moveAfter(target.key, keys);
+      const { key, dropPosition: position } = target;
+      if (position === "on") return;
+      if (typeof list === "function") list(keys, { key, position });
+      else if (position === "before") list.moveBefore(key, keys);
+      else list.moveAfter(key, keys);
     },
     renderDropIndicator: (target) => <DropIndicator target={target} className="cs-DropIndicator" />,
   }).dragAndDropHooks;

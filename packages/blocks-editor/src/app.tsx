@@ -1,10 +1,11 @@
 // The blocks editor app (M2-08, BLK-01): the dashboard on launch and one open course at a time in
 // the editor frame. It reaches files, dialogs and the window only through the host interface, so
 // the desktop app and a browser run the same screens (ADR-0006).
-import { applyCommands, copyCourse } from "@course-suite/doc-ops";
-import type { Course } from "@course-suite/format";
+import { applyCommands, copyCourse, copyEntryTo } from "@course-suite/doc-ops";
+import type { Course, Entry } from "@course-suite/format";
 import type { AppInfo, FileRef, HostInterface } from "@course-suite/host";
 import {
+  addAsset,
   copyProject,
   createProject,
   discardAutosaves,
@@ -22,7 +23,7 @@ import {
 } from "react";
 import { blankCourse, fileNameFor, shownTitle } from "./course.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
-import { ChoiceDialog, TitleDialog, useDialogs } from "./dialogs.js";
+import { ChoiceDialog, CoursePickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
 import {
   itemOf,
@@ -291,6 +292,66 @@ function App({ host }: { host: HostInterface }) {
     await remember(item.file, project.course);
   };
 
+  /**
+   * Copies a lesson or quiz of the open course to the end of another course's outline, with its
+   * media, and saves that course's file (rise.md 3B, blocks-editor.md W5, UI-BLOCKS-EDITOR-R10).
+   * A microlearning holds one lesson and no quiz, so only courses are offered.
+   */
+  const copyEntry = async (entry: Entry) => {
+    if (!session) return;
+    const from = session;
+    const title = shownTitle(entry.title, t("outline.untitledLesson"));
+    const target = await ask<LibraryItem | null>((answer) => (
+      <CoursePickerDialog
+        title={t("copyTo.title", { title })}
+        courses={library.current.filter(
+          (item) =>
+            item.kind === "course" &&
+            item.deleted === undefined &&
+            item.file.id !== from.file.id &&
+            !missing.has(item.file.id),
+        )}
+        answer={answer}
+      />
+    ));
+    if (!target) return;
+    const project = await newest(target);
+    if (!project) return;
+    const copied = copyEntryTo(from.editor.document, entry.id, project.course);
+    if (!copied) {
+      await notify(t("copyTo.failed"), t("copyTo.custom", { title }));
+      return;
+    }
+    const result = applyCommands(project.course, copied.commands);
+    if (!result.ok) throw new Error(result.errors.map((error) => error.message).join("; "));
+    // shortcut: a key the target already has is taken to hold the same file, as keys are content
+    // hashes by default; check the hashes once authors can name keys themselves.
+    for (const key of copied.keys) {
+      if (Object.hasOwn(project.assets, key)) continue;
+      const asset = await from.asset(key);
+      if (asset) await addAsset(project, asset.data, asset.info, key);
+    }
+    project.course = result.document;
+    await saveProject(host.files.projectFiles(target.file), target.file.name, project);
+    await remember(target.file, project.course);
+    toasts.add(
+      {
+        title: t("copyTo.done", {
+          title,
+          course: shownTitle(project.course.title, t("course.untitled")),
+        }),
+        action: {
+          label: t("copyTo.open"),
+          onAction: () =>
+            void closeCourse()
+              .then((closed) => (closed ? open(target.file) : undefined))
+              .catch(failure),
+        },
+      },
+      { timeout: 8000 },
+    );
+  };
+
   const setDeleted = (item: LibraryItem, deleted: number | undefined) =>
     updateLibrary((items) =>
       items.map((other) => {
@@ -416,8 +477,10 @@ function App({ host }: { host: HostInterface }) {
         <EditorFrame
           key={session.file.id}
           session={session}
+          toasts={toasts}
           onSave={() => void save()}
           onClose={() => void closeCourse()}
+          onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
         />
       ) : (
         <Dashboard

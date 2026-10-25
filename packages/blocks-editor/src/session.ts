@@ -5,10 +5,12 @@ import { createEditor, type Editor } from "@course-suite/doc-ops";
 import type { Course } from "@course-suite/format";
 import { type FileRef, HostError, type HostFolder, type HostInterface } from "@course-suite/host";
 import {
+  type AssetInfo,
   autosaveProject,
   discardAutosaves,
   openProject,
   type Project,
+  readAsset,
   saveProject,
 } from "@course-suite/project";
 
@@ -78,6 +80,16 @@ export class CourseSession {
   subscribe(listener: () => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  /** A media file of the course, by storage key, to copy into another course's project. */
+  async asset(key: string): Promise<{ data: Uint8Array; info: AssetInfo } | undefined> {
+    const { assets } = this.#project;
+    const asset = Object.hasOwn(assets, key) ? assets[key] : undefined;
+    const data = asset && (await readAsset(this.#project, key));
+    if (!asset || !data) return undefined;
+    const { hash: _, size: __, ...info } = asset;
+    return { data, info };
   }
 
   /** Writes an autosave of the latest edits, if any, for crash recovery. */

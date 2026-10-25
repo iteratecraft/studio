@@ -2,6 +2,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  useCallback,
   useId,
   useRef,
   useState,
@@ -175,4 +176,26 @@ export function Splitter({
       <div className="cs-Splitter-pane">{end}</div>
     </div>
   );
+}
+
+/**
+ * A screen-reader announcement of something that happened out of sight, such as "Moved Soil to
+ * place 2 of 5": `announce(text)` reads `text` out politely, again even when it repeats. Render
+ * `region` once, where it stays mounted; it is not shown.
+ */
+export function useAnnouncer(): { region: ReactNode; announce: (text: string) => void } {
+  const [message, setMessage] = useState({ text: "", id: 0 });
+  const announce = useCallback(
+    (text: string) => setMessage(({ id }) => ({ text, id: id + 1 })),
+    [],
+  );
+  return {
+    region: (
+      <div aria-live="polite" className="cs-visually-hidden">
+        {/* A new element each time, so the same text is read again. */}
+        <span key={message.id}>{message.text}</span>
+      </div>
+    ),
+    announce,
+  };
 }

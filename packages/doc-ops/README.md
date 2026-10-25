@@ -24,6 +24,12 @@ worker. It never changes its input.
 id for every object, with every reference inside the course pointing at the copies; references to
 other containers are kept.
 
+`copyEntryTo(source, id, target)` gives the commands that copy one outline entry of `source` to the
+end of `target`'s outline (rise.md 3B, BLK-02): new ids, a media index entry for each media file
+the target lacks, and the storage `keys` whose bytes the target project needs. Buttons to other
+lessons and a quiz's skip-ahead are dropped, as when the entry they point at is deleted (D-36).
+A lesson with a custom block is not copied (undefined), as custom blocks have no commands yet.
+
 ## Commands
 
 | Command | For |

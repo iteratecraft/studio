@@ -24,7 +24,11 @@ createRoot(element).render(<BlocksEditorApp host={host} locale="en" />);
 | Opening | `openProject` with crash recovery: autosaved work newer than the file is offered (recover it, or open the saved file and drop the autosaves); a damaged or newer-version file is refused with its problems and left unchanged |
 | Saving | Autosave 3 s after an edit, gathering the edits in between (`AUTOSAVE_DELAY_MS`; BLK-01 allows 10 s of loss); Ctrl+S or the save button writes the file (`saveProject`); one write at a time |
 | Leaving | Back to the dashboard, or the window's close button, asks Save, Don't save or Cancel when there are unsaved changes; Don't save drops the autosaves |
-| Editor frame (C1, C2) | Top bar: back, course title, save state (a live status), undo and redo (UI-BLOCKS-EDITOR-R14; Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+Shift+Z outside text fields), save; Theme, Preview and Publish shown disabled until M2-17, M2-11 and M2-18. The window title names the course, with `*` while unsaved. The overview holds the course title field (100 characters, UI-BLOCKS-EDITOR-R13; one undo step per edit, kept on Enter or leaving the field) and the outline area that M2-09 fills |
+| Editor frame (C1, C2) | Top bar: back, course title, save state (a live status), undo and redo (UI-BLOCKS-EDITOR-R14; Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+Shift+Z outside text fields), save; Theme, Preview and Publish shown disabled until M2-17, M2-11 and M2-18. The window title names the course, with `*` while unsaved. Undo history belongs to one screen: opening a lesson or going back clears it (UI-BLOCKS-EDITOR-R15) |
+| Overview (C2, 2.2) | Course title (100 characters, UI-BLOCKS-EDITOR-R13), the author shown to learners (empty hides it), the description (plain paragraphs), then the outline; a microlearning shows its one lesson instead of an outline. Text fields keep an edit as one undo step on Enter or leaving the field; Escape puts the kept text back; Ctrl/Cmd+S keeps what they hold, then saves |
+| Outline (C4 to C10, W4, W5, BLK-02) | One reorderable list of section headers, lessons and quizzes. A title field under it adds a lesson on Enter and a section header on Shift+Enter (UI-BLOCKS-EDITOR-R9); its Add menu adds a lesson, a quiz or a header. Each row: drag handle, its type icon when it has content (R11), title renamed in place, Open, a bin for headers and empty lessons (R12), and a menu: open, duplicate (lands below, R10), copy to another course, add a lesson, quiz or header below, move up or down, delete. Deleting shows a notice with undo for 8 seconds; buttons that go to the deleted lesson go in the same undo step (D-36). A section folds its lessons away and moves with them. Rows move by pointer drag, by keyboard drag (Enter on the handle, arrows, Enter) or by the menu, and every move, add and duplicate is announced |
+| Copy to another course (C8, W5) | Pick one of the other listed courses (not a microlearning); the lesson goes to the end of its outline with new ids and its media files, and that file is saved; a notice offers to open it. Buttons to other lessons and a quiz's skip-ahead are left out; a lesson with a custom block is refused with a message |
+| Lesson (L1, C11) | A lesson switcher (another lesson or quiz, or back to the overview, where focus returns to the lesson's row), the lesson's title, description and the author shown on it (empty: the course author), and its blocks by type, read-only until M2-10. A quiz says its questions come later (M2-15) |
 
 The course list lives in the host's storage (`library`), with what each card shows, so the
 dashboard never reads the course files; on launch it only asks the host when each file last
@@ -36,5 +40,6 @@ change events are what later editor screens build on.
 ## Size
 
 Built for the browser (`pnpm --filter @course-suite/web build`, then `size`): this package with the
-engine packages it uses (doc-ops, format, host, project, zip) is 25.4 KB gzipped, on top of React
-(65.8 KB) and React Aria with the kit (126.6 KB).
+engine packages it uses (doc-ops, format, host, project, zip) is 29.4 KB gzipped, on top of React
+(65.8 KB) and React Aria with the kit (127.7 KB). The outline and lessons (M2-09) added 4.0 KB to
+it and 1.1 KB to the kit, and no dependency.
