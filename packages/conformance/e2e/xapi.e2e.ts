@@ -383,7 +383,7 @@ test("[standards:X-1] a package opened from disk reports to the LRS the launch l
   try {
     for (const name of pkg.files.names) {
       mkdirSync(dirname(join(dir, name)), { recursive: true });
-      writeFileSync(join(dir, name), pkg.files.read(name) as Uint8Array);
+      writeFileSync(join(dir, name), (await pkg.files.read(name)) as Uint8Array);
     }
     const page = await browser.newPage();
     const errors: string[] = [];

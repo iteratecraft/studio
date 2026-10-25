@@ -8,7 +8,7 @@ import { stubInput } from "./stub-player.js";
 test("a built SCORM 1.2 package reads back with its manifest and every file listed (standards.md E-1..E-6)", async () => {
   const built = await buildPackage(stubInput());
   if (!built.ok) throw new Error(JSON.stringify(built.problems));
-  const read = readPackage(built.value.zip);
+  const read = await readPackage(built.value.zip);
   if (!read.ok) throw new Error(JSON.stringify(read.problems));
   const { files, descriptor, launchHref } = read.value;
 
@@ -58,7 +58,7 @@ test("a built SCORM 1.2 package reads back with its manifest and every file list
     "imsmanifest.xml",
     "imsmd_rootv1p2p1.xsd",
   ]);
-  const data = new TextDecoder().decode(files.read("course/data.js"));
+  const data = new TextDecoder().decode(await files.read("course/data.js"));
   expect(data).toContain('"standard":"scorm12"');
   expect(data).not.toContain("org.example.plugin");
 });

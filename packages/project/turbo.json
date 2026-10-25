@@ -1,0 +1,17 @@
+{
+  "$schema": "../../node_modules/turbo/schema.json",
+  "extends": ["//"],
+  "tags": ["engine"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/test-courses/blocks/**"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build", "build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "build"]
+    }
+  }
+}

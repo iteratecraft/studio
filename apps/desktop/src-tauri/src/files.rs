@@ -301,7 +301,7 @@ mod tests {
 
     fn fixture() -> Fixture {
         let local = std::env::temp_dir().join("org.iteratecraft.coursesuite");
-        let project = std::env::temp_dir().join("Courses").join("Safety.course");
+        let project = std::env::temp_dir().join("Courses").join("Safety.crs");
         Fixture {
             data: local.join("data"),
             local,
@@ -338,14 +338,14 @@ mod tests {
     fn a_picked_file_brings_its_autosave_folder_and_nothing_else_in_its_folder() {
         let f = fixture();
         let folder = f.project.parent().unwrap();
-        let autosave = folder.join(".Safety.course.autosave");
+        let autosave = folder.join(".Safety.crs.autosave");
         assert_eq!(f.place(&f.project), Some(Place::Picked));
-        for path in [autosave.clone(), autosave.join("3.course")] {
+        for path in [autosave.clone(), autosave.join("3.crs")] {
             assert_eq!(f.place(&path), Some(Place::Autosave(f.project.clone())));
         }
         for path in [
-            folder.join("Other.course"),
-            folder.join(".Other.course.autosave").join("3.course"),
+            folder.join("Other.crs"),
+            folder.join(".Other.crs.autosave").join("3.crs"),
             folder.join("..autosave").join("x"),
             folder.join("....autosave").join("x"),
             folder.to_path_buf(),
@@ -358,7 +358,7 @@ mod tests {
     fn renames_stay_in_one_place_and_never_move_a_picked_file_away() {
         let f = fixture();
         let autosave = Place::Autosave(f.project.clone());
-        let other = f.project.with_file_name("Other.course");
+        let other = f.project.with_file_name("Other.crs");
         let elsewhere = Place::Autosave(other.clone());
         assert!(may_rename(&Place::Data, &Place::Data, &f.data));
         assert!(may_rename(&autosave, &autosave, &f.project));

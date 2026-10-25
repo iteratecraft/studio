@@ -80,7 +80,7 @@ async function keptByTestLmsAfter(
   zip: Uint8Array,
   visits: ((sco: Frame) => Promise<void>)[],
 ) {
-  const pkg = readPackage(zip);
+  const pkg = await readPackage(zip);
   if (!pkg.ok) throw new Error(JSON.stringify(pkg.problems));
   const kept = [];
   let cmi: CmiData | undefined;

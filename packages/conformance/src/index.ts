@@ -8,4 +8,3 @@ export * from "./scorm-manifest.js";
 export * from "./test-lms.js";
 export * from "./xapi-descriptors.js";
 export * from "./xapi-statement.js";
-export * from "./zip.js";
