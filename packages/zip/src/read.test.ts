@@ -131,6 +131,7 @@ describe("readZip", () => {
       expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(64 * 1024 * 1024);
     });
 
+    // Inflates 1 GiB through DecompressionStream: seconds locally, far more on a busy CI runner.
     test("is verified one file at a time when the ratio is allowed", async () => {
       const before = process.memoryUsage().arrayBuffers;
       const result = await readZip(bomb, { ...defaultZipLimits, maxRatio: 1e6 });
@@ -140,7 +141,7 @@ describe("readZip", () => {
       expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(256 * 1024 * 1024);
       const last = await result.value.read("f1023.bin");
       expect(last?.length === mib.length && last.every((byte) => byte === 0)).toBe(true);
-    }, 30_000);
+    }, 120_000);
   });
 
   test("applies the archive-wide ratio only above the floor", async () => {

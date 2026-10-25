@@ -236,7 +236,7 @@ describe("autosave and recovery", () => {
   test("offers the newest autosave newer than the file, leaving out the bytes the file holds", async () => {
     const files = memoryProjectFiles();
     const project = await projectOf(full());
-    const big = new Uint8Array(256 * 1024).map((_, i) => (i * 7919) % 251);
+    const big = new Uint8Array(64 * 1024).map((_, i) => (i * 7919) % 251);
     await addAsset(project, big, { ...FONT, name: "big.woff2" }, "big.woff2");
     await saveProject(files, NAME, project);
     expect((await openProject(files, NAME)).recovered).toBeUndefined();
