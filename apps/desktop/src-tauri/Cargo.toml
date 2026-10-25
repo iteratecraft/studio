@@ -1,0 +1,30 @@
+[package]
+name = "course-suite-desktop"
+version = "0.0.0"
+description = "Course Suite desktop app shell"
+license = "Apache-2.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "=2.7.2", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.3", features = [] }
+tauri-plugin-dialog = "=2.8.2"
+tauri-plugin-fs = "=2.7.0"
+
+[features]
+# Serves the built frontend from inside the executable. `cargo run --no-default-features` loads the
+# Vite dev server instead (README).
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# Small and fast over quick to compile: the installer size is a product goal (ADR-0006).
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

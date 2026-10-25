@@ -1,0 +1,15 @@
+fn main() {
+    // Listing the app's own commands makes Tauri generate a permission for each, so a capability
+    // file must grant them like any plugin command (M2-01).
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "data_folder",
+            "read_file",
+            "write_atomic",
+            "rename_file",
+            "remove_path",
+            "list_folder",
+        ]),
+    ))
+    .expect("failed to run the Tauri build script");
+}

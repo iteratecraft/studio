@@ -1,0 +1,7 @@
+# The Rust toolchain for the desktop app (M2-01, ADR-0006), pinned for reproducible builds. rustup
+# reads this file whenever cargo runs anywhere in the repository; `rustup toolchain install` installs it.
+[toolchain]
+channel = "1.99.0"
+profile = "minimal"
+components = ["rustfmt"]
+targets = ["x86_64-pc-windows-msvc"]
