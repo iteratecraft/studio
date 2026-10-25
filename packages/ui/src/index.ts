@@ -8,5 +8,6 @@ export * from "./layout.js";
 export * from "./overlays.js";
 export * from "./preview.js";
 export * from "./provider.js";
+export * from "./richtext.js";
 export * from "./strings.js";
 export * from "./toast.js";

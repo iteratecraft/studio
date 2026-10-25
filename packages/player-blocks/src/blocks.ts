@@ -4,6 +4,7 @@
 import type { Block, ContentItem, Course, Response } from "@course-suite/format";
 import { isCorrect } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
+import { textOn } from "./contrast.js";
 import { h, richText, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
 import { requiresCorrect } from "./progress.js";
@@ -45,7 +46,10 @@ const RENDERERS: Record<string, Renderer> = {
   "knowledge-check/matching": check,
 };
 
-/** The block in its frame (padding and content width from the block settings), or undefined. */
+/**
+ * The block in its frame, or undefined: padding, content width and a background colour from the
+ * block settings, with text, links and controls in white or black on that colour (contrast.ts).
+ */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
   let content: HTMLElement | undefined;
@@ -56,7 +60,7 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     console.error(`Block ${block.id} could not be shown`, error);
   }
   if (!content) return undefined;
-  const { padding, contentWidth } = block.settings ?? {};
+  const { padding, contentWidth, background, textContrast } = block.settings ?? {};
   const full = block.variant === "full-width";
   const frame = h(
     "div",
@@ -72,6 +76,11 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (padding) {
     frame.style.paddingTop = `${padding.top}px`;
     frame.style.paddingBottom = `${padding.bottom}px`;
+  }
+  // shortcut: an image background shows as no background until media blocks arrive (M2-13).
+  if (background?.kind === "color") {
+    frame.style.backgroundColor = background.color;
+    frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);
   }
   return frame;
 }

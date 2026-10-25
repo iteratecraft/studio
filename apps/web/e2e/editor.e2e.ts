@@ -436,15 +436,16 @@ test.describe("course editor", () => {
     expect(await page.evaluate(() => window.editorTest.host.requestClose())).toBe(true);
   });
 
-  test("blocks-editor C1: settings entry points of later waves are shown but disabled", async ({
+  test("blocks-editor C1: settings entry points of later waves are shown but disabled; preview is on", async ({
     page,
   }) => {
     await launch(page);
     await create(page, "Entry points");
     const tools = page.getByRole("toolbar", { name: "Course tools" });
-    for (const name of ["Theme", "Preview", "Publish"]) {
+    for (const name of ["Theme", "Publish"]) {
       await expect(tools.getByRole("button", { name })).toBeDisabled();
     }
+    await expect(tools.getByRole("button", { name: "Preview" })).toBeEnabled();
   });
 });
 

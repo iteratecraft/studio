@@ -34,6 +34,10 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   // The search field's clear button is not a stop; a group of toggle buttons is one stop, on the
   // one that is on.
   await press(page, "Tab", page.getByRole("searchbox", { name: "Search by title" }));
+  // Formatted text: its tools show once it has focus, before it, so Tab goes into the text.
+  await press(page, "Tab", page.getByRole("textbox", { name: "Lesson summary" }));
+  await press(page, "Tab", page.getByRole("slider", { name: "Top padding" }));
+  await press(page, "Tab", page.getByRole("spinbutton", { name: "Top padding (pixels)" }));
   await press(page, "Tab", page.getByRole("radio", { name: "Computer" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Show lesson numbers" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Some lessons are required" }));

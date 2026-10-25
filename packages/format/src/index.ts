@@ -19,5 +19,11 @@ export {
   shuffle,
   toInteraction,
 } from "./quiz.js";
+export {
+  isSafeLink,
+  RICH_TEXT_ATTRIBUTES,
+  RICH_TEXT_DROPPED,
+  RICH_TEXT_ELEMENTS,
+} from "./richtext.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";

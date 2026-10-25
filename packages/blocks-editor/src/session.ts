@@ -6,6 +6,7 @@ import type { Course } from "@course-suite/format";
 import { type FileRef, HostError, type HostFolder, type HostInterface } from "@course-suite/host";
 import {
   type AssetInfo,
+  addAsset,
   autosaveProject,
   discardAutosaves,
   openProject,
@@ -90,6 +91,20 @@ export class CourseSession {
     if (!asset || !data) return undefined;
     const { hash: _, size: __, ...info } = asset;
     return { data, info };
+  }
+
+  /** The bytes of a media file by storage key, for the preview; one function per session. */
+  readonly media = (key: string): Promise<Uint8Array | undefined> =>
+    this.asset(key).then((asset) => asset?.data);
+
+  /**
+   * Adds a media file copied from another course under its storage key, unless the project holds
+   * that key already. shortcut: an existing key is taken to hold the same file, as keys are content
+   * hashes by default; check the hashes once authors can name keys themselves.
+   */
+  async addAsset(key: string, asset: { data: Uint8Array; info: AssetInfo }): Promise<void> {
+    if (Object.hasOwn(this.#project.assets, key)) return;
+    await addAsset(this.#project, asset.data, asset.info, key);
   }
 
   /** Writes an autosave of the latest edits, if any, for crash recovery. */

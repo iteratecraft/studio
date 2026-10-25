@@ -1,8 +1,9 @@
 // Text fields that edit the course: what is typed is kept as one undo step when the field loses
 // focus or on Enter, and Escape puts back the kept value (UI-BLOCKS-EDITOR-R13, blocks-editor.md
 // 2.2, 2.3). Saving first keeps what the fields hold (keepDrafts).
-import { TextArea, TextField, type TextFieldProps } from "@course-suite/ui";
+import { RichTextField, TextArea, TextField, type TextFieldProps } from "@course-suite/ui";
 import { useEffect, useRef, useState } from "react";
+import { cleanRichText } from "./richtext.js";
 
 const drafts = new Set<() => void>();
 
@@ -32,15 +33,7 @@ export function DraftField({
   const commit = () => {
     if (value !== kept) onCommit(value);
   };
-  const latest = useRef(commit);
-  latest.current = commit;
-  useEffect(() => {
-    const keep = () => latest.current();
-    drafts.add(keep);
-    return () => {
-      drafts.delete(keep);
-    };
-  }, []);
+  useKeep(commit);
   const Field = multiline ? TextArea : TextField;
   return (
     <Field
@@ -52,6 +45,56 @@ export function DraftField({
         if (event.key === "Enter" && !multiline) commit();
         else if (event.key === "Escape") setValue(kept);
         else event.continuePropagation();
+      }}
+    />
+  );
+}
+
+/** Registers `keep` with keepDrafts while the field is on the page; `keep` may change freely. */
+function useKeep(keep: () => void) {
+  const latest = useRef(keep);
+  latest.current = keep;
+  useEffect(() => {
+    const run = () => latest.current();
+    drafts.add(run);
+    return () => {
+      drafts.delete(run);
+    };
+  }, []);
+}
+
+export interface RichDraftFieldProps {
+  label: string;
+  description?: string;
+  hideLabel?: boolean;
+  /** The rich text the course holds. */
+  value: string;
+  /** Called with changed, normalised rich text ("" for none) when the field keeps it. */
+  onCommit: (html: string) => void;
+}
+
+/**
+ * Formatted text kept like a DraftField: as one undo step when focus leaves the field and its
+ * tools, Escape puts back the kept text. What it keeps is normalised course rich text.
+ */
+export function RichDraftField({ value: kept, onCommit, ...props }: RichDraftFieldProps) {
+  const [value, setValue] = useState(kept);
+  useEffect(() => setValue(kept), [kept]);
+  const commit = () => {
+    if (value === kept) return;
+    const html = cleanRichText(value);
+    if (html !== kept) onCommit(html);
+    else setValue(kept);
+  };
+  useKeep(commit);
+  return (
+    <RichTextField
+      {...props}
+      value={value}
+      onChange={setValue}
+      onLeave={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setValue(kept);
       }}
     />
   );

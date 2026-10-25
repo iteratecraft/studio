@@ -1,10 +1,18 @@
 // The blocks editor app (M2-08, BLK-01): the dashboard on launch and one open course at a time in
 // the editor frame. It reaches files, dialogs and the window only through the host interface, so
 // the desktop app and a browser run the same screens (ADR-0006).
-import { applyCommands, copyCourse, copyEntryTo } from "@course-suite/doc-ops";
+import {
+  applyCommands,
+  type BlockClip,
+  clipBlocks,
+  copyCourse,
+  copyEntryTo,
+  pasteBlocks,
+} from "@course-suite/doc-ops";
 import type { Course, Entry } from "@course-suite/format";
 import type { AppInfo, FileRef, HostInterface } from "@course-suite/host";
 import {
+  type AssetInfo,
   addAsset,
   copyProject,
   createProject,
@@ -25,6 +33,7 @@ import { blankCourse, fileNameFor, shownTitle } from "./course.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
 import { ChoiceDialog, CoursePickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import type { Clipboard } from "./lesson-blocks.js";
 import {
   itemOf,
   type LibraryItem,
@@ -55,6 +64,9 @@ export function BlocksEditorApp({ host, locale = "en" }: BlocksEditorAppProps) {
 
 type Answer = "save" | "discard" | "cancel";
 
+/** Copied blocks with the bytes of their media files, which outlive the course they came from. */
+type Clip = BlockClip & { assets: Map<string, { data: Uint8Array; info: AssetInfo }> };
+
 function App({ host }: { host: HostInterface }) {
   const t = useStrings();
   const { dialog, ask } = useDialogs();
@@ -66,6 +78,7 @@ function App({ host }: { host: HostInterface }) {
   const [sort, setSort] = useState<SortKey>("updated");
   const [layout, setLayout] = useState<LayoutKey>("grid");
   const [session, setSession] = useState<CourseSession>();
+  const [clip, setClip] = useState<Clip>();
   const filters = [{ name: t("file.filter"), extensions: ["crs"] }];
 
   /** Changes the course list and keeps it in the host's storage. */
@@ -352,6 +365,41 @@ function App({ host }: { host: HostInterface }) {
     );
   };
 
+  /**
+   * Copy and paste of blocks (rise.md 3J, W12, W13; BLK-03): the app keeps the copied blocks and
+   * their media files, so they paste into any lesson of this course or of a course opened later,
+   * with new ids and their media (UI-BLOCKS-EDITOR-R24).
+   */
+  const clipboard = (into: CourseSession): Clipboard => ({
+    count: clip?.blocks.length ?? 0,
+    async copy(ids) {
+      const taken = clipBlocks(into.editor.document, ids);
+      const assets: Clip["assets"] = new Map();
+      for (const { key } of taken.media) {
+        const asset = await into.asset(key);
+        if (asset) assets.set(key, asset);
+      }
+      setClip({ ...taken, assets });
+    },
+    async paste(lesson, index) {
+      if (!clip) return [];
+      const pasted = pasteBlocks(clip, into.editor.document, lesson, index);
+      if (!pasted) {
+        await notify(t("blocks.pasteFailed"), t("blocks.pasteCustom"));
+        return [];
+      }
+      for (const key of pasted.keys) {
+        const asset = clip.assets.get(key);
+        if (asset) await into.addAsset(key, asset);
+      }
+      const result = into.editor.dispatch(pasted.commands);
+      if (!result.ok) return [];
+      return pasted.commands.flatMap((command) =>
+        command.type === "insertBlock" ? [command.value.id] : [],
+      );
+    },
+  });
+
   const setDeleted = (item: LibraryItem, deleted: number | undefined) =>
     updateLibrary((items) =>
       items.map((other) => {
@@ -481,6 +529,7 @@ function App({ host }: { host: HostInterface }) {
           onSave={() => void save()}
           onClose={() => void closeCourse()}
           onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
+          clipboard={clipboard(session)}
         />
       ) : (
         <Dashboard

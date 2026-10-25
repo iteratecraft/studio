@@ -9,13 +9,16 @@ import {
   ListBoxItem as AriaListBoxItem,
   type ListBoxItemProps as AriaListBoxItemProps,
   type ListBoxProps as AriaListBoxProps,
+  ListBoxSection as AriaListBoxSection,
   Tree as AriaTree,
   TreeItem as AriaTreeItem,
   type TreeItemProps as AriaTreeItemProps,
   type TreeProps as AriaTreeProps,
   DropIndicator,
+  Header,
   type Key,
   type ListData,
+  Text,
   TreeItemContent,
   useDragAndDrop,
   useListData,
@@ -35,11 +38,46 @@ export function ListBox<T extends object>(props: ListBoxProps<T>) {
 }
 
 export interface ListBoxItemProps<T extends object>
-  extends Omit<AriaListBoxItemProps<T>, "className" | "style"> {}
+  extends Omit<AriaListBoxItemProps<T>, "className" | "style"> {
+  /** A second line about the option, read after its name. */
+  description?: string;
+}
 
 /** An option of a ListBox or a Select. */
-export function ListBoxItem<T extends object>(props: ListBoxItemProps<T>) {
-  return <AriaListBoxItem {...props} className="cs-ListBoxItem" />;
+export function ListBoxItem<T extends object>({
+  description,
+  children,
+  ...props
+}: ListBoxItemProps<T>) {
+  if (description === undefined || typeof children === "function") {
+    return (
+      <AriaListBoxItem {...props} className="cs-ListBoxItem">
+        {children}
+      </AriaListBoxItem>
+    );
+  }
+  return (
+    <AriaListBoxItem
+      {...(typeof children === "string" && { textValue: children })}
+      {...props}
+      className="cs-ListBoxItem cs-ListBoxItem--described"
+    >
+      <Text slot="label">{children}</Text>
+      <Text slot="description" className="cs-ListBoxItem-description">
+        {description}
+      </Text>
+    </AriaListBoxItem>
+  );
+}
+
+/** A titled group of options in a ListBox. */
+export function ListBoxSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <AriaListBoxSection className="cs-ListBoxSection">
+      <Header className="cs-ListBoxSection-title">{title}</Header>
+      {children}
+    </AriaListBoxSection>
+  );
 }
 
 export interface GridListProps<T extends object>

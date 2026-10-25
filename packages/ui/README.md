@@ -25,12 +25,20 @@ Components: `Button`, `IconButton`, `ToggleButtonGroup` with `ToggleButton`, `To
 names the field), `SearchField`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`,
 `Popover`, `ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`, which moves a `ListData`
 or calls your function with the moved keys and where they go; `layout="grid"` for cards), `Tree`,
-`Splitter`, `EmptyState`, `ProgressBar` and `Icon`. `useAnnouncer` reads out what happened out of
+`Splitter`, `EmptyState`, `ProgressBar`, `Icon`, `RichTextField` and `SliderField`. `ListBoxItem`
+takes a `description`, read after its name, and `ListBoxSection` groups options under a title. `useAnnouncer` reads out what happened out of
 sight, such as a moved row, through a polite live region; `cs-visually-hidden` hides text from
 sight only.
 
 In a `GridList` with `keyboardNavigationBehavior="tab"`, a row keeps the keys of its controls to
 itself, so app-wide shortcuts listen on `window` in the capture phase.
+
+`RichTextField` (M2-10) edits formatted text in place with the browser's own editing
+(contenteditable, no library): paragraphs, headings 2 to 5, bold, italic, underline,
+strikethrough, subscript, superscript, bulleted and numbered lists and web or mail links, with its
+tools above it while in use (Alt+F10 reaches them, Escape goes back; Ctrl/Cmd+B, I, U and K). It
+gives out the browser's HTML; the caller normalises it. `SliderField` sets a number by slider or by
+typing it in the box beside it.
 
 `PreviewPane` (M2-11, UI-BLOCKS-EDITOR P1) shows a course in the real player from
 `@course-suite/preview`, with an edit button back to the lesson on show, Restart, and device

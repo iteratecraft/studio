@@ -1,8 +1,8 @@
 // Builds the kit gallery (M2-05), the blocks editor's test route (editor.html, M2-08) and the
 // preview test page (M2-11). The bundle is split so `pnpm --filter @course-suite/web size` can report
 // React, React Aria, the kit, the editor and the preview's player apart from each page's own code.
-// The preview page gets the desktop app's release content security policy, read from its Tauri
-// configuration, so its browser tests run under that policy.
+// The editor and preview pages get the desktop app's release content security policy, read from its
+// Tauri configuration, so their browser tests run under that policy.
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -22,7 +22,7 @@ export default defineConfig({
       name: "desktop-policy",
       apply: "build",
       transformIndexHtml: (html, { path }) =>
-        path.endsWith("/preview.html")
+        path.endsWith("/preview.html") || path.endsWith("/editor.html")
           ? [
               {
                 tag: "meta",

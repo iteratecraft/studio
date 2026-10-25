@@ -410,6 +410,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
       '@course-suite/preview':
         specifier: workspace:*
         version: link:../preview

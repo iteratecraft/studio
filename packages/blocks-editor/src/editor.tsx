@@ -1,10 +1,12 @@
-// The course editor's frame (blocks-editor.md C1, C2): the top bar with the way back, the course
-// title, the save state, undo and redo, save and the entry points of later waves; under it the
-// course overview (title, author, description and the outline), or one open lesson.
+// The course editor's frame (blocks-editor.md C1, C2, P1): the top bar with the way back, the course
+// title, the save state, undo and redo, save, the preview and the entry points of later waves;
+// under it the course overview (title, author, description and the outline), one open lesson, or
+// the preview of the course in the real player.
 import type { Entry } from "@course-suite/format";
 import {
   Button,
   IconButton,
+  PreviewPane,
   type ToastQueue,
   Toolbar,
   ToolbarSeparator,
@@ -14,6 +16,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { shownTitle, TITLE_MAX } from "./course.js";
 import { DraftField, htmlOf, keepDrafts, textOf } from "./fields.js";
 import { LessonContent, LessonView } from "./lesson.js";
+import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
 import type { CourseSession } from "./session.js";
 
@@ -28,8 +31,14 @@ const isTextEntry = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || target.matches("input, textarea, select"));
 
-/** The overview, coming back from entry `from`; or the lesson or quiz with id `id`. */
-type View = { kind: "overview"; from?: string } | { kind: "entry"; id: string };
+/**
+ * The overview, coming back from entry `from`; the lesson or quiz with id `id`; or the preview,
+ * starting at entry `start` (the overview when absent).
+ */
+type View =
+  | { kind: "overview"; from?: string }
+  | { kind: "entry"; id: string }
+  | { kind: "preview"; start?: string };
 
 export interface EditorFrameProps {
   session: CourseSession;
@@ -38,9 +47,18 @@ export interface EditorFrameProps {
   onClose: () => void;
   /** Copy to another course (blocks-editor.md W5, C8). */
   onCopyEntry: (entry: Entry) => void;
+  /** Copied blocks, to paste in any lesson of any course. */
+  clipboard: Clipboard;
 }
 
-export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: EditorFrameProps) {
+export function EditorFrame({
+  session,
+  toasts,
+  onSave,
+  onClose,
+  onCopyEntry,
+  clipboard,
+}: EditorFrameProps) {
   const t = useStrings();
   useSession(session);
   const { editor } = session;
@@ -118,43 +136,82 @@ export function EditorFrame({ session, toasts, onSave, onClose, onCopyEntry }: E
           />
           <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
           <ToolbarSeparator />
-          {/* Theme arrives with M2-17, preview with M2-11, publish with M2-18. */}
+          {/* Theme arrives with M2-17, publish with M2-18. */}
           <Button variant="quiet" isDisabled>
             {t("editor.theme")}
           </Button>
-          <Button isDisabled>{t("editor.preview")}</Button>
+          {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
+          <Button
+            isDisabled={view.kind === "preview"}
+            onPress={() =>
+              setView({
+                kind: "preview",
+                ...(view.kind === "entry" && { start: view.id }),
+              })
+            }
+          >
+            {t("editor.preview")}
+          </Button>
           <Button variant="primary" isDisabled>
             {t("editor.publish")}
           </Button>
         </Toolbar>
       </header>
-      <main className="be-overview">
-        {open ? (
-          <LessonView
-            key={open.id}
-            session={session}
-            entry={open}
-            onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+      {view.kind === "preview" ? (
+        <main className="be-preview">
+          <PreviewPane
+            source={editor}
+            media={session.media}
+            start={view.start}
+            // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
+            onEdit={(page) => {
+              const entry = course.entries.find((other) => other.id === page);
+              go(
+                entry && entry.kind !== "section" && course.kind === "course"
+                  ? { kind: "entry", id: entry.id }
+                  : { kind: "overview" },
+              );
+            }}
           />
-        ) : (
-          <>
-            <CourseFields session={session} />
-            {course.kind === "microlearning" ? (
-              // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
-              // outline.
-              course.entries[0] && <LessonContent entry={course.entries[0]} />
-            ) : (
-              <Outline
-                session={session}
-                toasts={toasts}
-                focusEntry={view.kind === "overview" ? view.from : undefined}
-                onOpen={(id) => go({ kind: "entry", id })}
-                onCopy={onCopyEntry}
-              />
-            )}
-          </>
-        )}
-      </main>
+        </main>
+      ) : (
+        <main className="be-overview">
+          {open ? (
+            <LessonView
+              key={open.id}
+              session={session}
+              entry={open}
+              toasts={toasts}
+              clipboard={clipboard}
+              onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+            />
+          ) : (
+            <>
+              <CourseFields session={session} />
+              {course.kind === "microlearning" ? (
+                // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
+                // outline.
+                course.entries[0] && (
+                  <LessonContent
+                    session={session}
+                    entry={course.entries[0]}
+                    toasts={toasts}
+                    clipboard={clipboard}
+                  />
+                )
+              ) : (
+                <Outline
+                  session={session}
+                  toasts={toasts}
+                  focusEntry={view.kind === "overview" ? view.from : undefined}
+                  onOpen={(id) => go({ kind: "entry", id })}
+                  onCopy={onCopyEntry}
+                />
+              )}
+            </>
+          )}
+        </main>
+      )}
     </div>
   );
 }

@@ -23,8 +23,10 @@ import {
   Popover,
   ProgressBar,
   PSEUDO_LOCALES,
+  RichTextField,
   SearchField,
   Select,
+  SliderField,
   Splitter,
   Switch,
   Tab,
@@ -174,6 +176,14 @@ export function Gallery() {
 
         <Section id="search-field" title="Search field">
           <SearchField label="Search by title" defaultValue="Safety" />
+        </Section>
+
+        <Section id="rich-text" title="Formatted text">
+          <FormattedText />
+        </Section>
+
+        <Section id="slider" title="Slider">
+          <PaddingSlider />
         </Section>
 
         <Section id="toggle-buttons" title="Toggle buttons">
@@ -355,5 +365,36 @@ export function Gallery() {
       </main>
       <ToastRegion queue={toasts} />
     </UiProvider>
+  );
+}
+
+/** Formatted text: its tools show while it is in use. */
+function FormattedText() {
+  const [html, setHtml] = useState(
+    "<p>Learners will <strong>check a machine</strong> before use.</p>",
+  );
+  return (
+    <RichTextField
+      label="Lesson summary"
+      description="Shown under the lesson title."
+      value={html}
+      onChange={setHtml}
+    />
+  );
+}
+
+/** A slider with the number beside it. */
+function PaddingSlider() {
+  const [value, setValue] = useState(30);
+  return (
+    <SliderField
+      label="Top padding"
+      unit="pixels"
+      minValue={0}
+      maxValue={200}
+      value={value}
+      onChange={setValue}
+      onChangeEnd={setValue}
+    />
   );
 }

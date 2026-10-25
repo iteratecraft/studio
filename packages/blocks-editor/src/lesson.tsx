@@ -1,11 +1,12 @@
 // One open lesson or quiz (blocks-editor.md L1, C11; rise.md 3B; BLK-02): the lesson switcher, the
-// lesson's own fields (title, description, the author shown on it) and its blocks, read-only until
-// block editing arrives (M2-10). A quiz shows where its questions go (M2-15).
+// lesson's own fields (title, description, the author shown on it) and its blocks, edited in place
+// (M2-10, lesson-blocks.tsx). A quiz shows where its questions go (M2-15).
 import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
-import { EmptyState, ListBoxItem, Select, type StringKey, useStrings } from "@course-suite/ui";
+import { EmptyState, ListBoxItem, Select, type ToastQueue, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
 import { DraftField, htmlOf, textOf } from "./fields.js";
+import { type Clipboard, LessonBlocks } from "./lesson-blocks.js";
 import type { CourseSession } from "./session.js";
 
 const OVERVIEW = "overview";
@@ -13,11 +14,13 @@ const OVERVIEW = "overview";
 export interface LessonViewProps {
   session: CourseSession;
   entry: LessonEntry | QuizEntry;
+  toasts: ToastQueue;
+  clipboard: Clipboard;
   /** Go to another lesson or quiz by id, or back to the overview (undefined). */
   onGo: (id: string | undefined) => void;
 }
 
-export function LessonView({ session, entry, onGo }: LessonViewProps) {
+export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonViewProps) {
   const t = useStrings();
   const { editor } = session;
   const headingId = useId();
@@ -84,15 +87,24 @@ export function LessonView({ session, entry, onGo }: LessonViewProps) {
           }}
         />
       </div>
-      <LessonContent entry={entry} />
+      <LessonContent session={session} entry={entry} toasts={toasts} clipboard={clipboard} />
     </section>
   );
 }
 
-/** What a lesson holds: its blocks, read-only for now; or where a quiz's questions go. */
-export function LessonContent({ entry }: { entry: Entry }) {
+/** What a lesson holds: its blocks to edit; or where a quiz's questions go. */
+export function LessonContent({
+  session,
+  entry,
+  toasts,
+  clipboard,
+}: {
+  session: CourseSession;
+  entry: Entry;
+  toasts: ToastQueue;
+  clipboard: Clipboard;
+}) {
   const t = useStrings();
-  const headingId = useId();
   if (entry.kind === "quiz") {
     return (
       <EmptyState icon="quiz" title={t("quiz.pending")} level={3}>
@@ -101,25 +113,5 @@ export function LessonContent({ entry }: { entry: Entry }) {
     );
   }
   if (entry.kind !== "lesson") return null;
-  if (entry.blocks.length === 0) {
-    return (
-      <EmptyState icon="lesson" title={t("lesson.empty")} level={3}>
-        {t("lesson.emptyBody")}
-      </EmptyState>
-    );
-  }
-  return (
-    <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="be-section-title">
-        {t("lesson.blocks")}
-      </h3>
-      <ol className="be-blocks">
-        {entry.blocks.map((block) => (
-          <li key={block.id} className="be-block">
-            {t(`block.${block.category}` satisfies StringKey)}
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
+  return <LessonBlocks session={session} lesson={entry} toasts={toasts} clipboard={clipboard} />;
 }

@@ -9,6 +9,8 @@ const COMPONENT_SECTIONS = [
   "Toolbar",
   "Text fields",
   "Search field",
+  "Formatted text",
+  "Slider",
   "Toggle buttons",
   "Checkbox and switch",
   "Select",

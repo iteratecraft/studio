@@ -289,6 +289,44 @@ main {
   margin: 0 auto;
 }
 
+/* A block on a colour of its own (UI-BLOCKS-EDITOR-R19, R22): its text, links, controls and marks
+   all take the one colour, white or black, that keeps 4.5:1 on it; fields and panels go clear. */
+.block.has-background {
+  padding-right: 24px;
+  padding-left: 24px;
+  color: var(--text);
+}
+
+.text-light {
+  --text: #ffffff;
+  --muted: #ffffff;
+  --accent: #ffffff;
+  --accent-text: #000000;
+  --focus: #ffffff;
+  --correct: #ffffff;
+  --wrong: #ffffff;
+  --border: #ffffff;
+}
+
+.text-dark {
+  --text: #000000;
+  --muted: #000000;
+  --accent: #000000;
+  --accent-text: #ffffff;
+  --focus: #000000;
+  --correct: #000000;
+  --wrong: #000000;
+  --border: #000000;
+}
+
+.text-light,
+.text-dark {
+  --surface: transparent;
+  --panel: transparent;
+  --accent-soft: transparent;
+  --rule: var(--border);
+}
+
 .width-narrow {
   max-width: 560px;
 }

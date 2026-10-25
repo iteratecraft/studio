@@ -404,7 +404,9 @@ test.describe("course outline", () => {
     await notice.getByRole("button", { name: "Open that course" }).click();
     await expect(heading(page, "Garden tools")).toBeVisible();
     await row(page, "Tools").getByRole("button", { name: "Open Tools" }).click();
-    await expect(page.getByRole("listitem")).toHaveText(["Image"]);
+    await expect(page.getByRole("grid", { name: "Blocks of Tools" }).getByRole("row")).toHaveText([
+      /Centred image/,
+    ]);
   });
 
   test("blocks-editor W5, BLK-02: a lesson with a buttons block that leads elsewhere is copied without that button", async ({
@@ -434,7 +436,7 @@ test.describe("course outline", () => {
 });
 
 test.describe("lessons", () => {
-  test("blocks-editor L1, C11, UI-BLOCKS-EDITOR-R15: a lesson opens with its blocks read-only; the switcher goes to another lesson or back to its row", async ({
+  test("blocks-editor L1, C11, UI-BLOCKS-EDITOR-R15: a lesson opens with its blocks; the switcher goes to another lesson or back to its row", async ({
     page,
   }) => {
     await launch(page);
@@ -442,8 +444,10 @@ test.describe("lessons", () => {
     await row(page, "Welcome").getByRole("button", { name: "Open Welcome" }).click();
     const lessonHeading = page.getByRole("heading", { level: 2, name: "Welcome" });
     await expect(lessonHeading).toBeFocused();
-    await expect(page.getByRole("list")).toBeVisible();
-    await expect(page.getByRole("listitem")).toHaveText(["Text", "Interactive"]);
+    const blocks = page.getByRole("grid", { name: "Blocks of Welcome" });
+    await expect(blocks.getByRole("row")).toHaveCount(2);
+    await expect(blocks.getByRole("row", { name: "Heading: Hello" })).toBeVisible();
+    await expect(blocks.getByRole("row", { name: "Button stack" })).toBeVisible();
     await expect(button(page, "Undo")).toBeDisabled();
 
     const title = page.getByRole("textbox", { name: "Lesson title" });
