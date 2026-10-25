@@ -246,14 +246,23 @@ test("reports idle memory of the app and its WebView2 processes", async () => {
 });
 
 test("closing the window asks the page, which lets it close with no course open", async () => {
+  // PowerShell can take tens of seconds to start on a CI runner.
+  test.setTimeout(150_000);
+  const closed = page.waitForEvent("close", { timeout: 120_000 });
   // WM_CLOSE, as the window's close button sends.
-  execFileSync("powershell.exe", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-Command",
-    `(Get-Process -Id ${app.pid}).CloseMainWindow() | Out-Null`,
-  ]);
-  await expect.poll(() => app.exitCode, { timeout: 15_000 }).not.toBeNull();
+  await promisify(execFile)(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `[Diagnostics.Process]::GetProcessById(${app.pid}).CloseMainWindow() | Out-Null`,
+    ],
+    { timeout: 60_000 },
+  );
+  // The page allowed it: the window and its page go, then the app ends.
+  await closed;
+  await expect.poll(() => app.exitCode, { timeout: 60_000 }).not.toBeNull();
 });
 
 /**
