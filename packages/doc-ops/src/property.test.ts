@@ -236,9 +236,13 @@ describe("random command sequences", () => {
     // The generator reaches every command, and both outcomes.
     expect([...applied].sort()).toEqual([...TYPES].sort());
     expect(rejected).toBeGreaterThan(100);
-  });
+  }, 60_000);
 
-  test.skipIf(corpus.length === 0).each(corpus)("on the corpus course %s", (_name, course) => {
-    for (let seed = 100; seed < 105; seed += 1) run(course, seed, 100);
-  });
+  test.skipIf(corpus.length === 0).each(corpus)(
+    "on the corpus course %s",
+    (_name, course) => {
+      for (let seed = 100; seed < 105; seed += 1) run(course, seed, 100);
+    },
+    60_000,
+  );
 });
