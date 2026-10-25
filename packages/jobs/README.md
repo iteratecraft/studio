@@ -24,7 +24,7 @@ const runner = await openJobRunner({
   },
 });
 const job = await runner.submit(EXPORT_JOB, {
-  source: "Safety.course",
+  source: "Safety.crs",
   standard: "scorm12",
   packageVersion: 3,
   output: "Safety-scorm12.zip",

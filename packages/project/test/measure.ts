@@ -33,10 +33,10 @@ async function measure(label: string, extraMedia: number) {
   try {
     for (let run = 0; run < RUNS; run++) {
       let start = performance.now();
-      await saveProject(files, "Measured.course", project);
+      await saveProject(files, "Measured.crs", project);
       save.push(performance.now() - start);
       start = performance.now();
-      const opened = await openProject(files, "Measured.course");
+      const opened = await openProject(files, "Measured.crs");
       if (!opened.ok) throw new Error(JSON.stringify(opened.problems));
       open.push(performance.now() - start);
     }
@@ -44,7 +44,7 @@ async function measure(label: string, extraMedia: number) {
     const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1];
     const ms = (value = 0) => `${value.toFixed(1)} ms`;
     console.log(
-      `${label}: file ${(statSync(join(dir, "Measured.course")).size / 1024).toFixed(0)} KiB; ` +
+      `${label}: file ${(statSync(join(dir, "Measured.crs")).size / 1024).toFixed(0)} KiB; ` +
         `save first ${ms(save[0])}, median ${ms(median(save))}; ` +
         `open first ${ms(open[0])}, median ${ms(median(open))}; ` +
         `CPU ${((used.user + used.system) / 1000 / RUNS).toFixed(1)} ms per save and open; ` +

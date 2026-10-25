@@ -1,0 +1,17 @@
+{
+  "identifier": "main",
+  "description": "The main window: app name and version, open and save dialogs, and the shell's own file commands, which allow only the data folder, files the user picked and their autosave folders (src/files.rs). Nothing else.",
+  "windows": ["main"],
+  "permissions": [
+    "core:app:allow-name",
+    "core:app:allow-version",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "allow-data-folder",
+    "allow-read-file",
+    "allow-write-atomic",
+    "allow-rename-file",
+    "allow-remove-path",
+    "allow-list-folder"
+  ]
+}

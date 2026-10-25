@@ -1,12 +1,33 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "root": true,
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100,
     "lineEnding": "lf"
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["@tauri-apps", "@tauri-apps/**"],
+                "message": "Only apps/desktop may use Tauri; editor code goes through the host interface in @course-suite/host (ADR-0006)."
+              }
+            ]
+          }
+        }
+      }
+    }
   },
   "overrides": [
     {
@@ -29,6 +50,16 @@
         "rules": {
           "correctness": {
             "noNodejsModules": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/desktop/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
           }
         }
       }

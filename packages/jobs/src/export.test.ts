@@ -36,7 +36,7 @@ async function setup(course: Course, media = standIn, load?: () => Promise<void>
     },
   });
   const input: ExportInput = {
-    source: "Course.course",
+    source: "Course.crs",
     standard: "scorm12",
     packageVersion: 1,
     output: "out/course-scorm12.zip",

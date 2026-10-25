@@ -20,7 +20,7 @@ import {
   takeSnapshot,
 } from "./index.js";
 
-const NAME = "Course.course";
+const NAME = "Course.crs";
 const FONT = {
   name: "Body.woff2",
   type: "font/woff2",
@@ -189,8 +189,8 @@ describe("snapshots (ENG-11 done-when: restoring a snapshot reproduces the exact
     expect(copy.course.id).not.toBe(project.course.id);
     expect(copy.snapshots).toEqual([]);
     expect(copy.revision).toBe(0);
-    await saveProject(files, "Copy.course", copy);
-    const reopened = await contents(await opened(files, "Copy.course"));
+    await saveProject(files, "Copy.crs", copy);
+    const reopened = await contents(await opened(files, "Copy.crs"));
     expect({
       ...reopened,
       course: reopened.course.replace(copy.course.id, project.course.id),
@@ -275,8 +275,8 @@ describe("autosave and recovery", () => {
     const added = await addAsset(project, new Uint8Array([7, 7]), FONT, "added.woff2");
     await autosaveProject(files, NAME, project);
     const folder = autosaveFolder(NAME);
-    expect(folder).toBe(".Course.course.autosave");
-    expect((files.files.get(`${folder}/3.course`)?.length ?? 0) < big.length).toBe(true);
+    expect(folder).toBe(".Course.crs.autosave");
+    expect((files.files.get(`${folder}/3.crs`)?.length ?? 0) < big.length).toBe(true);
 
     const result = await openProject(files, NAME);
     if (!result.ok || !result.recovered) throw new Error("expected an autosave to recover");
@@ -303,8 +303,8 @@ describe("autosave and recovery", () => {
       await autosaveProject(files, NAME, project);
     }
     const folder = autosaveFolder(NAME);
-    expect((await files.list(folder)).sort()).toEqual(["4.course", "5.course", "6.course"]);
-    files.files.set(`${folder}/6.course`, new Uint8Array([1, 2, 3]));
+    expect((await files.list(folder)).sort()).toEqual(["4.crs", "5.crs", "6.crs"]);
+    files.files.set(`${folder}/6.crs`, new Uint8Array([1, 2, 3]));
     const result = await openProject(files, NAME);
     expect(result.recovered?.course.title).toBe("Change 4");
     expect(result.recovered?.revision).toBe(5);
@@ -329,10 +329,10 @@ describe("autosave and recovery", () => {
     const files = memoryProjectFiles();
     const project = await projectOf(full());
     await autosaveProject(files, NAME, project);
-    const stale = files.files.get(`${autosaveFolder(NAME)}/1.course`) as Uint8Array;
+    const stale = files.files.get(`${autosaveFolder(NAME)}/1.crs`) as Uint8Array;
     await saveProject(files, NAME, project);
     // As if the app stopped after the rename and before the autosaves were cleared.
-    files.files.set(`${autosaveFolder(NAME)}/1.course`, stale);
+    files.files.set(`${autosaveFolder(NAME)}/1.crs`, stale);
     expect((await openProject(files, NAME)).recovered).toBeUndefined();
   });
 });
@@ -514,7 +514,7 @@ describe("opening damaged or foreign files", () => {
     const added = new Uint8Array([7, 7, 7]);
     const key = await addAsset(project, added, FONT, "added.woff2");
     await autosaveProject(files, NAME, project);
-    const autosave = `${autosaveFolder(NAME)}/2.course`;
+    const autosave = `${autosaveFolder(NAME)}/2.crs`;
     const hash = project.assets[key]?.hash as string;
     const forged = await rewritten(files.files.get(autosave) as Uint8Array, {
       [`assets/${hash}`]: new Uint8Array([6, 6, 6]),

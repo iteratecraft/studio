@@ -14,7 +14,7 @@ import { nodeProjectFiles } from "../test/node-files.js";
 import { addAsset, autosaveFolder, openProject, saveProject } from "./index.js";
 
 const CHILD = fileURLToPath(new URL("../test/save-child.ts", import.meta.url));
-const NAME = "Killed.course";
+const NAME = "Killed.crs";
 const ITERATIONS = 40;
 
 test("killing the process at random points during save never leaves a project that will not open", async () => {
