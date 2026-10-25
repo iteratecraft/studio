@@ -1,13 +1,5 @@
 {
   "$schema": "../../node_modules/turbo/schema.json",
   "extends": ["//"],
-  "tags": ["engine"],
-  "tasks": {
-    "test": {
-      "dependsOn": ["^build", "build"]
-    },
-    "typecheck": {
-      "dependsOn": ["^build", "build"]
-    }
-  }
+  "tags": ["engine"]
 }
