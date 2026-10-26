@@ -6,8 +6,9 @@
 // `curl.exe` and `tar.exe`, so the app carries no HTTP or ZIP code of its own.
 //
 // Progress goes back through a channel as `[done, total]`: bytes while downloading, milliseconds of
-// media while converting. `media_cancel` stops a task by the job id the page gave it; the task
-// then removes what it wrote and fails with "cancelled".
+// media while converting. `media_cancel` stops a task by the job id the page gave it, even one that
+// has not started yet; the task then removes what it wrote and fails with "cancelled". The job id
+// names the task's files in `media-work`, so it must be a plain id (`job_id`), never a path.
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -27,6 +28,7 @@ use crate::files::{Place, checked};
 
 /// The pinned build (media-tool.json, which the licence gate reads too).
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(Default))]
 struct Pin {
     name: String,
     licence: String,
@@ -40,23 +42,59 @@ static PIN: LazyLock<Pin> = LazyLock::new(|| {
     serde_json::from_str(include_str!("../media-tool.json")).expect("media-tool.json is invalid")
 });
 
-/// Cancel flags of the running tasks, by the page's job id.
+/// Cancel flags by the page's job id: of the running tasks, and of jobs the page cancelled before
+/// their task started (a cancel can overtake the call it cancels), so that task stops at once.
 #[derive(Default)]
 pub struct Tasks(Mutex<HashMap<String, Arc<AtomicBool>>>);
 
 impl Tasks {
-    fn start(&self, job: &str) -> Arc<AtomicBool> {
-        let flag = Arc::new(AtomicBool::new(false));
-        if let Ok(mut tasks) = self.0.lock() {
-            tasks.insert(job.to_owned(), flag.clone());
+    /// Registers `job` until the returned guard drops; its flag is already set if it was cancelled.
+    fn start(&self, job: &str) -> Running<'_> {
+        let flag = self
+            .0
+            .lock()
+            .map(|mut tasks| tasks.entry(job.to_owned()).or_default().clone())
+            .unwrap_or_default();
+        Running {
+            tasks: self,
+            job: job.to_owned(),
+            flag,
         }
-        flag
     }
 
-    fn end(&self, job: &str) {
+    fn cancel(&self, job: &str) {
         if let Ok(mut tasks) = self.0.lock() {
-            tasks.remove(job);
+            tasks
+                .entry(job.to_owned())
+                .or_default()
+                .store(true, Ordering::Relaxed);
         }
+    }
+}
+
+/// A registered task; dropping it forgets the job on every way out of the command.
+struct Running<'a> {
+    tasks: &'a Tasks,
+    job: String,
+    flag: Arc<AtomicBool>,
+}
+
+impl Drop for Running<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut tasks) = self.tasks.0.lock() {
+            tasks.remove(&self.job);
+        }
+    }
+}
+
+/// The page's job id, which names files in `media-work`: 1 to 64 ASCII letters, digits and
+/// hyphens, so it can never be a path (`C:\x`, `..\x`) that leads out of that folder.
+fn job_id(job: &str) -> Result<&str, String> {
+    if (1..=64).contains(&job.len()) && job.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    {
+        Ok(job)
+    } else {
+        Err(format!("invalid: {job:?} is not a job id"))
     }
 }
 
@@ -164,23 +202,23 @@ pub async fn media_install<R: Runtime>(
     job: String,
     on_progress: Channel<[u64; 2]>,
 ) -> Result<(), String> {
+    let job = job_id(&job)?;
+    let running = tasks.start(job);
     let (install, work) = folders(&app)?;
     if is_installed(&install) {
         return Ok(());
     }
-    let cancel = tasks.start(&job);
+    let cancel = running.flag.clone();
     let archive = work.join(format!("{job}.zip"));
     let unpacked = work.join(format!("{job}.unpacked"));
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         let result = install_from(&archive, &unpacked, &install, &cancel, &on_progress);
         let _ = fs::remove_file(&archive);
         let _ = fs::remove_dir_all(&unpacked);
         result
     })
     .await
-    .map_err(|e| e.to_string());
-    tasks.end(&job);
-    result?
+    .map_err(|e| e.to_string())?
 }
 
 fn install_from(
@@ -190,6 +228,9 @@ fn install_from(
     cancel: &AtomicBool,
     progress: &Channel<[u64; 2]>,
 ) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(CANCELLED.into());
+    }
     let parent = archive.parent().ok_or("no work folder")?;
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     let mut curl = command(&system_tool("curl"))
@@ -220,14 +261,26 @@ fn install_from(
         }
         return Err(format!("the download failed: {}", message.trim()));
     }
+    let _ = progress.send([PIN.size, PIN.size]);
+    unpack_checked(archive, unpacked, install, &PIN, cancel)
+}
+
+/// Unpacks `archive` into `install` only if its size and SHA-256 are the pin's: otherwise nothing
+/// is unpacked, moved or marked verified.
+fn unpack_checked(
+    archive: &Path,
+    unpacked: &Path,
+    install: &Path,
+    pin: &Pin,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
     let size = fs::metadata(archive).map_err(|e| e.to_string())?.len();
     let hash = sha256_of(archive).map_err(|e| e.to_string())?;
-    if size != PIN.size || hash != PIN.sha256 {
+    if size != pin.size || hash != pin.sha256 {
         return Err(format!(
             "the download is not the pinned build (SHA-256 {hash}, {size} bytes)"
         ));
     }
-    let _ = progress.send([PIN.size, PIN.size]);
     fs::create_dir_all(unpacked).map_err(|e| e.to_string())?;
     let mut tar = command(&system_tool("tar"))
         .arg("-x")
@@ -242,14 +295,14 @@ fn install_from(
     if !wait(&mut tar, cancel, || {})? {
         return Err("the download could not be unpacked".into());
     }
-    let folder = unpacked.join(&PIN.folder);
+    let folder = unpacked.join(&pin.folder);
     if !converter_exe(&folder).is_file() {
         return Err("the download holds no converter".into());
     }
     let _ = fs::remove_dir_all(install);
     fs::create_dir_all(install.parent().ok_or("no tools folder")?).map_err(|e| e.to_string())?;
     fs::rename(&folder, install).map_err(|e| e.to_string())?;
-    fs::write(install.join(".verified"), &PIN.sha256).map_err(|e| e.to_string())
+    fs::write(install.join(".verified"), &pin.sha256).map_err(|e| e.to_string())
 }
 
 /// The converter's arguments: fixed settings around the input and output paths (D-12: royalty-free
@@ -337,6 +390,8 @@ pub async fn media_convert<R: Runtime>(
     kind: String,
     on_progress: Channel<[u64; 2]>,
 ) -> Result<Response, String> {
+    let job = job_id(&job)?;
+    let running = tasks.start(job);
     let place = checked(&app, &input)?;
     let video = match kind.as_str() {
         "video" => true,
@@ -351,7 +406,7 @@ pub async fn media_convert<R: Runtime>(
         && crate::files::data_dir(&app)
             .map(|data| input.starts_with(data.join("media-work")))
             .unwrap_or(false);
-    let cancel = tasks.start(&job);
+    let cancel = running.flag.clone();
     let output = work.join(format!("{job}.{}", if video { "webm" } else { "mp3" }));
     let result = tauri::async_runtime::spawn_blocking(move || {
         let result = (|| {
@@ -367,7 +422,6 @@ pub async fn media_convert<R: Runtime>(
     })
     .await
     .map_err(|e| e.to_string());
-    tasks.end(&job);
     result?.map(Response::new)
 }
 
@@ -379,6 +433,9 @@ fn convert(
     cancel: &AtomicBool,
     progress: &Channel<[u64; 2]>,
 ) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(CANCELLED.into());
+    }
     let mut child = command(&converter_exe(install))
         .args(convert_args(input, output, video))
         .stdout(Stdio::piped())
@@ -427,14 +484,12 @@ fn convert(
     Err(format!("the file could not be converted: {why}"))
 }
 
-/// Stops the download or conversion with this job id; nothing happens when none runs.
+/// Stops the download or conversion with this job id, or stops it as it starts if this call
+/// overtook it.
 #[tauri::command]
-pub fn media_cancel(tasks: State<'_, Tasks>, job: String) {
-    if let Ok(tasks) = tasks.0.lock()
-        && let Some(flag) = tasks.get(&job)
-    {
-        flag.store(true, Ordering::Relaxed);
-    }
+pub fn media_cancel(tasks: State<'_, Tasks>, job: String) -> Result<(), String> {
+    tasks.cancel(job_id(&job)?);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -476,5 +531,176 @@ mod tests {
         assert_eq!(progress_ms("out_time_us=1500000"), Some(1500));
         assert_eq!(progress_ms("out_time_us=N/A"), None);
         assert_eq!(progress_ms("frame=12"), None);
+    }
+
+    #[test]
+    fn a_job_id_is_a_plain_id_and_never_a_path() {
+        for job in ["0b9e3c1e-5d5a-4f7e-9a51-2c1f4b8e6d10", "smoke-1", "a"] {
+            assert_eq!(job_id(job), Ok(job));
+        }
+        let long = "a".repeat(65);
+        for job in [
+            r"..\x",
+            "../x",
+            r"C:\x",
+            "/x",
+            r"\server\share\x",
+            "..",
+            "a.b",
+            "a b",
+            "",
+            &long,
+            "é",
+        ] {
+            assert!(
+                job_id(job).is_err_and(|e| e.starts_with("invalid: ")),
+                "{job}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cancel_that_overtakes_its_task_stops_that_task_as_it_starts() {
+        let tasks = Tasks::default();
+        tasks.cancel("job-1");
+        let running = tasks.start("job-1");
+        assert!(running.flag.load(Ordering::Relaxed));
+        let progress = Channel::new(|_| Ok(()));
+        let work = scratch("overtaken");
+        let (archive, unpacked, install) = (work.join("a.zip"), work.join("u"), work.join("i"));
+        assert_eq!(
+            install_from(&archive, &unpacked, &install, &running.flag, &progress),
+            Err(CANCELLED.into())
+        );
+        assert!(!archive.exists() && !unpacked.exists() && !install.exists());
+        let missing = work.join("no-converter");
+        assert_eq!(
+            convert(
+                &missing,
+                &archive,
+                &work.join("o.webm"),
+                true,
+                &running.flag,
+                &progress
+            ),
+            Err(CANCELLED.into())
+        );
+        // The task forgets its job when it ends, so the next one with that id runs.
+        drop(running);
+        assert!(tasks.0.lock().unwrap().is_empty());
+        assert!(!tasks.start("job-1").flag.load(Ordering::Relaxed));
+        let _ = fs::remove_dir_all(work);
+    }
+
+    /// An empty folder of its own under the temporary folder.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join(format!("course-suite-media-{}", std::process::id()))
+            .join(name);
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_download_that_fails_the_size_or_sha256_check_is_refused_and_never_unpacked() {
+        let work = scratch("wrong-archive");
+        let archive = work.join("job.zip");
+        fs::write(&archive, b"PK\x03\x04 not the pinned build").unwrap();
+        let unpacked = work.join("job.unpacked");
+        let install = work.join("tools").join("build");
+        let length = fs::metadata(&archive).unwrap().len();
+        let wrong_size = Pin {
+            size: PIN.size,
+            sha256: sha256_of(&archive).unwrap(),
+            folder: PIN.folder.clone(),
+            ..Pin::default()
+        };
+        let wrong_hash = Pin {
+            size: length,
+            sha256: PIN.sha256.clone(),
+            folder: PIN.folder.clone(),
+            ..Pin::default()
+        };
+        for pin in [wrong_size, wrong_hash] {
+            let result =
+                unpack_checked(&archive, &unpacked, &install, &pin, &AtomicBool::new(false));
+            assert!(
+                result
+                    .as_ref()
+                    .is_err_and(|e| e.starts_with("the download is not the pinned build")),
+                "{result:?}"
+            );
+            assert!(!unpacked.exists(), "nothing is unpacked");
+            assert!(!install.join(".verified").exists(), "no .verified marker");
+            assert!(!install.exists(), "nothing is installed");
+        }
+        let _ = fs::remove_dir_all(work);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_archive_that_passes_the_check_is_unpacked_and_marked_verified() {
+        let work = scratch("right-archive");
+        let source = work.join("source");
+        let bin = source.join("build-1").join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("ffmpeg.exe"), b"stand-in").unwrap();
+        let archive = work.join("job.zip");
+        let made = command(&system_tool("tar"))
+            .arg("-a")
+            .arg("-c")
+            .arg("-f")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&source)
+            .arg("build-1")
+            .status()
+            .unwrap();
+        assert!(made.success());
+        let pin = Pin {
+            size: fs::metadata(&archive).unwrap().len(),
+            sha256: sha256_of(&archive).unwrap(),
+            folder: "build-1".into(),
+            ..Pin::default()
+        };
+        let install = work.join("tools").join("build-1");
+        unpack_checked(
+            &archive,
+            &work.join("job.unpacked"),
+            &install,
+            &pin,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert!(converter_exe(&install).is_file());
+        assert_eq!(
+            fs::read_to_string(install.join(".verified")).unwrap(),
+            pin.sha256
+        );
+        let _ = fs::remove_dir_all(work);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cancel_kills_the_child_process_and_leaves_none_behind() {
+        let mut child = command(&system_tool("ping"))
+            .args(["-n", "120", "127.0.0.1"])
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        let cancel = AtomicBool::new(false);
+        // Cancelled once the child is seen running, as the Cancel button does.
+        let result = wait(&mut child, &cancel, || {
+            cancel.store(true, Ordering::Relaxed)
+        });
+        assert_eq!(result, Err(CANCELLED.into()));
+        let list = command(&system_tool("tasklist"))
+            .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+            .output()
+            .unwrap();
+        let list = String::from_utf8_lossy(&list.stdout);
+        assert!(!list.contains(&format!("\"{pid}\"")), "{list}");
     }
 }

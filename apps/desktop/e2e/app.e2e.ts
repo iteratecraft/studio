@@ -372,6 +372,26 @@ test("D-43: the media converter's commands say what it is, and refuse files the 
   expect(await shell("media_cancel", { job: "none" })).toMatchObject({ ok: true });
 });
 
+test("D-43: a job id that is not a plain id is refused before any file is named after it, and a cancel that overtakes its task stops it", async () => {
+  const input = join(dataDir, "media-work", "smoke.wav");
+  for (const job of ["..\\x", "C:\\x", "../x", "", "a".repeat(65)]) {
+    const install = await media("media_install", { job });
+    expect(install, job).toMatchObject({ ok: false, error: expect.stringMatching(/^invalid: /) });
+    const convert = await media("media_convert", { job, input, kind: "audio" });
+    expect(convert, job).toMatchObject({ ok: false, error: expect.stringMatching(/^invalid: /) });
+    const cancel = await shell("media_cancel", { job });
+    expect(cancel, job).toMatchObject({ ok: false, error: expect.stringMatching(/^invalid: /) });
+  }
+  const info = (await shell("media_converter", {})) as { value: { installed: boolean } };
+  expect(await shell("media_cancel", { job: "early-1" })).toMatchObject({ ok: true });
+  const early = await media("media_install", { job: "early-1" });
+  // Not installed (as on CI): the download never starts. Installed: there is nothing to stop.
+  expect(early).toMatchObject(
+    info.value.installed ? { ok: true } : { ok: false, error: "cancelled", progress: 0 },
+  );
+  expect(existsSync(join(localData, "media-work", "early-1.zip"))).toBe(false);
+});
+
 /** A raw YUV4MPEG2 video of `frames` grey 640 x 360 frames that slowly brighten. */
 function rawVideo(frames: number): Buffer[] {
   const width = 640;
@@ -382,6 +402,21 @@ function rawVideo(frames: number): Buffer[] {
     parts.push(Buffer.from("FRAME\n"), Buffer.alloc(width * height, 16 + (i % 200)), chroma);
   }
   return parts;
+}
+
+/** The process ids of running converters (`ffmpeg.exe`). */
+async function converterProcesses(): Promise<string[]> {
+  const { stdout } = await promisify(execFile)("tasklist.exe", [
+    "/FI",
+    "IMAGENAME eq ffmpeg.exe",
+    "/FO",
+    "CSV",
+    "/NH",
+  ]);
+  return stdout
+    .split("\n")
+    .filter((line) => line.startsWith('"ffmpeg.exe"'))
+    .map((line) => line.split('","')[1] ?? "");
 }
 
 // BLK-05 done-when: a 500 MB video converted offline on desktop with visible progress and cancel.
@@ -435,6 +470,7 @@ test("BLK-05, D-12, D-43: the converter downloads once, checked by SHA-256, conv
   const stopped = await cancelled;
   expect(stopped.error).toBe("cancelled");
   expect(stopped.ms).toBeLessThan(2_000);
+  expect(await converterProcesses()).toEqual([]);
   writeFileSync(input, Buffer.concat(rawVideo(1450)));
 
   const converted = await media("media_convert", { job: "convert-2", input, kind: "video" });
