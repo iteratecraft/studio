@@ -14,7 +14,7 @@ export type {
   Verb,
 } from "./commands.js";
 export { applyCommands, COLLECTIONS, COMMAND_TYPES, LOCKED } from "./commands.js";
-export type { BlockClip, EntryCopy } from "./copy.js";
+export type { BlockClip, CopyCommands, EntryCopy } from "./copy.js";
 export { clipBlocks, copyCourse, copyEntryTo, pasteBlocks } from "./copy.js";
 export type { ChangeEvent, Editor, EditorOptions } from "./editor.js";
 export { createEditor } from "./editor.js";

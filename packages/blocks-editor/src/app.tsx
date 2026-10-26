@@ -34,6 +34,7 @@ import { blankCourse, fileNameFor, shownTitle } from "./course.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
 import { ChoiceDialog, PickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import { keepDrafts } from "./fields.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import {
   itemOf,
@@ -47,7 +48,7 @@ import {
   withItem,
   without,
 } from "./library.js";
-import { CourseSession, newestOf, openCourseFile } from "./session.js";
+import { CourseSession, newestOf, type Opened, openCourseFile } from "./session.js";
 
 export interface BlocksEditorAppProps {
   host: HostInterface;
@@ -189,6 +190,47 @@ function App({ host }: { host: HostInterface }) {
     await remember(file, project.course);
   };
 
+  /**
+   * Asks whether to use the autosaved work a crash left in a course file, or the saved file and
+   * throw that work away (packages/project). A damaged file offers only the autosaved work.
+   */
+  const askRecovery = (file: FileRef, damaged: boolean) =>
+    ask<"recover" | "saved" | "cancel">((answer) => (
+      <ChoiceDialog
+        title={t("recover.title")}
+        dismissed="cancel"
+        answer={answer}
+        choices={[
+          ...(damaged
+            ? [{ value: "cancel" as const, label: t("action.cancel"), variant: "quiet" as const }]
+            : [{ value: "saved" as const, label: t("recover.discard") }]),
+          { value: "recover", label: t("recover.restore"), variant: "primary" },
+        ]}
+      >
+        {t(damaged ? "recover.damaged" : "recover.body", { name: file.name })}
+      </ChoiceDialog>
+    ));
+
+  /**
+   * The work of an opened course file to change: after a crash the author first chooses between
+   * the autosaved work and the saved file, as opening it asks; choosing the file throws the
+   * autosaves away. Undefined when the author cancels or neither can be had.
+   */
+  const chosen = async (
+    file: FileRef,
+    opened: Opened,
+  ): Promise<{ project: Project; recovered: boolean } | undefined> => {
+    if (opened.kind === "missing") return undefined;
+    if (!opened.recovered) {
+      return opened.kind === "ok" ? { project: opened.project, recovered: false } : undefined;
+    }
+    const choice = await askRecovery(file, opened.kind === "damaged");
+    if (choice === "recover") return { project: opened.recovered, recovered: true };
+    if (choice === "cancel" || opened.kind !== "ok") return undefined;
+    await discardAutosaves(host.files.projectFiles(file), file.name);
+    return { project: opened.project, recovered: false };
+  };
+
   /** Opens a course file, offering autosaved work left by a crash (packages/project). */
   const open = async (file: FileRef) => {
     const opened = await openCourseFile(host, file);
@@ -198,26 +240,9 @@ function App({ host }: { host: HostInterface }) {
       return;
     }
     if (opened.recovered) {
-      const damaged = opened.kind === "damaged";
-      const choice = await ask<"recover" | "saved" | "cancel">((answer) => (
-        <ChoiceDialog
-          title={t("recover.title")}
-          dismissed="cancel"
-          answer={answer}
-          choices={[
-            ...(damaged
-              ? [{ value: "cancel" as const, label: t("action.cancel"), variant: "quiet" as const }]
-              : [{ value: "saved" as const, label: t("recover.discard") }]),
-            { value: "recover", label: t("recover.restore"), variant: "primary" },
-          ]}
-        >
-          {t(damaged ? "recover.damaged" : "recover.body", { name: file.name })}
-        </ChoiceDialog>
-      ));
-      if (choice === "recover") return start(file, opened.recovered, true);
-      if (choice === "cancel" || opened.kind !== "ok") return;
-      await discardAutosaves(host.files.projectFiles(file), file.name);
-      return start(file, opened.project, false);
+      const picked = await chosen(file, opened);
+      if (picked) await start(file, picked.project, picked.recovered);
+      return;
     }
     if (opened.kind === "damaged") {
       await notify(
@@ -256,16 +281,32 @@ function App({ host }: { host: HostInterface }) {
     await start(file, project, false);
   };
 
+  /** Tells why a listed course cannot be opened. */
+  const unopenable = (item: LibraryItem, opened: Opened) => {
+    markMissing(item.file, opened.kind === "missing");
+    const reason = opened.kind === "missing" ? "openError.missing" : "openError.damaged";
+    return notify(t("openError.title"), t(reason, { name: item.file.name }));
+  };
+
   /** The newest work of a listed course, or a notice why it cannot be had. */
   const newest = async (item: LibraryItem) => {
     const opened = await openCourseFile(host, item.file);
     const project = newestOf(opened);
-    if (!project) {
-      markMissing(item.file, opened.kind === "missing");
-      const reason = opened.kind === "missing" ? "openError.missing" : "openError.damaged";
-      await notify(t("openError.title"), t(reason, { name: item.file.name }));
-    }
+    if (!project) await unopenable(item, opened);
     return project;
+  };
+
+  /**
+   * The work of a listed course to write into its file: the author chooses first when a crash left
+   * autosaved work, so that work is never saved or thrown away unasked.
+   */
+  const writable = async (item: LibraryItem) => {
+    const opened = await openCourseFile(host, item.file);
+    if (!newestOf(opened)) {
+      await unopenable(item, opened);
+      return undefined;
+    }
+    return (await chosen(item.file, opened))?.project;
   };
 
   const duplicate = async (item: LibraryItem) => {
@@ -321,8 +362,8 @@ function App({ host }: { host: HostInterface }) {
   /**
    * Copies part of the open course into the course file of the listed item with id `id` and saves
    * that file: `copy` gives the commands and the media keys whose files the target lacks, or a
-   * reason it cannot copy. A target holding work kept after a crash is left alone: the author keeps
-   * or discards that work by opening it first. Then a notice offers to open the target.
+   * reason it cannot copy. When a crash left autosaved work in the target, the author first keeps
+   * it or the saved file, as opening asks. Then a notice offers to open the target.
    */
   const copyInto = async (
     id: string,
@@ -333,19 +374,9 @@ function App({ host }: { host: HostInterface }) {
     const from = session;
     const target = library.current.find((item) => item.file.id === id);
     if (!from || !target) return;
-    const opened = await openCourseFile(host, target.file);
-    if (opened.kind !== "ok" && !(opened.kind === "damaged" && opened.recovered)) {
-      markMissing(target.file, opened.kind === "missing");
-      const reason = opened.kind === "missing" ? "openError.missing" : "openError.damaged";
-      await notify(t("openError.title"), t(reason, { name: target.file.name }));
-      return;
-    }
-    const title = shownTitle(target.title, t("course.untitled"));
-    if (opened.kind !== "ok" || opened.recovered) {
-      await notify(failed, t("copyTo.recovered", { course: title }));
-      return;
-    }
-    const project = opened.project;
+    // Crash-recovery work in the target is the author's to keep or drop first, as opening asks.
+    const project = await writable(target);
+    if (!project) return;
     const copied = copy(project.course);
     if ("refused" in copied) {
       await notify(failed, copied.refused);
@@ -401,10 +432,16 @@ function App({ host }: { host: HostInterface }) {
     await copyInto(
       id,
       t("copyTo.failed"),
-      (course) =>
-        copyEntryTo(from.editor.document, entry.id, course) ?? {
-          refused: t("copyTo.custom", { title }),
-        },
+      (course) => {
+        const copied = copyEntryTo(from.editor.document, entry.id, course);
+        if (copied.ok) return copied;
+        const reason = {
+          "not-found": "copyTo.gone",
+          "custom-block": "copyTo.custom",
+          microlearning: "copyTo.microlearning",
+        } as const;
+        return { refused: t(reason[copied.reason], { title }) };
+      },
       (course) =>
         t("copyTo.done", { title, course: shownTitle(course.title, t("course.untitled")) }),
     );
@@ -548,6 +585,8 @@ function App({ host }: { host: HostInterface }) {
    */
   const closeCourse = async (): Promise<boolean> => {
     if (!session) return true;
+    // What is typed but not yet handed to the course counts as a change.
+    keepDrafts();
     if (session.dirty) {
       const title = shownTitle(session.editor.document.title, t("course.untitled"));
       const answer = await ask<Answer>((answer) => (

@@ -148,9 +148,10 @@ export const english = {
   "copyTo.done": "Copied {title} to the end of {course}",
   "copyTo.open": "Open that course",
   "copyTo.failed": "The lesson was not copied",
-  "copyTo.recovered":
-    "{course} holds work kept after the app closed unexpectedly. Open it first to keep or discard that work, then copy again.",
   "copyTo.custom": "{title} has a custom block, which cannot be copied to another course yet.",
+  "copyTo.microlearning":
+    "A microlearning holds one lesson and no quiz, so {title} cannot be added to it.",
+  "copyTo.gone": "{title} is no longer in this course.",
   "lesson.goTo": "Go to",
   "lesson.author": "Author shown on this lesson",
   "lesson.authorHelp": "Leave it empty to show the course author.",

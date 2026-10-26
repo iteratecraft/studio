@@ -28,7 +28,9 @@ other containers are kept.
 end of `target`'s outline (rise.md 3B, BLK-02): new ids, a media index entry for each media file
 the target lacks, and the storage `keys` whose bytes the target project needs. Buttons to other
 lessons and a quiz's skip-ahead are dropped, as when the entry they point at is deleted (D-36).
-A lesson with a custom block is not copied (undefined), as custom blocks have no commands yet.
+It refuses with a `reason` instead (`ok: false`) when the target is a microlearning, which holds
+exactly one lesson and no quiz (rise.md 3A), and when a lesson has a custom block, as custom blocks
+have no commands yet.
 
 `clipBlocks(course, ids)` takes blocks aside for copy and paste (rise.md 3J, BLK-03): the blocks
 in lesson order with the media index entries they use. `pasteBlocks(clip, target, lesson, index)`

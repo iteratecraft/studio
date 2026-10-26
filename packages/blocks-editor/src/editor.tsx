@@ -12,9 +12,9 @@ import {
   ToolbarSeparator,
   useStrings,
 } from "@course-suite/ui";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { shownTitle, TITLE_MAX } from "./course.js";
-import { DraftField, keepDrafts, LinkTargets, RichDraftField } from "./fields.js";
+import { DraftEditor, DraftField, keepDrafts, LinkTargets, RichDraftField } from "./fields.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
@@ -68,6 +68,7 @@ export function EditorFrame({
   const [view, setView] = useState<View>({ kind: "overview" });
   // UI-BLOCKS-EDITOR-R15: undo history belongs to one screen and goes when the author leaves it.
   const go = (next: View) => {
+    keepDrafts();
     editor.clearHistory();
     setView(next);
   };
@@ -101,6 +102,11 @@ export function EditorFrame({
   // A new screen: focus starts at its heading, for keyboard and screen reader users.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
+  /** Saves the file with what the text fields hold. */
+  const save = useCallback(() => {
+    keepDrafts();
+    onSave();
+  }, [onSave]);
 
   // Keyboard (blocks-editor.md 5.1): Ctrl/Cmd+Z undoes, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo,
   // Ctrl/Cmd+S keeps what the fields hold and saves the file. In a text field the field's own undo
@@ -111,8 +117,7 @@ export function EditorFrame({
       const key = event.key.toLowerCase();
       if (key === "s") {
         event.preventDefault();
-        keepDrafts();
-        onSave();
+        save();
       } else if (!isTextEntry(event.target) && (key === "z" || key === "y")) {
         event.preventDefault();
         if (key === "y" || event.shiftKey) editor.redo();
@@ -121,7 +126,7 @@ export function EditorFrame({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editor, onSave]);
+  }, [editor, save]);
 
   const stateText = {
     saved: t("save.saved"),
@@ -131,109 +136,113 @@ export function EditorFrame({
   }[state.kind];
 
   return (
-    <LinkTargets value={lessons}>
-      <div className="be-editor">
-        <header className="be-bar">
-          <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
-          <h1 ref={heading} tabIndex={-1} className="be-bar-title">
-            {title}
-          </h1>
-          <span role="status" className="be-save-state" data-state={state.kind}>
-            {stateText}
-          </span>
-          <Toolbar aria-label={t("editor.tools")} className="be-tools">
-            <IconButton
-              icon="undo"
-              label={t("editor.undo")}
-              isDisabled={!editor.canUndo}
-              onPress={() => editor.undo()}
-            />
-            <IconButton
-              icon="redo"
-              label={t("editor.redo")}
-              isDisabled={!editor.canRedo}
-              onPress={() => editor.redo()}
-            />
-            <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
-            <ToolbarSeparator />
-            {/* Theme arrives with M2-17, publish with M2-18. */}
-            <Button variant="quiet" isDisabled>
-              {t("editor.theme")}
-            </Button>
-            {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
-            <Button
-              isDisabled={view.kind === "preview"}
-              onPress={() =>
-                setView({
-                  kind: "preview",
-                  ...(view.kind === "entry" && { start: view.id }),
-                })
-              }
-            >
-              {t("editor.preview")}
-            </Button>
-            <Button variant="primary" isDisabled>
-              {t("editor.publish")}
-            </Button>
-          </Toolbar>
-        </header>
-        {view.kind === "preview" ? (
-          <main className="be-preview">
-            <PreviewPane
-              source={editor}
-              media={session.media}
-              start={view.start}
-              // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
-              onEdit={(page) => {
-                const entry = course.entries.find((other) => other.id === page);
-                go(
-                  entry && entry.kind !== "section" && course.kind === "course"
-                    ? { kind: "entry", id: entry.id }
-                    : { kind: "overview" },
-                );
-              }}
-            />
-          </main>
-        ) : (
-          <main className="be-overview">
-            {open ? (
-              <LessonView
-                key={open.id}
-                session={session}
-                entry={open}
-                toasts={toasts}
-                clipboard={clipboard}
-                onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+    <DraftEditor.Provider value={editor}>
+      <LinkTargets value={lessons}>
+        <div className="be-editor">
+          <header className="be-bar">
+            <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
+            <h1 ref={heading} tabIndex={-1} className="be-bar-title">
+              {title}
+            </h1>
+            <span role="status" className="be-save-state" data-state={state.kind}>
+              {stateText}
+            </span>
+            <Toolbar aria-label={t("editor.tools")} className="be-tools">
+              <IconButton
+                icon="undo"
+                label={t("editor.undo")}
+                isDisabled={!editor.canUndo}
+                onPress={() => editor.undo()}
               />
-            ) : (
-              <>
-                <CourseFields session={session} />
-                {course.kind === "microlearning" ? (
-                  // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
-                  // outline.
-                  course.entries[0] && (
-                    <LessonContent
+              <IconButton
+                icon="redo"
+                label={t("editor.redo")}
+                isDisabled={!editor.canRedo}
+                onPress={() => editor.redo()}
+              />
+              <IconButton icon="save" label={t("editor.save")} onPress={save} />
+              <ToolbarSeparator />
+              {/* Theme arrives with M2-17, publish with M2-18. */}
+              <Button variant="quiet" isDisabled>
+                {t("editor.theme")}
+              </Button>
+              {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
+              <Button
+                isDisabled={view.kind === "preview"}
+                onPress={() =>
+                  setView({
+                    kind: "preview",
+                    ...(view.kind === "entry" && { start: view.id }),
+                  })
+                }
+              >
+                {t("editor.preview")}
+              </Button>
+              <Button variant="primary" isDisabled>
+                {t("editor.publish")}
+              </Button>
+            </Toolbar>
+          </header>
+          {view.kind === "preview" ? (
+            <main className="be-preview">
+              <PreviewPane
+                source={editor}
+                media={session.media}
+                start={view.start}
+                // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
+                onEdit={(page) => {
+                  const entry = course.entries.find((other) => other.id === page);
+                  go(
+                    entry && entry.kind !== "section" && course.kind === "course"
+                      ? { kind: "entry", id: entry.id }
+                      : { kind: "overview" },
+                  );
+                }}
+              />
+            </main>
+          ) : (
+            <main className="be-overview">
+              {open ? (
+                <LessonView
+                  key={open.id}
+                  session={session}
+                  entry={open}
+                  toasts={toasts}
+                  clipboard={clipboard}
+                  onGo={(id) =>
+                    go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })
+                  }
+                />
+              ) : (
+                <>
+                  <CourseFields session={session} />
+                  {course.kind === "microlearning" ? (
+                    // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
+                    // outline.
+                    course.entries[0] && (
+                      <LessonContent
+                        session={session}
+                        entry={course.entries[0]}
+                        toasts={toasts}
+                        clipboard={clipboard}
+                      />
+                    )
+                  ) : (
+                    <Outline
                       session={session}
-                      entry={course.entries[0]}
                       toasts={toasts}
-                      clipboard={clipboard}
+                      focusEntry={view.kind === "overview" ? view.from : undefined}
+                      onOpen={(id) => go({ kind: "entry", id })}
+                      onCopy={onCopyEntry}
                     />
-                  )
-                ) : (
-                  <Outline
-                    session={session}
-                    toasts={toasts}
-                    focusEntry={view.kind === "overview" ? view.from : undefined}
-                    onOpen={(id) => go({ kind: "entry", id })}
-                    onCopy={onCopyEntry}
-                  />
-                )}
-              </>
-            )}
-          </main>
-        )}
-      </div>
-    </LinkTargets>
+                  )}
+                </>
+              )}
+            </main>
+          )}
+        </div>
+      </LinkTargets>
+    </DraftEditor.Provider>
   );
 }
 

@@ -191,6 +191,12 @@ importers:
         specifier: 'catalog:'
         version: 19.3.0
     devDependencies:
+      '@course-suite/exporters':
+        specifier: workspace:*
+        version: link:../exporters
+      '@course-suite/zip':
+        specifier: workspace:*
+        version: link:../zip
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0

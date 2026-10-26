@@ -40,7 +40,7 @@ test("[rise:3B] UI-BLOCKS-EDITOR-R10: a lesson copied to another course lands la
   const source = sampleCourse();
   const target = minimalCourse();
   const copied = copyEntryTo(source, "lessonwhat", target);
-  if (!copied) throw new Error("no copy");
+  if (!copied.ok) throw new Error(copied.reason);
   expect(copied.keys).toEqual(["compost-bin.svg"]);
   const result = applyCommands(target, copied.commands);
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
@@ -54,7 +54,7 @@ test("[rise:3B] UI-BLOCKS-EDITOR-R10: a lesson copied to another course lands la
   expect(result.document.media.map((media) => media.key)).toContain("compost-bin.svg");
   // A course that has the file already gets no second index entry for it.
   const again = copyEntryTo(source, "lessonwhat", result.document);
-  expect(again?.commands.map((command) => command.type)).toEqual(["insertEntry"]);
+  expect(again.ok && again.commands.map((command) => command.type)).toEqual(["insertEntry"]);
   expect(source).toEqual(sampleCourse());
 });
 
@@ -62,14 +62,33 @@ test("D-36: a copied lesson drops buttons to other lessons; a lesson with a cust
   const source = fullCourse();
   const lesson = source.entries.find((entry) => entry.kind === "lesson") as LessonEntry;
   expect(JSON.stringify(lesson)).toContain('"entry":"quiz000001"');
-  expect(copyEntryTo(source, lesson.id, minimalCourse())).toBeUndefined();
+  expect(copyEntryTo(source, lesson.id, minimalCourse())).toEqual({
+    ok: false,
+    reason: "custom-block",
+  });
   lesson.blocks = lesson.blocks.filter((block) => block.category !== "custom");
   const copied = copyEntryTo(source, lesson.id, minimalCourse());
-  if (!copied) throw new Error("no copy");
+  if (!copied.ok) throw new Error(copied.reason);
   const result = applyCommands(minimalCourse(), copied.commands);
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
   expect(JSON.stringify(result.document.entries.at(-1))).not.toContain('"kind":"lesson","entry"');
-  expect(copyEntryTo(source, "nosuchentr", minimalCourse())).toBeUndefined();
+  expect(copyEntryTo(source, "nosuchentr", minimalCourse())).toEqual({
+    ok: false,
+    reason: "not-found",
+  });
+});
+
+test("[rise:3A] BLK-02: a quiz, or any other entry, pasted into a microlearning is refused", () => {
+  const source = fullCourse();
+  const quiz = source.entries.find((entry) => entry.kind === "quiz");
+  const lesson = sampleCourse().entries.find((entry) => entry.kind === "lesson");
+  if (!quiz || !lesson) throw new Error("fixture changed");
+  const micro: Course = { ...minimalCourse(), kind: "microlearning", entries: [lesson] };
+  expect(copyEntryTo(source, quiz.id, micro)).toEqual({ ok: false, reason: "microlearning" });
+  expect(copyEntryTo(sampleCourse(), lesson.id, micro)).toEqual({
+    ok: false,
+    reason: "microlearning",
+  });
 });
 
 const lessonOf = (course: Course, id: string) =>
