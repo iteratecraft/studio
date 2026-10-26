@@ -453,3 +453,76 @@ describe("largest saved state", () => {
     expect(size(progress.snapshot())).toBeLessThanOrEqual(size(largest));
   });
 });
+
+describe("blocks finished item by item (BLK-04)", () => {
+  const items = (n: number) =>
+    Array.from({ length: n }, () => ({
+      id: newId("i"),
+      kind: "content" as const,
+      text: "<p>x</p>",
+    }));
+  const checklist = (): Block => ({
+    id: newId("l"),
+    category: "list",
+    variant: "checkbox",
+    items: items(2),
+  });
+  const carousel = (): Block => ({
+    id: newId("g"),
+    category: "gallery",
+    variant: "carousel",
+    items: items(3),
+  });
+
+  test("[rise:3C] UI-BLOCKS-R45, R51: a checklist is done once every box is ticked, and a continue block below it waits for that", () => {
+    const list = checklist();
+    const gate = continueBlock("block-above");
+    const page = lesson(list, gate);
+    const progress = createProgress(course([page]));
+    progress.view(page);
+    const [first, second] = list.items ?? [];
+    expect(progress.continueReady(page, gate)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "");
+    expect(progress.isDone(first?.id ?? "")).toBe(true);
+    expect(progress.continueReady(page, gate)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "", false);
+    progress.itemDone(page, list, second?.id ?? "");
+    expect(progress.isDone(list.id)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "");
+    expect(progress.isDone(list.id)).toBe(true);
+    expect(progress.continueReady(page, gate)).toBe(true);
+    // Clearing a box afterwards keeps the block done.
+    progress.itemDone(page, list, first?.id ?? "", false);
+    expect(progress.isDone(list.id)).toBe(true);
+  });
+
+  test("[rise:3C] UI-BLOCKS-R52: a carousel is done once every slide has been shown; ticks and slides resume", () => {
+    const slides = carousel();
+    const page = lesson(slides, continueBlock("all-above"));
+    const progress = createProgress(course([page]));
+    for (const item of slides.items ?? []) progress.itemDone(page, slides, item.id);
+    expect(progress.isDone(slides.id)).toBe(true);
+    // Once done, only the block's id is kept.
+    expect(progress.snapshot().done).toEqual([slides.id]);
+    const resumed = createProgress(course([page]), progress.snapshot());
+    expect(resumed.isDone(slides.id)).toBe(true);
+    // Only items of the block count, and only for blocks finished item by item.
+    const plain = text();
+    resumed.itemDone(page, plain, "nothing00");
+    expect(resumed.isDone("nothing00")).toBe(false);
+  });
+
+  test("standards.md §4.2: the largest saved state counts all items but one of a checklist or carousel in progress", () => {
+    const list = checklist();
+    const slides = carousel();
+    const largest = largestResume(course([lesson(list, slides, text())]));
+    expect(largest.done).toContain(list.id);
+    expect(largest.done).toEqual(
+      expect.arrayContaining((slides.items ?? []).slice(1).map((item) => item.id)),
+    );
+    const progress = createProgress(course([lesson(list, slides, text())]));
+    progress.itemDone(progress.pages[0] as LessonEntry, slides, slides.items?.[0]?.id ?? "");
+    progress.itemDone(progress.pages[0] as LessonEntry, slides, slides.items?.[1]?.id ?? "");
+    expect(progress.snapshot().done?.length).toBeLessThanOrEqual((largest.done ?? []).length);
+  });
+});

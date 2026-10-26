@@ -124,5 +124,14 @@ export const english = {
     "sr.answerIncorrect": "Your answer is incorrect",
     "sr.timeUp": "Time is up. Your answers were submitted.",
     "sr.newTab": "opens in a new tab",
+
+    "quote.previous": "Previous quote",
+    "quote.next": "Next quote",
+    "quote.position": "Quote {current} of {total}",
+    "sr.quotes": "Quotes",
+    "sr.images": "Images",
+    "sr.carousel": "carousel",
+    "sr.slide": "slide",
+    "sr.table": "Table",
   },
 } as const;

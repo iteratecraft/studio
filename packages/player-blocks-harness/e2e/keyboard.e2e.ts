@@ -59,8 +59,9 @@ test.describe("keyboard-only journeys", () => {
       "outline: Greens and browns",
       "outline: Check what you know",
       "outline: Looking after the heap",
+      // The lesson's image can be enlarged (blocks-editor.md 2.10: zoom on click, on by default).
+      "main: Enlarge image",
       "main: Continue",
-      "main: Next lesson Greens and browns",
     ]);
   });
 
@@ -114,7 +115,8 @@ test.describe("keyboard-only journeys", () => {
     await page.keyboard.press("Tab");
     await expect(outline(page)).toBeHidden();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByRole("button", { name: "Continue" })).toBeFocused();
+    // The first control of the lesson: its image's zoom button (blocks-editor.md 2.10).
+    await expect(page.getByRole("button", { name: "Enlarge image" })).toBeFocused();
 
     // Shift+Tab out of the contents, back to the button, leaves them open.
     await toggle.focus();
