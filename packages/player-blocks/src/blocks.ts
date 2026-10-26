@@ -8,6 +8,7 @@ import { h, richText, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
+import { themeBackground } from "./theme.js";
 
 /** What a lesson page gives its blocks: progress, gates and saved answers. */
 export interface LessonHooks {
@@ -82,14 +83,20 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.paddingBottom = `${padding.bottom}px`;
   }
   // shortcut: an image background shows as no background until media blocks arrive (M2-13).
-  if (background?.kind === "color") {
-    frame.style.backgroundColor = background.color;
-    frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);
+  // Theme colour and tint follow the course theme, with its contrast (UI-BLOCKS-EDITOR-R45).
+  const themed = themeBackground(block, context.course);
+  const fill =
+    background?.kind === "color"
+      ? { color: background.color, text: textOn(background.color, textContrast) }
+      : themed;
+  if (fill) {
+    frame.style.backgroundColor = fill.color;
+    frame.classList.add("has-background", `text-${fill.text}`);
     // Keep cards white (blocks-editor.md 2.4, W10 step 4): on by default.
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
   if (accentColor) {
-    const color = background?.kind === "color" ? background.color : SURFACE;
+    const color = fill?.color ?? SURFACE;
     const cards = frame.classList.contains("cards-white")
       ? [...frame.querySelectorAll<HTMLElement>(".check")]
       : [];
@@ -99,6 +106,7 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     ]) {
       if (!accentReadable(accentColor, surface)) continue;
       element.style.setProperty("--accent", accentColor);
+      element.style.setProperty("--button", accentColor);
       element.style.setProperty("--focus", accentColor);
       element.style.setProperty(
         "--accent-text",

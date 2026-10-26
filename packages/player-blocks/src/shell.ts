@@ -2,6 +2,7 @@
 // addressed by stable id, previous and next links (rise.md §3 B, E, F, G and N), and the goodbye
 // page. Every learner string comes from the label set; course text comes from the course document.
 import type { Block, Course, Entry, LessonEntry } from "@course-suite/format";
+import { DEFAULT_OVERLAY, overlayColors, themeColors } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
@@ -9,6 +10,7 @@ import { isContinue, type PageStatus } from "./progress.js";
 import { quizView } from "./quiz.js";
 import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
 import type { Runtime } from "./runtime.js";
+import { animateOnScroll, animates, headerBackground, setVariables } from "./theme.js";
 
 /** Below this width the outline starts closed and covers the content when opened (UI-BLOCKS-EDITOR-R53, R55). */
 export const WIDE_LAYOUT = "(min-width: 992px)";
@@ -148,10 +150,16 @@ export function startShell(
   let first = true;
   const show = () => {
     if (runtime.ended) return;
-    const route = parseRoute(location.hash, pages);
+    let route = parseRoute(location.hash, pages);
     if (route.kind === "unknown") {
       // A lesson address this version of the course does not have: open the cover instead.
       history.replaceState(null, "", COVER_HASH);
+    }
+    // A skipped cover opens the first lesson, or where the learner stopped (BLK-09, rise.md 3E).
+    const skipTo = runtime.resumeAt ?? pages[0];
+    if (route.kind !== "page" && course.theme?.cover?.skip && skipTo) {
+      history.replaceState(null, "", pageHash(skipTo.id));
+      route = parseRoute(location.hash, pages);
     }
     const page = route.kind === "page" ? route.page : undefined;
     view?.leave();
@@ -183,9 +191,16 @@ export function startShell(
   };
 
   function coverView(): PageView {
-    const cover = course.cover && course.media.find((media) => media.key === course.cover?.key);
-    // A returning learner resumes where they stopped (rise.md rule 1, §4 "Learner state").
-    const target = runtime.resumeAt ?? pages[0];
+    // The cover's layout and options (rise.md 3E, blocks-editor.md 2.18 cover page).
+    const options = course.theme?.cover ?? {};
+    const layout = options.layout ?? "split-left";
+    const cover =
+      layout === "plain"
+        ? undefined
+        : course.cover && course.media.find((media) => media.key === course.cover?.key);
+    // A returning learner resumes where they stopped (rise.md rule 1, §4 "Learner state"). Without
+    // the button learners start from the outline (UI-BLOCKS-EDITOR-R47).
+    const target = options.startButton === false ? undefined : (runtime.resumeAt ?? pages[0]);
     const begin = target
       ? h(
           "a",
@@ -196,7 +211,7 @@ export function startShell(
     begin?.addEventListener("click", () => runtime.begin());
     const element = h(
       "div",
-      { class: "cover" },
+      { class: `cover cover-${layout}` },
       cover && course.cover
         ? h("img", {
             class: "cover-image",
@@ -213,7 +228,7 @@ export function startShell(
         course.description
           ? h("div", { class: "cover-description" }, richText(course.description, labels))
           : undefined,
-        course.authors?.length
+        course.authors?.length && options.author !== false
           ? h(
               "p",
               { class: "cover-authors" },
@@ -223,6 +238,20 @@ export function startShell(
         begin,
       ),
     );
+    if (layout === "full-image") {
+      // The title over the picture under an overlay, or over the theme colour without a picture.
+      const chosen = options.overlay ?? DEFAULT_OVERLAY;
+      const colors = themeColors(course.theme);
+      const overlay = cover
+        ? overlayColors(chosen, course.theme)
+        : { color: colors.theme, text: colors.themeText };
+      setVariables(element, {
+        "--overlay": overlay.color,
+        "--overlay-opacity": String(cover ? chosen.opacity / 100 : 1),
+      });
+      element.classList.add(`text-${overlay.text === "#ffffff" ? "light" : "dark"}`);
+      element.prepend(h("div", { class: "cover-overlay" }));
+    }
     return { element, refresh() {}, leave() {} };
   }
 
@@ -249,7 +278,9 @@ export function startShell(
         ),
       );
     } else if (page.kind === "lesson") {
-      body = lessonBlocks(page, next, updates);
+      const blocks = lessonBlocks(page, next, updates);
+      body = blocks.element;
+      leave = blocks.stop;
     } else {
       const quiz = quizView(page, { labels, runtime, next, refresh });
       leave = quiz.stop;
@@ -291,18 +322,7 @@ export function startShell(
     const element = h(
       "article",
       { class: `lesson lesson-${page.kind}`, "aria-labelledby": titleId },
-      h(
-        "header",
-        { class: "lesson-header" },
-        previous ? pageLink(previous, "previous", labels) : undefined,
-        number
-          ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
-          : undefined,
-        h("h1", { id: titleId, tabindex: -1 }, page.title),
-        page.description
-          ? h("div", { class: "lesson-description" }, richText(page.description, labels))
-          : undefined,
-      ),
+      lessonHeader(page, previous, number, titleId),
       body,
       markDone ? h("div", { class: "lesson-actions" }, markDone) : undefined,
       nav,
@@ -314,6 +334,53 @@ export function startShell(
       },
       leave,
     };
+  }
+
+  /**
+   * The lesson header (blocks-editor.md 2.18 lesson headers, UI-BLOCKS-EDITOR-R46): its layout,
+   * height, lesson count and author. Hidden headers keep the title for screen readers.
+   */
+  function lessonHeader(
+    page: Page,
+    previous: Page | undefined,
+    number: ReturnType<typeof lessonNumber>,
+    titleId: string,
+  ): HTMLElement {
+    const options = course.theme?.headers ?? {};
+    const hidden = options.hidden === true;
+    const background = hidden ? undefined : headerBackground(course.theme);
+    const author =
+      hidden || options.author === false
+        ? undefined
+        : ((page.kind === "lesson" ? page.author?.name : undefined) ?? course.authors?.[0]?.name);
+    const header = h(
+      "header",
+      {
+        class: [
+          "lesson-header",
+          `header-${options.height ?? "medium"}`,
+          hidden && "header-hidden",
+          background && `has-background text-${background.text}`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+      previous ? pageLink(previous, "previous", labels) : undefined,
+      number && !hidden && options.lessonCount !== false
+        ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
+        : undefined,
+      h(
+        "h1",
+        { id: titleId, tabindex: -1, class: hidden ? "visually-hidden" : undefined },
+        page.title,
+      ),
+      author ? h("p", { class: "lesson-author" }, author) : undefined,
+      page.description
+        ? h("div", { class: "lesson-description" }, richText(page.description, labels))
+        : undefined,
+    );
+    if (background) header.style.backgroundColor = background.color;
+    return header;
   }
 
   /** The next page's link, or its title marked unavailable with the reason (UI-BLOCKS-R26). */
@@ -370,11 +437,16 @@ export function startShell(
           element.hidden = i >= shown || (isContinue(block) && progress.isDone(block.id));
       });
     });
-    return h(
+    const element = h(
       "div",
       { class: "blocks" },
       ...rendered.flatMap(([, element]) => (element ? [element] : [])),
     );
+    // Blocks fade in as they scroll into view, by the course's switch and their own (rise.md 3D).
+    const stop = animateOnScroll(
+      rendered.flatMap(([block, el]) => (el && animates(block, course) ? [el] : [])),
+    );
+    return { element, stop };
   }
 
   /** Focus moves to the first block a gate revealed, so keyboard users carry on from there. */

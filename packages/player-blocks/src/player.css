@@ -1,7 +1,8 @@
 /* Blocks player styles (ENG-04). One centred column of blocks with the outline beside it on wide
    screens; below 992 px the outline sits behind the contents button (rise.md §3 N,
    UI-BLOCKS-EDITOR-R53 and R55). Colours keep 4.5:1 for text and 3:1 for controls (WCAG 2.2 AA).
-   A white card on a block's own colour takes these colours back (.cards-white). */
+   A white card on a block's own colour takes these colours back (.cards-white). The course theme
+   (theme.ts) sets the --theme-* colours, the fonts and the corners on the page. */
 :root,
 .cards-white .check {
   color-scheme: light;
@@ -11,13 +12,22 @@
   --panel: #f4f5f7;
   --border: #6b7280;
   --rule: #d5d9df;
-  --accent: #1f5fbf;
-  --accent-text: #ffffff;
-  --accent-soft: #e4ecf8;
-  --focus: #1f5fbf;
+  --accent: var(--theme-accent, #1f5fbf);
+  --accent-text: var(--theme-button-text, #ffffff);
+  --accent-soft: var(--theme-accent-soft, #e4ecf8);
+  --focus: var(--theme-accent, #1f5fbf);
+  --button: var(--theme-button, #1f5fbf);
   --correct: #1a7a36;
   --wrong: #b42318;
   --topbar: 56px;
+}
+
+:root {
+  --font-heading: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body: var(--font-heading);
+  --font-ui: var(--font-heading);
+  --radius: 8px;
+  --button-radius: 6px;
 }
 
 /* Scrolling a control into view keeps it clear of the sticky top bar (WCAG 2.4.11). */
@@ -34,14 +44,25 @@ body {
   margin: 0;
   background: var(--surface);
   color: var(--text);
-  font:
-    1.0625rem / 1.6 system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
+  font: 1.0625rem / 1.6 var(--font-body);
+}
+
+/* The theme's heading and interface fonts (ENG-08). */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+}
+
+.topbar,
+.outline,
+.lesson-nav,
+.lesson-number,
+.lesson-author {
+  font-family: var(--font-ui);
 }
 
 img {
@@ -97,11 +118,12 @@ h1:focus {
   justify-content: center;
   min-height: 44px;
   padding: 0 20px;
-  border: 2px solid var(--accent);
-  border-radius: 6px;
-  background: var(--accent);
+  border: 2px solid var(--button);
+  border-radius: var(--button-radius);
+  background: var(--button);
   color: var(--accent-text);
   font: inherit;
+  font-family: var(--font-ui);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
@@ -251,7 +273,48 @@ main {
 .cover-image {
   display: block;
   width: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius);
+}
+
+/* Cover layouts (rise.md 3E): the picture on the right, or behind the title under an overlay, which
+   the theme colour stands in for when there is no picture. */
+@media (min-width: 768px) {
+  .cover-split-right .cover-image {
+    order: 1;
+  }
+}
+
+.cover-full-image {
+  position: relative;
+  min-height: 360px;
+  padding: 48px 32px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.cover-full-image .cover-image,
+.cover-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.cover-overlay {
+  background: var(--overlay);
+  opacity: var(--overlay-opacity);
+}
+
+.cover-full-image .cover-text {
+  position: relative;
+}
+
+.cover.cover-full-image {
+  grid-template-columns: 1fr;
 }
 
 .cover h1 {
@@ -283,6 +346,51 @@ main {
   font-size: 0.9375rem;
 }
 
+/* Lesson header layouts and heights (blocks-editor.md 2.18). A header on a colour takes the text
+   that keeps 4.5:1 on it (.text-light, .text-dark), as a block does. */
+.lesson-author {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.lesson-header.has-background {
+  padding: 24px;
+  border-bottom: 0;
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.lesson-header.header-small {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.lesson-header.has-background.header-large,
+.lesson-header.header-large {
+  padding-top: 64px;
+  padding-bottom: 48px;
+}
+
+.lesson-header.header-hidden {
+  border-bottom: 0;
+}
+
+/* Entrance animation (rise.md 3D): a block fades in as it scrolls into view, never under reduced
+   motion (UI-ACCESSIBILITY-R40). */
+@media (prefers-reduced-motion: no-preference) {
+  .block.entering {
+    animation: block-in 0.5s ease-out both;
+  }
+}
+
+@keyframes block-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
 .block {
   padding: 30px 0;
 }
@@ -303,6 +411,7 @@ main {
   --text: #ffffff;
   --muted: #ffffff;
   --accent: #ffffff;
+  --button: #ffffff;
   --accent-text: #000000;
   --focus: #ffffff;
   --correct: #ffffff;
@@ -314,6 +423,7 @@ main {
   --text: #000000;
   --muted: #000000;
   --accent: #000000;
+  --button: #000000;
   --accent-text: #ffffff;
   --focus: #000000;
   --correct: #000000;
@@ -333,7 +443,7 @@ main {
    items stay white with the theme's own text and controls. */
 .cards-white .check {
   padding: 24px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
 }
@@ -376,6 +486,18 @@ h3.block-heading {
   width: 100%;
 }
 
+/* Layout styles: softer corners on pictures, or a bolder header (rise.md 3E). */
+.layout-rounded .cover-image,
+.layout-rounded .image {
+  border-radius: 24px;
+}
+
+.layout-bold .lesson-header h1,
+.layout-bold .cover h1 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
 .continue {
   width: 100%;
 }
@@ -412,7 +534,7 @@ h3.block-heading {
   margin: 8px 0;
   padding: 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--button-radius);
 }
 
 .choice input {
@@ -502,7 +624,7 @@ h3.block-heading {
   min-width: 0;
   padding: 12px 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--text);
   text-decoration: none;
 }
@@ -602,6 +724,7 @@ h3.block-heading {
   background: var(--surface);
   color: var(--accent);
   font: inherit;
+  font-family: var(--font-ui);
   font-weight: 600;
   cursor: pointer;
 }
@@ -774,6 +897,7 @@ h3.block-heading {
   background: var(--surface);
   color: var(--text);
   font: inherit;
+  font-family: var(--font-ui);
   cursor: pointer;
 }
 
@@ -811,6 +935,7 @@ h3.block-heading {
   background: var(--surface);
   color: var(--text);
   font: inherit;
+  font-family: var(--font-ui);
   cursor: pointer;
 }
 

@@ -4,6 +4,7 @@
 import type { Course, PublishSettings } from "@course-suite/format";
 import type { LabelSet } from "@course-suite/labels";
 import type { LrsSettings } from "@course-suite/tracking";
+import { type CourseFonts, isCourseFonts } from "./theme.js";
 
 /** What the course data file hands to the player. The package builder fills in every field. */
 export interface CourseData {
@@ -18,6 +19,8 @@ export interface CourseData {
   lrs?: LrsSettings;
   /** Package path of each media file, by storage key. */
   media?: Record<string, string>;
+  /** The fonts the package carries for the theme (ENG-08); without them text is in device fonts. */
+  fonts?: CourseFonts;
 }
 
 /** The player-owned global every chunk and the data file register on (ADR-0003 step 2). */
@@ -65,7 +68,9 @@ function isCourseData(value: unknown): value is CourseData {
   const standard = isObject(value) ? value.standard : undefined;
   const version = isObject(value) ? value.packageVersion : undefined;
   const lrs = isObject(value) ? value.lrs : undefined;
+  const fonts = isObject(value) ? value.fonts : undefined;
   return (
+    (fonts === undefined || isCourseFonts(fonts)) &&
     (lrs === undefined ||
       (isObject(lrs) &&
         typeof lrs.endpoint === "string" &&
