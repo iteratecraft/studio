@@ -1,0 +1,27 @@
+{
+  "name": "@course-suite/fonts",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./test/node-fonts": "./test/node-fonts.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-suite/format": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  }
+}

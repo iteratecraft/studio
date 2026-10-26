@@ -11,6 +11,9 @@
 //     apps and tools but fails in course-shipped packages, because those ship inside every course.
 // (c) The generated block in THIRD_PARTY_NOTICES.md lists every production dependency and repeats
 //     any NOTICE file it ships (Apache-2.0 section 4(d)). A stale block fails the check.
+// (d) Every font file in the repository ships in the app and in courses (D-45), so it needs the SIL
+//     Open Font License 1.1 beside it, as OFL.txt, declaring no Reserved Font Name: a subset is a
+//     modified font, which may not keep a reserved name.
 //
 // Reviewed exceptions live in exceptions.json next to this file, as an array of
 //   { "name": "pkg", "licence": "<exact licence string reported>", "inCourses": false,
@@ -19,7 +22,7 @@
 // longer matches any dependency fails the check, so the list cannot go stale.
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { extname, join, relative, sep } from "node:path";
 
 // devDependencies a course-shipped package may keep: test tooling that never reaches a bundle.
 const COURSE_TOOLING = new Set(["vitest"]);
@@ -216,6 +219,43 @@ for (const e of exceptions) {
     problems.push(`exceptions.json: ${e.name} (${e.licence}) is no longer needed; remove it`);
 }
 
+// (d) Font files.
+// The folders .gitignore leaves out, and /demo/ (pnpm demo:m1): build and test output, which can
+// hold copies of fonts.
+const SKIPPED = new Set([
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+  "playwright-report",
+  "target",
+  "test-courses",
+  "test-results",
+]);
+const FONT_EXTENSIONS = new Set([".woff", ".woff2", ".ttf", ".otf"]);
+function checkFonts(folder: string): void {
+  const entries = readdirSync(folder, { withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(folder, entry.name);
+    if (entry.isDirectory() && !SKIPPED.has(entry.name) && path !== join(root, "demo")) {
+      checkFonts(path);
+    }
+    if (!entry.isFile() || !FONT_EXTENSIONS.has(extname(entry.name).toLowerCase())) continue;
+    const font = relativeDir(path);
+    const licence = join(folder, "OFL.txt");
+    const text = existsSync(licence) ? readFileSync(licence, "utf8") : "";
+    if (!text.includes("SIL OPEN FONT LICENSE Version 1.1")) {
+      problems.push(`${font}: a font needs the SIL Open Font License 1.1 beside it, as OFL.txt`);
+    } else if (text.split("Reserved Font Name").length > 2) {
+      problems.push(
+        `${font}: its OFL.txt declares a Reserved Font Name, which a subset may not use`,
+      );
+    }
+  }
+}
+checkFonts(root);
+
 // (c) THIRD_PARTY_NOTICES.md generated block.
 const rows = new Set<string>();
 const notices = new Map<string, string>();
@@ -276,6 +316,6 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `Licence gate: ${dirs.size} workspace packages, ${dependencies.length} production dependency ` +
+  `Licence gate: ${dirs.size} workspace packages, font licences, ${dependencies.length} production dependency ` +
     `licence entries (${shippedInCourses.size} in courses), no issues found.`,
 );

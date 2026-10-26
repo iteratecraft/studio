@@ -252,6 +252,8 @@ describe("check:licences", () => {
       turbo.tags = ["engine"];
     });
     rmSync(join(dir, "packages", "tracking", "LICENSE"));
+    // D-45: a bundled font without its OFL licence beside it.
+    rmSync(join(dir, "packages", "fonts", "files", "inter", "OFL.txt"));
 
     const result = gate(dir);
     for (const [pkg, license, message] of cases) {
@@ -263,6 +265,11 @@ describe("check:licences", () => {
     expect(result.output).toContain(
       "packages/tracking: a course-shipped package needs its own MIT",
     );
+    for (const face of ["bold", "italic", "regular"]) {
+      expect(result.output).toContain(
+        `packages/fonts/files/inter/${face}.woff2: a font needs the SIL Open Font License 1.1`,
+      );
+    }
     expect(result.status).not.toBe(0);
   });
 
