@@ -20,9 +20,11 @@ import {
   MenuItem,
   MenuSeparator,
   MenuTrigger,
+  Pagination,
   Popover,
   ProgressBar,
   PSEUDO_LOCALES,
+  SearchField,
   Select,
   Splitter,
   Switch,
@@ -34,6 +36,8 @@ import {
   TextField,
   ToastQueue,
   ToastRegion,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   ToolbarSeparator,
   Tree,
@@ -97,6 +101,7 @@ export function Gallery() {
     return THEMES.find((name) => name === asked) ?? "system";
   });
   const [locale, setLocale] = useState(() => params.get("lang") ?? "en");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -167,6 +172,21 @@ export function Gallery() {
             errorMessage="Give the lesson a title."
           />
           <TextArea label="Description" placeholder="What learners will get from it" />
+        </Section>
+
+        <Section id="search-field" title="Search field">
+          <SearchField label="Search by title" defaultValue="Safety" />
+        </Section>
+
+        <Section id="toggle-buttons" title="Toggle buttons">
+          <ToggleButtonGroup
+            aria-label="View"
+            selectionMode="single"
+            defaultSelectedKeys={["grid"]}
+          >
+            <ToggleButton id="grid" icon="grid" label="Grid" />
+            <ToggleButton id="list" icon="list" label="List" />
+          </ToggleButtonGroup>
         </Section>
 
         <Section id="checkboxes" title="Checkbox and switch">
@@ -302,6 +322,10 @@ export function Gallery() {
             <p className="gallery-pane">Outline</p>
             <p className="gallery-pane">Lesson</p>
           </Splitter>
+        </Section>
+
+        <Section id="pagination" title="Pagination">
+          <Pagination label="Courses" total={45} pageSize={10} page={page} onPageChange={setPage} />
         </Section>
 
         <Section id="empty-state" title="Empty state">

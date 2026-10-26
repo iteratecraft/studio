@@ -5,10 +5,11 @@
 // Build the app first (`pnpm build`, then `pnpm --filter @course-suite/desktop build:app`); without
 // the executable the test skips, except on CI. CI also sets the DevTools port as a WebView2 policy
 // (ci.yml), because WebView2 ignores the variable on the runner.
-import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { type ChildProcess, execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { type Browser, chromium, expect, type Page, test } from "@playwright/test";
 
 const exe = join(import.meta.dirname, "../src-tauri/target/release/course-suite-desktop.exe");
@@ -64,9 +65,45 @@ test.afterAll(async () => {
   app?.kill();
 });
 
-test("shows the app name and version it gets from the shell through the host", async () => {
-  await expect(page.getByRole("heading", { level: 1, name: "Course Suite" })).toBeVisible();
-  await expect(page.getByRole("status")).toHaveText("Version 0.0.0, desktop edition");
+test("shows the dashboard with the app name and version it gets from the shell through the host", async () => {
+  await expect(page.getByRole("heading", { level: 1, name: "Your courses" })).toBeVisible();
+  await expect(page.getByRole("banner")).toHaveText("Course Suite");
+  await expect(page.getByRole("contentinfo")).toHaveText("Version 0.0.0");
+});
+
+test("the editor runs under the release content security policy without a violation", async () => {
+  // The policy blocks every <style> element. React Aria adds one unless the page's marker says its
+  // rule is already in the stylesheet (packages/ui/README.md), so none must be there.
+  expect(
+    await page.evaluate(() => ({
+      styles: document.querySelectorAll("style").length,
+      marker: document.getElementById("react-aria-pressable-style")?.tagName,
+    })),
+  ).toEqual({ styles: 0, marker: "TEMPLATE" });
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    Object.assign(window, { violations: seen });
+    document.addEventListener("securitypolicyviolation", (e) => seen.push(e.effectiveDirective));
+  });
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Blank course" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  expect(
+    await page.evaluate(() => (window as unknown as { violations: string[] }).violations),
+  ).toEqual([]);
+});
+
+test("the window title follows the page's title (M2-08)", async () => {
+  test.setTimeout(150_000);
+  await page.evaluate(() => {
+    document.title = "Title sync check";
+  });
+  await expect.poll(() => windowTitle(), { timeout: 60_000 }).toBe("Title sync check");
+  await page.evaluate(() => {
+    document.title = "Course Suite";
+  });
+  await expect.poll(() => windowTitle(), { timeout: 60_000 }).toBe("Course Suite");
 });
 
 test("the content security policy blocks inline script, eval and other origins", async () => {
@@ -207,6 +244,44 @@ test("reports idle memory of the app and its WebView2 processes", async () => {
   test.info().annotations.push({ type: "idle memory", description: report });
   expect(tree.length).toBeGreaterThan(1);
 });
+
+test("closing the window asks the page, which lets it close with no course open", async () => {
+  // PowerShell can take tens of seconds to start on a CI runner.
+  test.setTimeout(150_000);
+  const closed = page.waitForEvent("close", { timeout: 120_000 });
+  // WM_CLOSE, as the window's close button sends.
+  await promisify(execFile)(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `[Diagnostics.Process]::GetProcessById(${app.pid}).CloseMainWindow() | Out-Null`,
+    ],
+    { timeout: 60_000 },
+  );
+  // The page allowed it: the window and its page go, then the app ends.
+  await closed;
+  await expect.poll(() => app.exitCode, { timeout: 60_000 }).not.toBeNull();
+});
+
+/**
+ * The title of the app's main window, as Windows shows it. Asked without blocking the test's own
+ * event loop, and given up after 20 s, so a slow PowerShell start cannot stall Playwright.
+ */
+async function windowTitle(): Promise<string> {
+  const { stdout } = await promisify(execFile)(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `[Diagnostics.Process]::GetProcessById(${app.pid}).MainWindowTitle`,
+    ],
+    { encoding: "utf8", timeout: 20_000 },
+  );
+  return stdout.trim();
+}
 
 /** The app process and every process below it (the WebView2 browser, renderer, GPU...). */
 function processTree(): {

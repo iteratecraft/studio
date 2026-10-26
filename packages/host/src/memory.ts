@@ -26,6 +26,8 @@ export interface MemoryHostInit {
 export interface MemoryHost extends HostInterface {
   /** The "disk": every file by id, including data files under `appdata/`. */
   readonly disk: Map<string, Uint8Array>;
+  /** What the user closing the window does: asks the close listener, and says whether it closed. */
+  requestClose(): Promise<boolean>;
 }
 
 const DATA_PREFIX = "appdata/";
@@ -33,6 +35,13 @@ const DATA_PREFIX = "appdata/";
 export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
   const app: AppInfo = { name: "Course Suite", version: "0.0.0", edition: "desktop", ...init.app };
   const disk = new Map(init.files);
+  // When each file last changed; files put on the disk from outside count from the host's start.
+  const started = Date.now();
+  const changed = new Map<string, number>();
+  const put = (id: string, data: Uint8Array) => {
+    disk.set(id, data.slice());
+    changed.set(id, Date.now());
+  };
   const picked = new Set<string>();
   const ref = (id: string): FileRef => ({ id, name: id.slice(id.lastIndexOf("/") + 1) });
   const pick = (id: string): FileRef => {
@@ -49,8 +58,16 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
     setItem: (key, value) => values.set(key, value),
     removeItem: (key) => values.delete(key),
   };
+  let closeListener: (() => Promise<boolean>) | undefined;
   return {
     disk,
+    requestClose: async () => (closeListener ? closeListener() : true),
+    onCloseRequested: (allow) => {
+      closeListener = allow;
+      return () => {
+        if (closeListener === allow) closeListener = undefined;
+      };
+    },
     appInfo: async () => app,
     files: {
       pickOpen: async (options = {}) => {
@@ -67,9 +84,13 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
         if (!data) throw new HostError("not-found", `No such file: ${file.id}`);
         return data.slice();
       },
+      modified: async (file) => {
+        const id = granted(file);
+        return disk.has(id) ? (changed.get(id) ?? started) : undefined;
+      },
       // A map entry is replaced in one step, which is what atomic means here.
       write: async (file, data) => {
-        disk.set(granted(file), data.slice());
+        put(granted(file), data);
       },
       projectFiles: (file) => {
         const folder = file.id.slice(0, file.id.length - file.name.length);
@@ -81,13 +102,13 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
         return projectFolder(file.name, {
           read: async (parts) => disk.get(key(parts))?.slice(),
           write: async (parts, data) => {
-            disk.set(key(parts), data.slice());
+            put(key(parts), data);
           },
           rename: async (from, to) => {
             const data = disk.get(key(from));
             if (!data) throw new HostError("not-found", `No such file: ${key(from)}`);
             disk.delete(key(from));
-            disk.set(key(to), data);
+            put(key(to), data);
           },
           remove: async (parts) => {
             const path = key(parts);

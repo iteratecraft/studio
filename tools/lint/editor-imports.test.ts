@@ -56,8 +56,9 @@ test("Node.js and Tauri imports in the UI kit fail lint", () => {
   expect(flaggedLines).toHaveLength(5);
 });
 
-test("the rule covers the web app's UI code", () => {
+test("the rule covers the web app's UI code and the blocks editor", () => {
   expect(lint("apps/web/src/gallery.tsx")).toEqual(flaggedLines);
+  expect(lint("packages/blocks-editor/src/app.tsx")).toEqual(flaggedLines);
 });
 
 test("tests and browser-test files may import Node.js; only the desktop app may import Tauri", () => {

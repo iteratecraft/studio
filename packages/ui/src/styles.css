@@ -20,6 +20,18 @@ body {
   line-height: var(--cs-leading);
 }
 
+/*
+ * React Aria's pressable controls (usePress) add this rule in a <style> element, which a strict
+ * content security policy blocks (the desktop app allows styles only from its own files). It is
+ * here instead; a page with such a policy also holds an element with the id
+ * "react-aria-pressable-style", which tells React Aria the rule is already there.
+ */
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+
 .cs-Icon {
   flex: none;
   vertical-align: middle;
@@ -91,6 +103,20 @@ body {
   padding: 0;
 }
 
+/* ToggleButtonGroup: buttons that stay pressed, such as a grid or list view switch. */
+.cs-ToggleButtonGroup {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.cs-ToggleButton[data-selected] {
+  background: var(--cs-accent-soft);
+  color: var(--cs-text);
+}
+
 /* Toolbar */
 .cs-Toolbar {
   display: flex;
@@ -157,6 +183,37 @@ body {
 .cs-TextArea {
   min-height: 5rem;
   resize: vertical;
+}
+
+.cs-SearchField-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cs-SearchField-box > .cs-Icon {
+  position: absolute;
+  inset-inline-start: var(--cs-space-2);
+  color: var(--cs-text-muted);
+  pointer-events: none;
+}
+
+.cs-SearchField .cs-Input {
+  padding-inline: calc(var(--cs-space-2) * 2 + 16px) var(--cs-control-height);
+}
+
+/* The browser's own clear button would double ours. */
+.cs-SearchField .cs-Input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.cs-SearchField-clear {
+  position: absolute;
+  inset-inline-end: 0;
+}
+
+.cs-SearchField[data-empty] .cs-SearchField-clear {
+  display: none;
 }
 
 .cs-Select-button {
@@ -426,6 +483,16 @@ body {
   background: var(--cs-bg);
 }
 
+/* layout="grid": items flow in columns, and arrow keys move in two dimensions. */
+.cs-GridList[data-layout="grid"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--cs-grid-item-min, 14rem), 1fr));
+  gap: var(--cs-space-3);
+  padding: var(--cs-space-2);
+  border: 0;
+  background: transparent;
+}
+
 .cs-GridListItem {
   display: flex;
   align-items: center;
@@ -446,6 +513,27 @@ body {
 
 .cs-GridListItem[data-dragging] {
   opacity: 0.5;
+}
+
+/* Pagination: the range, previous, a page jump and next, on one line */
+.cs-Pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--cs-space-2);
+  font-size: var(--cs-text-sm);
+}
+
+.cs-Pagination-range {
+  margin-inline-end: auto;
+  color: var(--cs-text-muted);
+}
+
+.cs-Pagination-jump {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--cs-space-2);
 }
 
 .cs-DragHandle {
@@ -704,7 +792,7 @@ body {
 
 /* High-contrast themes force most colours; selection and "on" states take system colours. */
 @media (forced-colors: active) {
-  :is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-Tab)[data-selected],
+  :is(.cs-ListBoxItem, .cs-GridListItem, .cs-TreeItem, .cs-Tab, .cs-ToggleButton)[data-selected],
   .cs-Checkbox:is([data-selected], [data-indeterminate]) .cs-Checkbox-box,
   .cs-Switch[data-selected] .cs-Switch-track,
   .cs-Button--primary,

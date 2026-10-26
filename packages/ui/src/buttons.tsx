@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import {
   Button as AriaButton,
   type ButtonProps as AriaButtonProps,
+  ToggleButton as AriaToggleButton,
+  ToggleButtonGroup as AriaToggleButtonGroup,
+  type ToggleButtonGroupProps as AriaToggleButtonGroupProps,
+  type ToggleButtonProps as AriaToggleButtonProps,
   Toolbar as AriaToolbar,
   type ToolbarProps as AriaToolbarProps,
   Tooltip as AriaTooltip,
@@ -80,4 +84,40 @@ export function Toolbar({ className, ...props }: ToolbarProps) {
 /** A divider between groups of toolbar controls. */
 export function ToolbarSeparator() {
   return <Separator orientation="vertical" className="cs-Toolbar-separator" />;
+}
+
+export interface ToggleButtonGroupProps
+  extends Omit<AriaToggleButtonGroupProps, "className" | "style"> {
+  className?: string;
+}
+
+/**
+ * Buttons that stay pressed, one of them (`selectionMode="single"`) or several: a view switch
+ * such as grid or list. Give the group an accessible name with `aria-label`.
+ */
+export function ToggleButtonGroup({ className, ...props }: ToggleButtonGroupProps) {
+  return <AriaToggleButtonGroup {...props} className={cx("cs-ToggleButtonGroup", className)} />;
+}
+
+export interface ToggleButtonProps
+  extends Omit<AriaToggleButtonProps, "className" | "style" | "children"> {
+  icon: IconName;
+  /** The accessible name, also shown as a tooltip on hover and keyboard focus. */
+  label: string;
+}
+
+/** An icon button that stays pressed, inside a ToggleButtonGroup. */
+export function ToggleButton({ icon, label, ...props }: ToggleButtonProps) {
+  return (
+    <TooltipTrigger delay={600}>
+      <AriaToggleButton
+        {...props}
+        aria-label={label}
+        className="cs-Button cs-Button--quiet cs-IconButton cs-ToggleButton"
+      >
+        <Icon name={icon} />
+      </AriaToggleButton>
+      <Tooltip>{label}</Tooltip>
+    </TooltipTrigger>
+  );
 }

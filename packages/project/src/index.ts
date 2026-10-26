@@ -8,6 +8,7 @@ export { memoryProjectFiles } from "./files.js";
 export type { Asset, AssetInfo, Project, Snapshot, SnapshotTrigger } from "./project.js";
 export {
   addAsset,
+  copyProject,
   createProject,
   readAsset,
   restoreAsNewCourse,

@@ -10,6 +10,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/api/path", () => ({ sep: () => "\\" }));
 vi.mock("@tauri-apps/api/app", () => ({ getName: vi.fn(), getVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
+const { onCloseRequested } = vi.hoisted(() => ({ onCloseRequested: vi.fn() }));
+vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested }) }));
 vi.stubGlobal("localStorage", { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() });
 
 const DATA = String.raw`C:\Users\Ana\AppData\Local\org.iteratecraft.coursesuite\data`;
@@ -71,5 +73,37 @@ test("a missing project file reads as undefined; the shell's refusals become Hos
 });
 
 test("the desktop host has no job port: long tasks keep the one contract of @course-suite/jobs (ENG-15)", () => {
-  expect(Object.keys(createDesktopHost()).sort()).toEqual(["appInfo", "files", "storage"]);
+  expect(Object.keys(createDesktopHost()).sort()).toEqual([
+    "appInfo",
+    "files",
+    "onCloseRequested",
+    "storage",
+  ]);
+});
+
+test("a file's change time comes from the shell, and a missing file has none", async () => {
+  const { files } = createDesktopHost();
+  invoke.mockResolvedValueOnce(1_761_400_000_000).mockResolvedValueOnce(null);
+  expect(await files.modified(project)).toBe(1_761_400_000_000);
+  expect(await files.modified(project)).toBeUndefined();
+  expect(invoke.mock.calls).toEqual([
+    ["file_modified", { path: project.id }, undefined],
+    ["file_modified", { path: project.id }, undefined],
+  ]);
+});
+
+test("closing the window waits for the editor's answer and stays open when it says no", async () => {
+  const unlisten = vi.fn();
+  onCloseRequested.mockResolvedValue(unlisten);
+  let answer = false;
+  const stop = createDesktopHost().onCloseRequested(async () => answer);
+  const handler = onCloseRequested.mock.calls[0]?.[0];
+  const event = { preventDefault: vi.fn() };
+  await handler(event);
+  expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  answer = true;
+  await handler(event);
+  expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  stop();
+  await vi.waitFor(() => expect(unlisten).toHaveBeenCalled());
 });

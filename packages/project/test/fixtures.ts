@@ -2,10 +2,10 @@
 // Blocks conformance corpus with its real media when a test-courses checkout is present.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadBlocksCorpus, TEST_COURSES_DIR } from "@course-suite/conformance";
 import type { Course } from "@course-suite/format";
 import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
 import { addAsset, createProject, type Project, readAsset } from "../src/index.js";
+import { loadBlocksCorpus, TEST_COURSES_DIR } from "./corpus.ts";
 
 export interface Fixture {
   name: string;

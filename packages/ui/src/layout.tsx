@@ -21,8 +21,11 @@ import {
   Label,
   useLocale,
 } from "react-aria-components";
-import { cx } from "./buttons.js";
+import { cx, IconButton } from "./buttons.js";
+import { ListBoxItem } from "./collections.js";
+import { Select } from "./fields.js";
 import { Icon, type IconName } from "./icons.js";
+import { useStrings } from "./provider.js";
 
 type Styled<P> = Omit<P, "className" | "style"> & { className?: string };
 
@@ -88,6 +91,59 @@ export function EmptyState({ icon = "info", title, level = 2, children, action }
       {children !== undefined && <p className="cs-EmptyState-body">{children}</p>}
       {action}
     </div>
+  );
+}
+
+export interface PaginationProps {
+  /** What the pages hold, such as "Courses"; names the page bar. */
+  label: string;
+  /** Items in all the pages. */
+  total: number;
+  pageSize: number;
+  /** The page shown, from 1. */
+  page: number;
+  onPageChange: (page: number) => void;
+}
+
+/**
+ * A paging bar: which items the page shows out of how many (announced when it changes), previous
+ * and next page, and a jump to any page.
+ */
+export function Pagination({ label, total, pageSize, page, onPageChange }: PaginationProps) {
+  const t = useStrings();
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const numbers = Array.from({ length: pages }, (_, i) => ({ id: i + 1 }));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
+  return (
+    <nav aria-label={t("pages.label", { label })} className="cs-Pagination">
+      <span aria-live="polite" className="cs-Pagination-range">
+        {t("pages.range", { start, end, total })}
+      </span>
+      <IconButton
+        icon="chevron-left"
+        label={t("pages.previous")}
+        isDisabled={page <= 1}
+        onPress={() => onPageChange(page - 1)}
+      />
+      <Select
+        label={t("pages.page")}
+        items={numbers}
+        selectedKey={page}
+        onSelectionChange={(key) => onPageChange(Number(key))}
+        className="cs-Pagination-jump"
+      >
+        {(item) => (
+          <ListBoxItem id={item.id}>{t("pages.of", { page: item.id, pages })}</ListBoxItem>
+        )}
+      </Select>
+      <IconButton
+        icon="chevron-right"
+        label={t("pages.next")}
+        isDisabled={page >= pages}
+        onPress={() => onPageChange(page + 1)}
+      />
+    </nav>
   );
 }
 

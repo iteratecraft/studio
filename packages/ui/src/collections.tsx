@@ -16,13 +16,15 @@ import {
   DropIndicator,
   type Key,
   type ListData,
+  type Selection,
   TreeItemContent,
   useDragAndDrop,
   useListData,
 } from "react-aria-components";
+import { cx } from "./buttons.js";
 import { Icon } from "./icons.js";
 
-export type { Key, ListData };
+export type { Key, ListData, Selection };
 export { useListData };
 
 export interface ListBoxProps<T extends object>
@@ -42,11 +44,16 @@ export function ListBoxItem<T extends object>(props: ListBoxItemProps<T>) {
 }
 
 export interface GridListProps<T extends object>
-  extends Omit<AriaGridListProps<T>, "className" | "style"> {}
+  extends Omit<AriaGridListProps<T>, "className" | "style"> {
+  className?: string;
+}
 
-/** A list of rows that may hold their own buttons, and may be reordered (see useReorder). */
-export function GridList<T extends object>(props: GridListProps<T>) {
-  return <AriaGridList {...props} className="cs-GridList" />;
+/**
+ * A list of rows that may hold their own buttons, and may be reordered (see useReorder);
+ * `layout="grid"` flows the items into columns of cards.
+ */
+export function GridList<T extends object>({ className, ...props }: GridListProps<T>) {
+  return <AriaGridList {...props} className={cx("cs-GridList", className)} />;
 }
 
 export interface GridListItemProps<T extends object>

@@ -3,9 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <title>Course Suite</title>
-    <script type="module" src="./memory.ts"></script>
+    <!-- Its rule is in @course-suite/ui/styles.css: the policy blocks React Aria's <style>. -->
+    <template id="react-aria-pressable-style"></template>
+    <script type="module" src="./memory.tsx"></script>
   </head>
   <body>
-    <main id="app"></main>
+    <div id="root"></div>
   </body>
 </html>

@@ -16,9 +16,11 @@ Apache-2.0, layer `engine`. No dependencies; it runs in a browser, a Web Worker 
 | `files.pickSave(options)` | Save dialog; `null` when the user cancels |
 | `files.dataFile(name)` | A file in the app's data folder, by a relative name such as `autosave/course-1.zip` (`checkDataName`) |
 | `files.read(file)` | Reads a picked file or a data file; `HostError("not-found")` when it does not exist |
+| `files.modified(file)` | When a picked file or a data file last changed (milliseconds), or `undefined` when it does not exist; the file is not read |
 | `files.write(file, data)` | Replaces a picked file or a data file atomically: old bytes or new bytes, never a mix |
 | `files.projectFiles(file)` | The project container's files for a picked project file (below) |
 | `storage` | Small string values kept between sessions (settings, recent files); never projects or media |
+| `onCloseRequested(allow)` | Asks `allow` before the app window closes, so the editor can offer to save; the window closes only when it resolves to true |
 
 `FileRef.id` is opaque: a path on desktop, a key in memory. Keep it and hand it back, never parse
 it. A file the user did not pick, outside the data folder, is refused with
@@ -45,8 +47,8 @@ them again for script that bypasses the host.
 
 | Adapter | Where | Use |
 |---|---|---|
-| `createMemoryHost(init)` | here | Tests. Files live in `disk`; dialogs answer from `onPickOpen` and `onPickSave`; the same scope rule as the desktop app |
-| `createBrowserHost(app, localStorage)` | here | The editor in a browser until the server adapter (M3): app info and storage work, files refuse with `HostError("unsupported")` |
+| `createMemoryHost(init)` | here | Tests. Files live in `disk`; dialogs answer from `onPickOpen` and `onPickSave`; `requestClose()` is the user closing the window; the same scope rule as the desktop app |
+| `createBrowserHost(app, localStorage)` | here | The editor in a browser until the server adapter (M3): app info and storage work, files refuse with `HostError("unsupported")`, closing is not guarded |
 | `createDesktopHost()` | `apps/desktop/src/desktop-host.ts` | The Tauri app: the dialog plugin and the shell's own file commands |
 
 `HostStorage` (`get`, `set` and `delete` of string values by key) is the port other wave F

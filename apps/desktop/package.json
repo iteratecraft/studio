@@ -14,13 +14,19 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@course-suite/blocks-editor": "workspace:*",
     "@course-suite/host": "workspace:*",
+    "@course-suite/ui": "workspace:*",
     "@tauri-apps/api": "2.12.3",
-    "@tauri-apps/plugin-dialog": "2.8.2"
+    "@tauri-apps/plugin-dialog": "2.8.2",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "vite": "8.3.4",
     "vitest": "catalog:"
   }

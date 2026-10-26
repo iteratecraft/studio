@@ -45,6 +45,7 @@
         "packages/project/src/**",
         "packages/jobs/src/**",
         "packages/ui/src/**",
+        "packages/blocks-editor/src/**",
         "apps/web/src/**",
         "!**/*.test.ts"
       ],

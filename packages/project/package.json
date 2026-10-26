@@ -22,7 +22,6 @@
     "@course-suite/zip": "workspace:*"
   },
   "devDependencies": {
-    "@course-suite/conformance": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "vitest": "catalog:"

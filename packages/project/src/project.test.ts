@@ -6,6 +6,7 @@ import {
   addAsset,
   autosaveFolder,
   autosaveProject,
+  copyProject,
   createProject,
   discardAutosaves,
   memoryProjectFiles,
@@ -195,6 +196,22 @@ describe("snapshots (ENG-11 done-when: restoring a snapshot reproduces the exact
       ...reopened,
       course: reopened.course.replace(copy.course.id, project.course.id),
     }).toEqual(wanted);
+  });
+
+  test("[rise:3J] a copy for a duplicated course carries its assets into a file of its own", async () => {
+    const files = memoryProjectFiles();
+    const project = await projectOf(full());
+    takeSnapshot(project, { name: "v1", trigger: "manual" });
+    await saveProject(files, NAME, project);
+    const source = await opened(files);
+    const course = { ...source.course, id: "0b0e7c1e-6a54-4d2b-9a43-7b8f2a6c9d10", title: "Copy" };
+    const copy = copyProject(source, course);
+    expect(copy.snapshots).toEqual([]);
+    await saveProject(files, "Copy.crs", copy);
+    const reopened = await opened(files, "Copy.crs");
+    expect(reopened.course).toEqual(course);
+    expect(await assetBytes(reopened)).toEqual(await assetBytes(source));
+    expect(Object.keys(reopened.assets).length).toBeGreaterThan(0);
   });
 
   test("UI-PUBCOLLAB-R3: publish, export and share-link changes are automatic snapshots beside the manual ones", () => {

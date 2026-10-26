@@ -26,7 +26,7 @@
         "dependencies": { "allow": ["format", "engine"] }
       },
       "ui": {
-        "dependencies": { "allow": ["format", "engine"] }
+        "dependencies": { "allow": ["format", "engine", "ui"] }
       },
       "app": {
         "dependencies": { "allow": ["format", "engine", "ui"] }

@@ -46,6 +46,9 @@ through the format package's own `openCourse` migration and validation.
   `export` or `share-link` for the automatic ones (the publish and export flows call it);
   `restoreSnapshot` puts one back; `restoreAsNewCourse` returns a new, unsaved project with a new
   project id.
+- `copyProject(project, course)` is a new, unsaved project for `course` with the project's assets
+  (their bytes shared until its first save) and no snapshots: duplicating a course (rise.md 3J),
+  with the new ids from doc-ops' `copyCourse`.
 
 ## Port
 

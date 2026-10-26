@@ -56,40 +56,21 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@course-suite/blocks-editor':
+        specifier: workspace:*
+        version: link:../../packages/blocks-editor
       '@course-suite/host':
         specifier: workspace:*
         version: link:../../packages/host
+      '@course-suite/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@tauri-apps/api':
         specifier: 2.12.3
         version: 2.12.3
       '@tauri-apps/plugin-dialog':
         specifier: 2.8.2
         version: 2.8.2
-    devDependencies:
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.0
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.1
-      vite:
-        specifier: 8.3.4
-        version: 8.3.4(@types/node@24.19.1)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.3(@types/node@24.19.1)(vite@8.3.4(@types/node@24.19.1))
-
-  apps/server:
-    devDependencies:
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
-
-  apps/web:
-    dependencies:
-      '@course-suite/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       react:
         specifier: 'catalog:'
         version: 19.3.0
@@ -109,12 +90,86 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@24.19.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.4(@types/node@24.19.1))
+
+  apps/server:
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
+
+  apps/web:
+    dependencies:
+      '@course-suite/blocks-editor':
+        specifier: workspace:*
+        version: link:../../packages/blocks-editor
+      '@course-suite/host':
+        specifier: workspace:*
+        version: link:../../packages/host
+      '@course-suite/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.0(react@19.3.0)
+    devDependencies:
+      '@course-suite/zip':
+        specifier: workspace:*
+        version: link:../../packages/zip
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
       axe-core:
         specifier: 'catalog:'
         version: 4.13.0
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@24.19.1)
+
+  packages/blocks-editor:
+    dependencies:
+      '@course-suite/doc-ops':
+        specifier: workspace:*
+        version: link:../doc-ops
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../format
+      '@course-suite/host':
+        specifier: workspace:*
+        version: link:../host
+      '@course-suite/project':
+        specifier: workspace:*
+        version: link:../project
+      '@course-suite/ui':
+        specifier: workspace:*
+        version: link:../ui
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.5(@types/node@24.19.1))
 
   packages/conformance:
     dependencies:
@@ -287,9 +342,6 @@ importers:
         specifier: workspace:*
         version: link:../zip
     devDependencies:
-      '@course-suite/conformance':
-        specifier: workspace:*
-        version: link:../conformance
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.0

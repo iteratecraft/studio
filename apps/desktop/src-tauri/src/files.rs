@@ -5,7 +5,7 @@
 //   also holds WebView2's own profile (`EBWebView`), so the page never reaches the folder above
 //   `data`.
 // - A file the user picked in a dialog, which the dialog plugin adds to the file system plugin's
-//   scope: read it and replace it.
+//   scope (and `picks.rs` again on later starts): read it and replace it.
 // - The autosave folder of a picked file, `.<file name>.autosave` next to it (D-4): everything
 //   inside, and renaming a file from there over the picked file. Nothing else in that folder.
 //
@@ -20,6 +20,7 @@ use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::UNIX_EPOCH;
 
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::{AppHandle, Manager, Runtime};
@@ -131,6 +132,24 @@ pub async fn read_file<R: Runtime>(app: AppHandle<R>, path: PathBuf) -> Result<R
         .map_err(|e| io_error(&path, e))
 }
 
+/// When a file last changed, in milliseconds since 1970, for `HostFiles.modified`; `None` when
+/// it does not exist. Allowed wherever reading is; the file is not opened.
+#[tauri::command]
+pub async fn file_modified<R: Runtime>(
+    app: AppHandle<R>,
+    path: PathBuf,
+) -> Result<Option<u64>, String> {
+    checked(&app, &path)?;
+    match fs::metadata(&path).and_then(|meta| meta.modified()) {
+        Ok(time) => Ok(Some(
+            time.duration_since(UNIX_EPOCH)
+                .map_or(0, |since| since.as_millis() as u64),
+        )),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(io_error(&path, e)),
+    }
+}
+
 #[tauri::command]
 pub async fn write_atomic<R: Runtime>(
     app: AppHandle<R>,
@@ -236,7 +255,7 @@ fn percent_decode(text: &str) -> Option<String> {
 /// Gives each temporary file of this process its own name, so two writes never share one.
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-fn replace_atomically(path: &Path, data: &[u8]) -> io::Result<()> {
+pub fn replace_atomically(path: &Path, data: &[u8]) -> io::Result<()> {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::new(ErrorKind::InvalidInput, "not a file path"));
     };
@@ -324,6 +343,8 @@ mod tests {
             profile.join("Local State"),
             profile.join("Default").join("Preferences"),
             f.local.join("settings.json"),
+            // The remembered picks (picks.rs): page script must not add to them.
+            f.local.join("picked.txt"),
             f.data.clone(),
             f.data.join("..").join("EBWebView").join("Local State"),
             f.local.join("data.").join("x"),
