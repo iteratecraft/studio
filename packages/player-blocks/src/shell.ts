@@ -2,7 +2,13 @@
 // addressed by stable id, previous and next links (rise.md §3 B, E, F, G and N), and the goodbye
 // page. Every learner string comes from the label set; course text comes from the course document.
 import type { Block, Course, Entry, LessonEntry } from "@course-suite/format";
-import { DEFAULT_OVERLAY, overlayColors, themeColors } from "@course-suite/format";
+import {
+  cropOf,
+  DEFAULT_HEADER_OVERLAY,
+  DEFAULT_OVERLAY,
+  overlayColors,
+  themeColors,
+} from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
@@ -10,7 +16,13 @@ import { isContinue, type PageStatus } from "./progress.js";
 import { quizView } from "./quiz.js";
 import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
 import type { Runtime } from "./runtime.js";
-import { animateOnScroll, animates, headerBackground, setVariables } from "./theme.js";
+import {
+  animateOnScroll,
+  animates,
+  headerBackground,
+  setVariables,
+  themePicture,
+} from "./theme.js";
 
 /** Below this width the outline starts closed and covers the content when opened (UI-BLOCKS-EDITOR-R53, R55). */
 export const WIDE_LAYOUT = "(min-width: 992px)";
@@ -209,21 +221,42 @@ export function startShell(
         )
       : undefined;
     begin?.addEventListener("click", () => runtime.begin());
+    // The logo above the title, in one of three sizes, square or its own shape (blocks-editor.md
+    // 2.18 cover page).
+    const logo = options.logo;
+    const logoEntry = logo && course.media.find((media) => media.key === logo.key);
     const element = h(
       "div",
       { class: `cover cover-${layout}` },
       cover && course.cover
-        ? h("img", {
-            class: "cover-image",
-            src: mediaUrl(cover.variantKey ?? cover.key),
-            alt: course.cover.alt ?? "",
-            width: cover.width,
-            height: cover.height,
-          })
+        ? themePicture(
+            mediaUrl(cover.variantKey ?? cover.key),
+            course.cover.alt ?? "",
+            cover,
+            cropOf(options.crop, cover.key),
+            "cover-image",
+            layout === "full-image",
+          )
         : undefined,
       h(
         "div",
         { class: "cover-text" },
+        logo && logoEntry
+          ? h(
+              "div",
+              {
+                class: `cover-logo logo-${options.logoSize ?? "small"}${options.logoSquare ? " logo-square" : ""}`,
+              },
+              themePicture(
+                mediaUrl(logoEntry.variantKey ?? logoEntry.key),
+                logo.alt ?? "",
+                logoEntry,
+                cropOf(logo.crop, logoEntry.key),
+                "logo-image",
+                options.logoSquare === true,
+              ),
+            )
+          : undefined,
         h("h1", { tabindex: -1 }, course.title),
         course.description
           ? h("div", { class: "cover-description" }, richText(course.description, labels))
@@ -250,7 +283,8 @@ export function startShell(
         "--overlay-opacity": String(cover ? chosen.opacity / 100 : 1),
       });
       element.classList.add(`text-${overlay.text === "#ffffff" ? "light" : "dark"}`);
-      element.prepend(h("div", { class: "cover-overlay" }));
+      // Over the picture, under the text.
+      element.lastElementChild?.before(h("div", { class: "cover-overlay" }));
     }
     return { element, refresh() {}, leave() {} };
   }
@@ -349,10 +383,16 @@ export function startShell(
     const options = course.theme?.headers ?? {};
     const hidden = options.hidden === true;
     const background = hidden ? undefined : headerBackground(course.theme);
+    // The author is hidden on every lesson, on the cover (which hides it everywhere) or on this
+    // lesson alone (blocks-editor.md W6).
+    const lesson = page.kind === "lesson" ? page : undefined;
     const author =
-      hidden || options.author === false
+      hidden ||
+      options.author === false ||
+      course.theme?.cover?.author === false ||
+      lesson?.authorHidden
         ? undefined
-        : ((page.kind === "lesson" ? page.author?.name : undefined) ?? course.authors?.[0]?.name);
+        : (lesson?.author?.name ?? course.authors?.[0]?.name);
     const header = h(
       "header",
       {
@@ -380,7 +420,51 @@ export function startShell(
         : undefined,
     );
     if (background) header.style.backgroundColor = background.color;
+    if (!hidden && options.layout === "image") imageHeader(header, lesson);
     return header;
+  }
+
+  /**
+   * The image lesson header: the lesson's own header image, else the theme's with its crop, under
+   * the overlay whose text keeps 4.5:1; the theme colour stands in for a missing picture
+   * (blocks-editor.md 2.18 lesson headers, default dark at 60 %).
+   */
+  function imageHeader(header: HTMLElement, lesson: LessonEntry | undefined): void {
+    const theme = course.theme;
+    const ref = lesson?.headerImage ?? theme?.headers?.image;
+    const entry = ref && course.media.find((media) => media.key === ref.key);
+    const chosen = theme?.headers?.overlay ?? DEFAULT_HEADER_OVERLAY;
+    const colors = themeColors(theme);
+    const overlay = entry
+      ? overlayColors(chosen, theme)
+      : { color: colors.theme, text: colors.themeText };
+    const media = h("div", { class: "header-media" });
+    if (entry && ref) {
+      const crop =
+        ref === theme?.headers?.image ? cropOf(theme.headers.image.crop, entry.key) : undefined;
+      media.append(
+        themePicture(
+          mediaUrl(entry.variantKey ?? entry.key),
+          ref.alt ?? "",
+          entry,
+          crop,
+          "header-picture",
+          true,
+        ),
+      );
+    }
+    const shade = h("div", { class: "header-overlay" });
+    setVariables(shade, {
+      "--overlay": overlay.color,
+      "--overlay-opacity": String(entry ? chosen.opacity / 100 : 1),
+    });
+    media.append(shade);
+    header.prepend(media);
+    header.classList.add(
+      "has-background",
+      "header-image",
+      `text-${overlay.text === "#ffffff" ? "light" : "dark"}`,
+    );
   }
 
   /** The next page's link, or its title marked unavailable with the reason (UI-BLOCKS-R26). */

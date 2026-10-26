@@ -12,5 +12,7 @@ export const TEST_CUSTOM_FONT = { kind: "custom", id: "testfont01", name: "Test 
 export async function nodeFonts(font: FontRef): Promise<FontFiles | undefined> {
   if (font.kind === "builtin") return readBuiltinFont(font.id, read);
   if (font.id !== TEST_CUSTOM_FONT.id) return undefined;
-  return { ...(await readBuiltinFont("literata", read)), name: TEST_CUSTOM_FONT.name };
+  // A library font comes without a licence file: its licence is the author's business.
+  const { licence: _, ...files } = await readBuiltinFont("literata", read);
+  return { ...files, name: TEST_CUSTOM_FONT.name };
 }

@@ -27,10 +27,14 @@ test("woff and woff2 are told apart by their signature; anything else is neither
   expect(fontFormat(new Uint8Array())).toBeUndefined();
 });
 
-test("the Node.js source reads bundled fonts and the one test library font; others are missing", async () => {
+test("D-45: the Node.js source reads bundled fonts with their licence and the one test library font; others are missing", async () => {
   const inter = await nodeFonts({ kind: "builtin", id: "inter" });
   expect(inter?.name).toBe("Inter");
   expect(inter?.bold?.length).toBeGreaterThan(1000);
+  // OFL-1.1 section 2: the licence travels with the font.
+  expect(new TextDecoder().decode(inter?.licence)).toContain("SIL OPEN FONT LICENSE Version 1.1");
+  expect(new TextDecoder().decode(inter?.licence)).toContain("Inter Project Authors");
   expect((await nodeFonts(TEST_CUSTOM_FONT))?.name).toBe("Test Hand");
+  expect((await nodeFonts(TEST_CUSTOM_FONT))?.licence).toBeUndefined();
   expect(await nodeFonts({ kind: "custom", id: "gonefont01", name: "Gone" })).toBeUndefined();
 });

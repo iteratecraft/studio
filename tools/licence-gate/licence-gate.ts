@@ -13,7 +13,9 @@
 //     any NOTICE file it ships (Apache-2.0 section 4(d)). A stale block fails the check.
 // (d) Every font file in the repository ships in the app and in courses (D-45), so it needs the SIL
 //     Open Font License 1.1 beside it, as OFL.txt, declaring no Reserved Font Name: a subset is a
-//     modified font, which may not keep a reserved name.
+//     modified font, which may not keep a reserved name. An app's build output (apps/*/dist, once
+//     built) is a copy too (OFL-1.1 section 2): each bundled font in it needs its family's OFL.txt
+//     somewhere in the same output, and a font that is no bundled font fails.
 //
 // Reviewed exceptions live in exceptions.json next to this file, as an array of
 //   { "name": "pkg", "licence": "<exact licence string reported>", "inCourses": false,
@@ -21,6 +23,7 @@
 // `inCourses: false` covers the package only outside course-shipped packages. An exception that no
 // longer matches any dependency fails the check, so the list cannot go stale.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 
@@ -255,6 +258,47 @@ function checkFonts(folder: string): void {
   }
 }
 checkFonts(root);
+
+/** Every file under `folder`, as absolute paths. */
+function filesIn(folder: string): string[] {
+  return readdirSync(folder, { withFileTypes: true, recursive: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name));
+}
+const digest = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+// The bundled families, by the digest of each face, and the digest of each family's licence.
+const fontsRoot = join(root, "packages", "fonts", "files");
+const familyOf = new Map<string, string>();
+const licenceOf = new Map<string, string>();
+if (existsSync(fontsRoot)) {
+  for (const family of readdirSync(fontsRoot)) {
+    for (const file of filesIn(join(fontsRoot, family))) {
+      if (FONT_EXTENSIONS.has(extname(file).toLowerCase())) familyOf.set(digest(file), family);
+      else if (file.endsWith("OFL.txt")) licenceOf.set(family, digest(file));
+    }
+  }
+}
+const appsRoot = join(root, "apps");
+for (const app of existsSync(appsRoot) ? readdirSync(appsRoot) : []) {
+  const dist = join(appsRoot, app, "dist");
+  if (!existsSync(dist)) continue;
+  const files = filesIn(dist);
+  const present = new Set(files.map(digest));
+  for (const file of files) {
+    if (!FONT_EXTENSIONS.has(extname(file).toLowerCase())) continue;
+    const family = familyOf.get(digest(file));
+    const licence = family && licenceOf.get(family);
+    if (!family) {
+      problems.push(
+        `${relativeDir(file)}: a font in the app's build output that is no bundled font`,
+      );
+    } else if (!licence || !present.has(licence)) {
+      problems.push(
+        `${relativeDir(file)}: the build output lacks the OFL.txt of ${family} (OFL-1.1 section 2)`,
+      );
+    }
+  }
+}
 
 // (c) THIRD_PARTY_NOTICES.md generated block.
 const rows = new Set<string>();

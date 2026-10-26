@@ -4,7 +4,7 @@
 // it sits on and theme-coloured buttons at 3:1 on the page; the editor offers the nearest colour that
 // passes when the author's own choice does not.
 import { contrastRatio, luminance, textOn } from "./contrast.js";
-import type { FontRef, Theme } from "./course.js";
+import type { Crop, FontRef, Theme } from "./course.js";
 
 /** The suggested theme colours (blocks-editor.md 2.18, T7). */
 export const THEME_COLORS = ["#4baaf4", "#285f9f", "#7837a8", "#d84738", "#ff631e", "#25bb64"];
@@ -26,8 +26,9 @@ export const BUILTIN_FONTS: readonly { id: BuiltinFontId; name: string; kind: "s
   ];
 
 /**
- * Recommended heading and body pairings (T8); the first is the default, the classic style's sans
- * heading with a serif body (blocks-editor.md 2.18).
+ * Recommended heading and body pairings (T8), the first the classic style's sans heading with a
+ * serif body (blocks-editor.md 2.18). A course starts with none: its text is in the learner's device
+ * fonts until the author picks one, so a package carries no font the author did not choose.
  */
 export const FONT_PAIRINGS: readonly [heading: BuiltinFontId, body: BuiltinFontId][] = [
   ["noto-sans", "noto-serif"],
@@ -42,20 +43,19 @@ export const FONT_PAIRINGS: readonly [heading: BuiltinFontId, body: BuiltinFontI
 
 export type FontRole = "heading" | "body" | "ui";
 
-/** The font of each role: the theme's, else the default pairing; the interface follows the heading. */
-export function fontsOf(theme: Theme | undefined): Record<FontRole, FontRef> {
-  const [heading, body] = FONT_PAIRINGS[0] as [BuiltinFontId, BuiltinFontId];
+/**
+ * The font the theme chose for each role; a role without one shows in the device's fonts. The
+ * interface follows the heading.
+ */
+export function fontsOf(theme: Theme | undefined): Partial<Record<FontRole, FontRef>> {
   const fonts = theme?.fonts;
-  const headingFont = fonts?.heading ?? { kind: "builtin", id: heading };
+  const ui = fonts?.ui ?? fonts?.heading;
   return {
-    heading: headingFont,
-    body: fonts?.body ?? { kind: "builtin", id: body },
-    ui: fonts?.ui ?? headingFont,
+    ...(fonts?.heading && { heading: fonts.heading }),
+    ...(fonts?.body && { body: fonts.body }),
+    ...(ui && { ui }),
   };
 }
-
-/** The default font of a role, which a custom font the library no longer has falls back to. */
-export const defaultFont = (role: FontRole): FontRef => fontsOf(undefined)[role];
 
 /** A font's key: its bundled id, or `custom-<id>`. Unique, so it also names the family in a package. */
 export const fontKey = (font: FontRef): string =>
@@ -147,6 +147,8 @@ export interface ThemeColors {
   tintText: string;
   /** Links, focus rings and marks on the page: 4.5:1 on white and on the player's panels. */
   accent: string;
+  /** Text on an element filled with the accent colour: 4.5:1 on it. */
+  accentText: string;
   /** The current page's highlight in the outline, under the page's own text colour. */
   accentSoft: string;
   /** Filled buttons: 3:1 on the page and its panels under auto contrast, else the theme colour. */
@@ -173,13 +175,14 @@ export function themeColors(theme: Theme | undefined): ThemeColors {
     tint,
     tintText: textColor(tint),
     accent,
+    accentText: textColor(accent),
     accentSoft: mix(accent, WHITE, 0.88),
     button,
     buttonText: textColor(button, contrast),
   };
 }
 
-/** The colour of an overlay over a cover image, and the text drawn on it. */
+/** The colour of an overlay over a cover or header image, and the text drawn on it. */
 export function overlayColors(
   overlay: NonNullable<Theme["cover"]>["overlay"],
   theme: Theme | undefined,
@@ -192,6 +195,28 @@ export function overlayColors(
 
 /** The cover overlay when the theme sets none (blocks-editor.md 2.18). */
 export const DEFAULT_OVERLAY = { color: "dark", opacity: 50 } as const;
+
+/** The overlay of the image lesson header when the theme sets none (blocks-editor.md 2.18). */
+export const DEFAULT_HEADER_OVERLAY = { color: "dark", opacity: 60 } as const;
+
+/** Default text sizes in CSS pixels (blocks-editor.md 2.18). */
+export const TEXT_SIZES = { body: 17, heading: 32, subheading: 24 } as const;
+
+/**
+ * The part of the image `key` that `crop` shows, kept inside the image; undefined to show it whole,
+ * also when the crop was made for another image.
+ */
+export function cropOf(crop: Crop | undefined, key: string): Crop | undefined {
+  if (!crop || (crop.key !== undefined && crop.key !== key)) return undefined;
+  const x = Math.min(Math.max(crop.x, 0), 99);
+  const y = Math.min(Math.max(crop.y, 0), 99);
+  return {
+    x,
+    y,
+    width: Math.min(Math.max(crop.width, 1), 100 - x),
+    height: Math.min(Math.max(crop.height, 1), 100 - y),
+  };
+}
 
 /**
  * The lowest overlay opacity, in whole percent, that keeps `text` at 4.5:1 over any picture under

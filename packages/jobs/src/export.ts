@@ -96,12 +96,9 @@ export function exportJob({
         if (data) bytes[key] = data;
         progress({ done: i + 1, total });
       }
-      // The theme's fonts, and the defaults that stand in for a custom font the library lost.
+      // The fonts the theme chose; a role without one shows in the learner's device fonts.
       const fontFiles: Record<string, FontFiles> = {};
-      for (const font of [
-        ...Object.values(fontsOf(course.theme)),
-        ...Object.values(fontsOf(undefined)),
-      ]) {
+      for (const font of Object.values(fontsOf(course.theme))) {
         const key = fontKey(font);
         const found = key in fontFiles ? undefined : await fonts(font);
         if (found) fontFiles[key] = found;

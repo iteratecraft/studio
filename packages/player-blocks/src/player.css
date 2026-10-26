@@ -13,10 +13,11 @@
   --border: #6b7280;
   --rule: #d5d9df;
   --accent: var(--theme-accent, #1f5fbf);
-  --accent-text: var(--theme-button-text, #ffffff);
+  --accent-text: var(--theme-accent-text, #ffffff);
   --accent-soft: var(--theme-accent-soft, #e4ecf8);
   --focus: var(--theme-accent, #1f5fbf);
   --button: var(--theme-button, #1f5fbf);
+  --button-text: var(--theme-button-text, #ffffff);
   --correct: #1a7a36;
   --wrong: #b42318;
   --topbar: 56px;
@@ -28,6 +29,9 @@
   --font-ui: var(--font-heading);
   --radius: 8px;
   --button-radius: 6px;
+  --text-body: 1.0625rem;
+  --text-heading: 2rem;
+  --text-subheading: 1.5rem;
 }
 
 /* Scrolling a control into view keeps it clear of the sticky top bar (WCAG 2.4.11). */
@@ -44,7 +48,7 @@ body {
   margin: 0;
   background: var(--surface);
   color: var(--text);
-  font: 1.0625rem / 1.6 var(--font-body);
+  font: var(--text-body) / 1.6 var(--font-body);
 }
 
 /* The theme's heading and interface fonts (ENG-08). */
@@ -121,7 +125,7 @@ h1:focus {
   border: 2px solid var(--button);
   border-radius: var(--button-radius);
   background: var(--button);
-  color: var(--accent-text);
+  color: var(--button-text);
   font: inherit;
   font-family: var(--font-ui);
   font-weight: 600;
@@ -304,9 +308,88 @@ main {
   object-fit: cover;
 }
 
-.cover-overlay {
+.cover-overlay,
+.header-overlay {
   background: var(--overlay);
   opacity: var(--overlay-opacity);
+}
+
+/* A cropped picture (theme.ts themePicture): a box of the crop's shape shows the part of the
+   picture moved into it. Filling a box, it covers it as object-fit: cover does. */
+.crop {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: var(--crop-ratio);
+}
+
+.crop > img {
+  position: absolute;
+  max-width: none;
+}
+
+.crop-fill {
+  display: block;
+  overflow: hidden;
+  container-type: size;
+}
+
+.crop-fill > .crop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100cqw, 100cqh * var(--crop-ratio));
+  transform: translate(-50%, -50%);
+}
+
+.picture-fill {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The cover logo: small, medium or large (1x, 1.5x, 2x), in its own shape or a square. */
+.cover-logo {
+  --logo-height: 40px;
+  margin-bottom: 16px;
+}
+
+.cover-logo.logo-medium {
+  --logo-height: 60px;
+}
+
+.cover-logo.logo-large {
+  --logo-height: 80px;
+}
+
+.logo-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: var(--logo-height);
+}
+
+.logo-square .logo-image {
+  width: var(--logo-height);
+  height: var(--logo-height);
+}
+
+/* The image lesson header: its picture and overlay behind the text. */
+.lesson-header.header-image {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.header-media,
+.header-media > *,
+.header-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.header-media {
+  z-index: -1;
 }
 
 .cover-full-image .cover-text {
@@ -413,6 +496,7 @@ main {
   --accent: #ffffff;
   --button: #ffffff;
   --accent-text: #000000;
+  --button-text: #000000;
   --focus: #ffffff;
   --correct: #ffffff;
   --wrong: #ffffff;
@@ -425,6 +509,7 @@ main {
   --accent: #000000;
   --button: #000000;
   --accent-text: #ffffff;
+  --button-text: #ffffff;
   --focus: #000000;
   --correct: #000000;
   --wrong: #000000;
@@ -466,11 +551,11 @@ main {
 }
 
 h2.block-heading {
-  font-size: 2rem;
+  font-size: var(--text-heading);
 }
 
 h3.block-heading {
-  font-size: 1.5rem;
+  font-size: var(--text-subheading);
 }
 
 .text > :last-child {

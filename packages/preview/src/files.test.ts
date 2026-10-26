@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
 import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
+import type { Course } from "@course-suite/format";
 import { sampleCourse } from "@course-suite/format/test/courses";
 import { HOOKS_GLOBAL } from "@course-suite/player-blocks";
 import { readZip } from "@course-suite/zip";
@@ -14,9 +15,15 @@ const media: Record<string, Uint8Array> = {
   "compost-bin.svg": svg("bin"),
 };
 
+/** The sample course with a body font of its own, so its package carries a font and its licence. */
+const withFont = (): Course => ({
+  ...sampleCourse(),
+  theme: { fonts: { body: { kind: "builtin", id: "literata" } } },
+});
+
 describe("previewPackage", () => {
   test("[rise:R20] holds the same bytes as the web package exported for the same course", async () => {
-    const course = sampleCourse();
+    const course = withFont();
     const built = await buildPackage({
       course,
       player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
@@ -40,8 +47,8 @@ describe("previewPackage", () => {
     // It builds, zips and unzips the real player: about 0.3 s alone, over 5 s on a busy CI runner.
   }, 30_000);
 
-  test("gives each file the type a web server would, SVG images included", async () => {
-    const preview = await previewPackage(sampleCourse(), (key) => media[key], nodeFonts);
+  test("gives each file the type a web server would, SVG images and fonts included", async () => {
+    const preview = await previewPackage(withFont(), (key) => media[key], nodeFonts);
     const types = Object.fromEntries(
       preview.files.map(([path, , type]) => [path.replace(/\.[0-9a-f]{10}\./, "."), type]),
     );
@@ -49,12 +56,10 @@ describe("previewPackage", () => {
       "player.js": "text/javascript",
       "player.css": "text/css",
       "course-data.js": "text/javascript",
-      "fonts/noto-sans-regular.woff2": "font/woff2",
-      "fonts/noto-sans-bold.woff2": "font/woff2",
-      "fonts/noto-sans-italic.woff2": "font/woff2",
-      "fonts/noto-serif-regular.woff2": "font/woff2",
-      "fonts/noto-serif-bold.woff2": "font/woff2",
-      "fonts/noto-serif-italic.woff2": "font/woff2",
+      "fonts/literata-regular.woff2": "font/woff2",
+      "fonts/literata-bold.woff2": "font/woff2",
+      "fonts/literata-italic.woff2": "font/woff2",
+      "fonts/literata-OFL.txt": "text/plain",
       "media/cover.svg": "image/svg+xml",
       "media/compost-bin.svg": "image/svg+xml",
     });
@@ -62,7 +67,7 @@ describe("previewPackage", () => {
 
   test("leaves out a media file or font the project cannot give, and still builds the rest", async () => {
     const preview = await previewPackage(
-      sampleCourse(),
+      withFont(),
       (key) => {
         if (key === "cover.svg") throw new Error("unreadable");
         return undefined;

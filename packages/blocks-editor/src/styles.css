@@ -755,6 +755,52 @@ body,
   gap: var(--cs-space-2);
 }
 
+/* Theme pictures (theme-images.tsx): the logo and the header picture, and the crop dialog. */
+.be-image-setting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-image-setting > .cs-Field {
+  align-self: stretch;
+}
+
+.be-image-thumb {
+  max-width: 10rem;
+  max-height: 6rem;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-sm);
+}
+
+.be-image-crop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cs-space-2);
+}
+
+.be-crop-view {
+  position: relative;
+  align-self: center;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.be-crop-view img {
+  max-width: 100%;
+  max-height: 16rem;
+}
+
+.be-crop-box {
+  position: absolute;
+  outline: 2px solid #ffffff;
+  box-shadow:
+    0 0 0 1px #000000,
+    0 0 0 100vmax rgb(0 0 0 / 55%);
+}
+
 .be-error {
   margin: 0;
   color: var(--cs-danger);

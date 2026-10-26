@@ -21,7 +21,7 @@ export function draw(
   block: Block,
   course: Course,
   media: (key: string) => string,
-  families?: { heading: string; body: string; ui: string },
+  families?: { heading?: string; body?: string; ui?: string },
 ): boolean {
   if (!sheet) {
     sheet = new CSSStyleSheet();

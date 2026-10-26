@@ -18,6 +18,8 @@ export interface FontFiles {
   regular: Uint8Array;
   bold?: Uint8Array | undefined;
   italic?: Uint8Array | undefined;
+  /** The licence that must travel with every copy (OFL-1.1 section 2), as text. */
+  licence?: Uint8Array | undefined;
 }
 
 /** The address of each face of each bundled family. */
@@ -64,15 +66,32 @@ export const BUILTIN_FONT_FILES: Readonly<Record<BuiltinFontId, Record<FontFace,
   },
 };
 
-/** A bundled family's files, read with `read` (fetch in a page, the file system in Node.js). */
+/**
+ * The address of each bundled family's licence. Referenced here so a bundler copies it into the
+ * app beside the fonts, as OFL-1.1 section 2 asks of every copy.
+ */
+export const BUILTIN_FONT_LICENCES: Readonly<Record<BuiltinFontId, string>> = {
+  inter: new URL("../files/inter/OFL.txt", import.meta.url).href,
+  montserrat: new URL("../files/montserrat/OFL.txt", import.meta.url).href,
+  "noto-sans": new URL("../files/noto-sans/OFL.txt", import.meta.url).href,
+  "open-sans": new URL("../files/open-sans/OFL.txt", import.meta.url).href,
+  "work-sans": new URL("../files/work-sans/OFL.txt", import.meta.url).href,
+  "crimson-pro": new URL("../files/crimson-pro/OFL.txt", import.meta.url).href,
+  literata: new URL("../files/literata/OFL.txt", import.meta.url).href,
+  "noto-serif": new URL("../files/noto-serif/OFL.txt", import.meta.url).href,
+};
+
+/** A bundled family's files and licence, read with `read` (fetch in a page, the file system in Node.js). */
 export async function readBuiltinFont(
   id: BuiltinFontId,
   read: (url: string) => Promise<Uint8Array>,
 ): Promise<FontFiles> {
   const files = BUILTIN_FONT_FILES[id];
-  const [regular, bold, italic] = await Promise.all(FONT_FACES.map((face) => read(files[face])));
+  const [regular, bold, italic, licence] = await Promise.all(
+    [...FONT_FACES.map((face) => files[face]), BUILTIN_FONT_LICENCES[id]].map(read),
+  );
   const name = BUILTIN_FONTS.find((font) => font.id === id)?.name ?? id;
-  return { name, regular: regular as Uint8Array, bold, italic };
+  return { name, regular: regular as Uint8Array, bold, italic, licence };
 }
 
 /** Reads a file of the page's own with fetch: how a page reads the bundled fonts it ships. */

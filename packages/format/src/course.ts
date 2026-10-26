@@ -196,6 +196,8 @@ export interface LessonEntry {
   headerImage?: MediaRef;
   /** Author shown on this lesson instead of the course authors. */
   author?: Author;
+  /** No author on this lesson's header. Default false. */
+  authorHidden?: boolean;
   blocks: Block[];
   ext?: Ext;
 }
@@ -553,13 +555,25 @@ export interface Theme {
     author?: boolean;
     /** Published courses open at the first lesson, or where the learner stopped, instead of the cover. Default false. */
     skip?: boolean;
+    /** The part of the course's cover image shown; another image than the one it was made for shows whole. */
+    crop?: Crop;
+    /** Above the title. Default none. */
+    logo?: ThemeImage;
+    /** The logo's height: small 1x, medium 1.5x, large 2x. Default small. */
+    logoSize?: "small" | "medium" | "large";
+    /** The logo in a square, cut to fit from its middle. Default false. */
+    logoSquare?: boolean;
   };
   /** Lesson headers (courses only). */
   headers?: {
     /** Hides the lesson count, title and author; the title stays for screen readers. Default false. */
     hidden?: boolean;
     /** Header background. Default light. */
-    layout?: "light" | "gray" | "theme" | "tint" | "dark" | "black" | "color";
+    layout?: "light" | "gray" | "theme" | "tint" | "dark" | "black" | "color" | "image";
+    /** Behind the title in the image layout; a lesson's own header image comes first. */
+    image?: ThemeImage;
+    /** Over the image of the image layout. Default dark at 60 %. */
+    overlay?: Overlay;
     /** Background of the color layout. */
     color?: Color;
     /** Text on the color layout. Default auto. */
@@ -575,7 +589,7 @@ export interface Theme {
   color?: Color;
   /** Text on the theme colour: auto keeps 4.5:1 (rise.md rule 18), light and dark are fixed. Default auto. */
   contrast?: "auto" | "light" | "dark";
-  /** Default: the first recommended pairing; the interface font follows the heading font. */
+  /** A role without a font shows in the learner's device fonts, so the package carries no font for it; the interface font follows the heading font. */
   fonts?: {
     heading?: FontRef;
     body?: FontRef;
@@ -587,6 +601,33 @@ export interface Theme {
   corners?: "rounded" | "square";
   /** Button corners. Default rounded. */
   buttons?: "rounded" | "square";
+  /** Default text sizes in CSS pixels, which follow the learner's own text size setting. */
+  textSizes?: {
+    /** Default 17. */
+    body?: number;
+    /** Default 32. */
+    heading?: number;
+    /** Default 24. */
+    subheading?: number;
+  };
+}
+
+/** An image of the theme from the media index, with its crop. */
+export interface ThemeImage {
+  key: MediaKeyRef;
+  /** Alternative text; empty marks the image as decorative. */
+  alt?: string;
+  crop?: Crop;
+}
+
+/** The part of an image shown: a rectangle in percent of the image's width and height, from its top left corner. */
+export interface Crop {
+  /** The image it was made for, where the image is set apart from the crop. */
+  key?: MediaKeyRef;
+  x: Percent;
+  y: Percent;
+  width: number;
+  height: number;
 }
 
 export interface Overlay {

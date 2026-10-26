@@ -14,7 +14,6 @@ import {
   readBuiltinFont,
 } from "@course-suite/fonts";
 import {
-  defaultFont,
   type FontRef,
   type FontRole,
   fontKey,
@@ -224,16 +223,15 @@ export class FontLibrary {
   }
 
   /**
-   * The font each role of `theme` shows in: a library font that is gone gives way to the default
-   * of its role (UI-BLOCKS-EDITOR-R48).
+   * The font each role of `theme` shows in; a role left out shows in the device's fonts, as does
+   * one whose library font is gone (UI-BLOCKS-EDITOR-R48).
    */
-  resolve(theme: Theme | undefined): Record<FontRole, FontRef> {
-    const chosen = fontsOf(theme);
-    const role = (name: FontRole) => {
-      const font = chosen[name];
-      return font.kind === "custom" && !this.find(font.id) ? defaultFont(name) : font;
-    };
-    return { heading: role("heading"), body: role("body"), ui: role("ui") };
+  resolve(theme: Theme | undefined): Partial<Record<FontRole, FontRef>> {
+    return Object.fromEntries(
+      Object.entries(fontsOf(theme)).filter(
+        ([, font]) => font.kind === "builtin" || this.find(font.id),
+      ),
+    );
   }
 
   async #store(fonts: LibraryFont[]): Promise<void> {

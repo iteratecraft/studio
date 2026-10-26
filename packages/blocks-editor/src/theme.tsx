@@ -3,10 +3,13 @@
 // shows every change as it is made ("previewed on selection", T3). Saving a section is one doc-ops
 // command, so one undo step. Colours are checked against WCAG AA as the author picks them, with the
 // nearest colour that passes on offer; automatic contrast keeps them readable in the player anyway.
+
+import type { Command } from "@course-suite/doc-ops";
 import {
   BUILTIN_FONTS,
   type Course,
   contrastOf,
+  DEFAULT_HEADER_OVERLAY,
   DEFAULT_OVERLAY,
   DEFAULT_THEME_COLOR,
   FONT_PAIRINGS,
@@ -14,6 +17,7 @@ import {
   type FontRole,
   fontsOf,
   LAYOUT_STYLES,
+  type MediaEntry,
   nearestReadable,
   overlayColors,
   overlayFloor,
@@ -23,6 +27,7 @@ import {
   themeColors,
   withLayoutStyle,
 } from "@course-suite/format";
+import type { HostInterface } from "@course-suite/host";
 import {
   Button,
   type FontSource,
@@ -48,6 +53,7 @@ import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } fro
 import { FontManager } from "./font-manager.js";
 import { type FontLibrary, registerFont } from "./fonts.js";
 import type { CourseSession } from "./session.js";
+import { CropButton, ThemePictureField } from "./theme-images.js";
 
 type Section = "layout" | "cover" | "headers" | "colors" | "fonts" | "blocks";
 const COLOR = /^#[0-9a-f]{6}$/;
@@ -57,10 +63,20 @@ type Loose<T> = { [K in keyof T]?: T[K] | undefined };
 type Cover = NonNullable<Theme["cover"]>;
 type Headers = NonNullable<Theme["headers"]>;
 
-/** The course with the theme being edited, for the preview, and its change events. */
+const NO_MEDIA: MediaEntry[] = [];
+
+/** The media keys the theme's own pictures use. */
+const themeKeys = (theme: Theme | undefined) =>
+  [theme?.cover?.logo?.key, theme?.headers?.image?.key].filter((key) => key !== undefined);
+
+/**
+ * The course with the theme being edited, and the media entries of pictures chosen for it and not
+ * yet saved, for the preview; and its change events.
+ */
 class DraftSource implements PreviewSource {
   readonly #session: CourseSession;
   #theme: Theme | undefined | null = null;
+  #media: MediaEntry[] = [];
   readonly #listeners = new Set<(event: { document: PreviewSource["document"] }) => void>();
 
   constructor(session: CourseSession) {
@@ -71,13 +87,23 @@ class DraftSource implements PreviewSource {
     const course = this.#session.editor.document;
     if (this.#theme === null) return course;
     const { theme: _, ...rest } = course;
-    return this.#theme ? { ...rest, theme: this.#theme } : rest;
+    const known = new Set(course.media.map((media) => media.key));
+    const added = this.#media.filter((media) => !known.has(media.key));
+    const withMedia = added.length > 0 ? { ...rest, media: [...rest.media, ...added] } : rest;
+    return this.#theme ? { ...withMedia, theme: this.#theme } : withMedia;
   }
 
-  /** Shows `theme` in the preview; `null` shows the course's own. Nothing new, nothing to do. */
-  show(theme: Theme | undefined | null) {
-    if (JSON.stringify(theme) === JSON.stringify(this.#theme)) return;
+  /**
+   * Shows `theme` in the preview, with the new pictures in `media`; `null` shows the course's own.
+   * Nothing new, nothing to do.
+   */
+  show(theme: Theme | undefined | null, media: MediaEntry[] = NO_MEDIA) {
+    const sameMedia =
+      media.length === this.#media.length && media.every((entry, i) => entry === this.#media[i]);
+    // A reload for nothing would swap the frame under the author (and under a test).
+    if (sameMedia && JSON.stringify(theme) === JSON.stringify(this.#theme)) return;
     this.#theme = theme;
+    this.#media = media;
     this.refresh();
   }
 
@@ -116,6 +142,7 @@ function cleaned(theme: Loose<Theme>): Theme | undefined {
 }
 
 export function ThemeView({
+  host,
   session,
   library,
   fonts,
@@ -123,6 +150,7 @@ export function ThemeView({
   toasts,
   onClose,
 }: {
+  host: HostInterface;
   session: CourseSession;
   library: FontLibrary;
   fonts: FontSource;
@@ -136,6 +164,8 @@ export function ThemeView({
   const [source] = useState(() => new DraftSource(session));
   const [section, setSection] = useState<Section>();
   const [draft, setDraft] = useState<Theme>({});
+  // Pictures chosen in this panel: their media index entries go in with the theme that uses them.
+  const [added, setAdded] = useState<MediaEntry[]>([]);
   const { region, announce } = useAnnouncer();
   const heading = useRef<HTMLHeadingElement>(null);
   const back = useRef<Section>(undefined);
@@ -162,10 +192,18 @@ export function ThemeView({
     [library, source],
   );
 
-  const change = (next: Loose<Theme>) => {
+  const change = (next: Loose<Theme>, picture?: MediaEntry) => {
+    const media = picture ? [...added, picture] : added;
+    if (picture) setAdded(media);
     setDraft(next as Theme);
-    source.show(cleaned(next));
+    source.show(cleaned(next), media);
   };
+  /** The media index entry of a picture: the course's, or one chosen in this panel. */
+  const entryOf = (key: string | undefined) =>
+    key === undefined
+      ? undefined
+      : (course.media.find((media) => media.key === key) ??
+        added.find((media) => media.key === key));
   const open = (next: Section) => {
     setDraft(course.theme ?? {});
     setSection(next);
@@ -179,11 +217,18 @@ export function ThemeView({
     const theme = cleaned(draft);
     const same = JSON.stringify(theme) === JSON.stringify(course.theme);
     if (!same) {
-      editor.dispatch(
+      // A new picture's media index entry and the theme that uses it: one undo step.
+      const known = new Set(course.media.map((media) => media.key));
+      const used = new Set(themeKeys(theme));
+      const pictures: Command[] = added
+        .filter((entry) => used.has(entry.key) && !known.has(entry.key))
+        .map((value) => ({ type: "insertMedia", value }));
+      editor.dispatch([
+        ...pictures,
         theme
           ? { type: "updateCourse", set: { theme } }
           : { type: "updateCourse", unset: ["theme"] },
-      );
+      ]);
     }
     if (section) announce(t("theme.saved", { section: t(`theme.section.${section}`) }));
     leave();
@@ -200,10 +245,12 @@ export function ThemeView({
   ];
   const theme = course.theme;
   const resolved = library.resolve(theme);
-  const fontName = (font: FontRef) =>
-    font.kind === "builtin"
-      ? (BUILTIN_FONTS.find((f) => f.id === font.id)?.name ?? font.id)
-      : (library.find(font.id)?.name ?? font.name);
+  const fontName = (font: FontRef | undefined) =>
+    !font
+      ? t("theme.fonts.deviceOne")
+      : font.kind === "builtin"
+        ? (BUILTIN_FONTS.find((f) => f.id === font.id)?.name ?? font.id)
+        : (library.find(font.id)?.name ?? font.name);
   const summary: Record<Section, string> = {
     layout: t(`theme.layout.${theme?.layout ?? "classic"}`),
     cover: t(`theme.cover.${theme?.cover?.layout ?? "split-left"}`),
@@ -211,10 +258,13 @@ export function ThemeView({
       ? t("theme.off")
       : t(headerLabel(theme?.headers?.layout ?? "light")),
     colors: theme?.color ?? DEFAULT_THEME_COLOR,
-    fonts: t("theme.fonts.pairing", {
-      heading: fontName(resolved.heading),
-      body: fontName(resolved.body),
-    }),
+    fonts:
+      resolved.heading || resolved.body
+        ? t("theme.fonts.pairing", {
+            heading: fontName(resolved.heading),
+            body: fontName(resolved.body),
+          })
+        : t("theme.fonts.device"),
     blocks: t(theme?.animations === false ? "theme.off" : "theme.on"),
   };
 
@@ -237,9 +287,23 @@ export function ThemeView({
             <div className="be-theme-fields">
               {section === "layout" && <LayoutFields draft={draft} change={change} />}
               {section === "cover" && (
-                <CoverFields draft={draft} change={change} hasImage={course.cover !== undefined} />
+                <CoverFields
+                  draft={draft}
+                  change={change}
+                  host={host}
+                  session={session}
+                  entryOf={entryOf}
+                />
               )}
-              {section === "headers" && <HeaderFields draft={draft} change={change} />}
+              {section === "headers" && (
+                <HeaderFields
+                  draft={draft}
+                  change={change}
+                  host={host}
+                  session={session}
+                  entryOf={entryOf}
+                />
+              )}
               {section === "colors" && <ColorFields draft={draft} change={change} />}
               {section === "fonts" && (
                 <FontFields draft={draft} change={change} library={library} toasts={toasts} />
@@ -288,12 +352,76 @@ const headerLabel = (layout: NonNullable<NonNullable<Theme["headers"]>["layout"]
       dark: "style.dark",
       black: "style.black",
       color: "style.custom",
+      image: "style.image",
     }) as const
   )[layout];
 
 interface FieldsProps {
   draft: Theme;
-  change: (next: Loose<Theme>) => void;
+  change: (next: Loose<Theme>, picture?: MediaEntry) => void;
+}
+
+/** What the sections with pictures need: the host's dialogs, the course and its media entries. */
+interface PictureProps {
+  host: HostInterface;
+  session: CourseSession;
+  entryOf: (key: string | undefined) => MediaEntry | undefined;
+}
+
+type OverlaySetting = { color: "light" | "dark" | "theme"; opacity: number };
+
+/**
+ * The overlay over a picture behind text, with its strength, and a warning with the fix when the
+ * text could drop below 4.5:1 over a light picture (rise.md rule 18).
+ */
+function OverlayFields({
+  draft,
+  overlay,
+  hasImage,
+  weakText,
+  set,
+}: {
+  draft: Theme;
+  overlay: OverlaySetting;
+  hasImage: boolean;
+  weakText: (percent: number) => string;
+  set: (overlay: OverlaySetting) => void;
+}) {
+  const t = useStrings();
+  const [opacity, setOpacity] = useState(overlay.opacity);
+  useEffect(() => setOpacity(overlay.opacity), [overlay.opacity]);
+  const colors = overlayColors(overlay, draft);
+  const floor = overlayFloor(colors.color, colors.text);
+  const weak = hasImage && floor !== undefined && overlay.opacity < floor;
+  return (
+    <>
+      <Select
+        label={t("theme.cover.overlay")}
+        selectedKey={overlay.color}
+        onSelectionChange={(key) => set({ ...overlay, color: key as OverlaySetting["color"] })}
+      >
+        <ListBoxItem id="dark">{t("style.dark")}</ListBoxItem>
+        <ListBoxItem id="light">{t("style.light")}</ListBoxItem>
+        <ListBoxItem id="theme">{t("style.theme")}</ListBoxItem>
+      </Select>
+      <SliderField
+        label={t("theme.cover.opacity")}
+        unit={t("theme.percent")}
+        minValue={0}
+        maxValue={100}
+        value={opacity}
+        onChange={setOpacity}
+        onChangeEnd={(value) => set({ ...overlay, opacity: value })}
+      />
+      {weak && (
+        <Warning
+          text={weakText(floor)}
+          action={t("theme.cover.overlayUse", { percent: floor })}
+          onAction={() => set({ ...overlay, opacity: floor })}
+        />
+      )}
+    </>
+  );
 }
 
 /** T3: the three layout styles; a style sets the cover and header layouts only (R43). */
@@ -323,18 +451,20 @@ function LayoutFields({ draft, change }: FieldsProps) {
   );
 }
 
-/** T4: the cover layout, its overlay, the start button, the authors and skipping the cover. */
-function CoverFields({ draft, change, hasImage }: FieldsProps & { hasImage: boolean }) {
+/**
+ * T4: the cover layout, the crop of the cover picture and its overlay, the logo with its size and
+ * square, the start button, the authors and skipping the cover.
+ */
+function CoverFields({ draft, change, host, session, entryOf }: FieldsProps & PictureProps) {
   const t = useStrings();
   const cover = draft.cover ?? {};
-  const set = (next: Loose<Cover>) => change({ ...draft, cover: { ...cover, ...next } as Cover });
+  const set = (next: Loose<Cover>, picture?: MediaEntry) =>
+    change({ ...draft, cover: { ...cover, ...next } as Cover }, picture);
   const layout = cover.layout ?? "split-left";
-  const overlay = cover.overlay ?? DEFAULT_OVERLAY;
-  const [opacity, setOpacity] = useState(overlay.opacity);
-  useEffect(() => setOpacity(overlay.opacity), [overlay.opacity]);
-  const colors = overlayColors(overlay, draft);
-  const floor = overlayFloor(colors.color, colors.text);
-  const weak = hasImage && floor !== undefined && overlay.opacity < floor;
+  const picture = session.editor.document.cover;
+  const pictureEntry = entryOf(picture?.key);
+  // A crop made for another picture no longer applies (cropOf).
+  const crop = cover.crop?.key === picture?.key ? cover.crop : undefined;
   return (
     <>
       <Select
@@ -350,35 +480,55 @@ function CoverFields({ draft, change, hasImage }: FieldsProps & { hasImage: bool
           </ListBoxItem>
         ))}
       </Select>
+      {picture && layout !== "plain" && (
+        <CropButton
+          session={session}
+          entry={pictureEntry}
+          crop={crop}
+          label={t("theme.cover.crop")}
+          onCrop={(next) => set({ crop: next && { ...next, key: picture.key } })}
+        />
+      )}
       {layout === "full-image" && (
+        <OverlayFields
+          draft={draft}
+          overlay={cover.overlay ?? DEFAULT_OVERLAY}
+          hasImage={picture !== undefined}
+          weakText={(percent) => t("theme.cover.overlayWeak", { percent })}
+          set={(overlay) => set({ overlay })}
+        />
+      )}
+      <ThemePictureField
+        host={host}
+        session={session}
+        label={t("theme.cover.logo")}
+        image={cover.logo}
+        entry={entryOf(cover.logo?.key)}
+        onChange={(logo, added) => set({ logo }, added)}
+      />
+      {cover.logo && (
         <>
           <Select
-            label={t("theme.cover.overlay")}
-            selectedKey={overlay.color}
+            label={t("theme.cover.logoSize")}
+            selectedKey={cover.logoSize ?? "small"}
             onSelectionChange={(key) =>
-              set({ overlay: { ...overlay, color: key as typeof overlay.color } })
+              set({ logoSize: key === "small" ? undefined : (key as "medium" | "large") })
             }
           >
-            <ListBoxItem id="dark">{t("style.dark")}</ListBoxItem>
-            <ListBoxItem id="light">{t("style.light")}</ListBoxItem>
-            <ListBoxItem id="theme">{t("style.theme")}</ListBoxItem>
+            <ListBoxItem id="small">{t("theme.cover.logoSmall")}</ListBoxItem>
+            <ListBoxItem id="medium">{t("theme.cover.logoMedium")}</ListBoxItem>
+            <ListBoxItem id="large">{t("theme.cover.logoLarge")}</ListBoxItem>
           </Select>
-          <SliderField
-            label={t("theme.cover.opacity")}
-            unit={t("theme.percent")}
-            minValue={0}
-            maxValue={100}
-            value={opacity}
-            onChange={setOpacity}
-            onChangeEnd={(value) => set({ overlay: { ...overlay, opacity: value } })}
-          />
-          {weak && (
-            <Warning
-              text={t("theme.cover.overlayWeak", { percent: floor })}
-              action={t("theme.cover.overlayUse", { percent: floor })}
-              onAction={() => set({ overlay: { ...overlay, opacity: floor } })}
-            />
-          )}
+          <Switch
+            isSelected={cover.logoSquare === true}
+            onChange={(on) => set({ logoSquare: on || undefined })}
+            aria-describedby="be-cover-square"
+          >
+            {t("theme.cover.logoSquare")}
+          </Switch>
+          <p id="be-cover-square" className="be-note">
+            {t("theme.cover.logoSquareHelp")}
+          </p>
         </>
       )}
       <Switch
@@ -394,9 +544,13 @@ function CoverFields({ draft, change, hasImage }: FieldsProps & { hasImage: bool
       <Switch
         isSelected={cover.author !== false}
         onChange={(on) => set({ author: on ? undefined : false })}
+        aria-describedby="be-cover-authors"
       >
         {t("theme.cover.authors")}
       </Switch>
+      <p id="be-cover-authors" className="be-note">
+        {t("theme.cover.authorsHelp")}
+      </p>
       <Switch
         isSelected={cover.skip === true}
         onChange={(on) => set({ skip: on || undefined })}
@@ -411,12 +565,15 @@ function CoverFields({ draft, change, hasImage }: FieldsProps & { hasImage: bool
   );
 }
 
-/** T6: hide headers (R46 greys out the rest), layout, colour and text, height, count, author. */
-function HeaderFields({ draft, change }: FieldsProps) {
+/**
+ * T6: hide headers (R46 greys out the rest), layout, colour and text or picture and overlay,
+ * height, count, author.
+ */
+function HeaderFields({ draft, change, host, session, entryOf }: FieldsProps & PictureProps) {
   const t = useStrings();
   const headers = draft.headers ?? {};
-  const set = (next: Loose<Headers>) =>
-    change({ ...draft, headers: { ...headers, ...next } as Headers });
+  const set = (next: Loose<Headers>, picture?: MediaEntry) =>
+    change({ ...draft, headers: { ...headers, ...next } as Headers }, picture);
   const hidden = headers.hidden === true;
   const layout = headers.layout ?? "light";
   return (
@@ -443,11 +600,13 @@ function HeaderFields({ draft, change }: FieldsProps) {
           });
         }}
       >
-        {(["light", "gray", "theme", "tint", "dark", "black", "color"] as const).map((id) => (
-          <ListBoxItem key={id} id={id}>
-            {t(headerLabel(id))}
-          </ListBoxItem>
-        ))}
+        {(["light", "gray", "theme", "tint", "dark", "black", "color", "image"] as const).map(
+          (id) => (
+            <ListBoxItem key={id} id={id}>
+              {t(headerLabel(id))}
+            </ListBoxItem>
+          ),
+        )}
       </Select>
       {layout === "color" && !hidden && (
         <ColorWithContrast
@@ -457,6 +616,26 @@ function HeaderFields({ draft, change }: FieldsProps) {
           onColor={(color) => set({ color })}
           onContrast={(contrast) => set({ contrast: contrast === "auto" ? undefined : contrast })}
         />
+      )}
+      {layout === "image" && !hidden && (
+        <>
+          <ThemePictureField
+            host={host}
+            session={session}
+            label={t("theme.headers.image")}
+            image={headers.image}
+            entry={entryOf(headers.image?.key)}
+            onChange={(image, added) => set({ image }, added)}
+          />
+          <p className="be-note">{t("theme.headers.imageHelp")}</p>
+          <OverlayFields
+            draft={draft}
+            overlay={headers.overlay ?? DEFAULT_HEADER_OVERLAY}
+            hasImage={headers.image !== undefined}
+            weakText={(percent) => t("theme.headers.overlayWeak", { percent })}
+            set={(overlay) => set({ overlay })}
+          />
+        </>
       )}
       <Select
         label={t("theme.headers.height")}
@@ -667,13 +846,19 @@ function FontFields({
     const found = id === undefined ? undefined : library.find(id);
     return found && { kind: "custom", id: found.id, name: found.name };
   };
-  const pairing = FONT_PAIRINGS.findIndex(
-    ([heading, body]) =>
-      fonts.heading.kind === "builtin" &&
-      fonts.heading.id === heading &&
-      fonts.body.kind === "builtin" &&
-      fonts.body.id === body,
-  );
+  // The device's fonts, or a recommended pairing; none of them for a mix of the author's own.
+  const pairing =
+    !fonts.heading && !fonts.body
+      ? DEVICE
+      : String(
+          FONT_PAIRINGS.findIndex(
+            ([heading, body]) =>
+              fonts.heading?.kind === "builtin" &&
+              fonts.heading.id === heading &&
+              fonts.body?.kind === "builtin" &&
+              fonts.body.id === body,
+          ),
+        );
   const name = (id: string) => BUILTIN_FONTS.find((font) => font.id === id)?.name ?? id;
   const missing = (["heading", "body", "ui"] as const).flatMap((role) => {
     const font = chosen[role];
@@ -683,13 +868,14 @@ function FontFields({
     <Select
       label={t(`theme.fonts.${role}`)}
       {...(role === "ui" && { description: t("theme.fonts.uiHelp") })}
-      selectedKey={role === "ui" && !chosen.ui ? "same" : keyOf(fonts[role])}
+      selectedKey={role === "ui" && !chosen.ui ? "same" : fonts[role] ? keyOf(fonts[role]) : DEVICE}
       onSelectionChange={(key) => {
-        const font = key === "same" ? undefined : fontOf(String(key));
+        const font = key === "same" || key === DEVICE ? undefined : fontOf(String(key));
         setFonts({ ...chosen, [role]: font });
       }}
     >
       {extra}
+      {role !== "ui" && <ListBoxItem id={DEVICE}>{t("theme.fonts.deviceOne")}</ListBoxItem>}
       <ListBoxSection title={t("theme.fonts.bundled")}>
         {BUILTIN_FONTS.map((font) => (
           <ListBoxItem key={font.id} id={`builtin:${font.id}`}>
@@ -712,10 +898,7 @@ function FontFields({
     <>
       {missing.map(([role, font]) => (
         <p key={role} className="be-note">
-          {t("theme.fonts.missing", {
-            name: font.name,
-            fallback: fonts[role].kind === "builtin" ? name(fonts[role].id) : "",
-          })}
+          {t("theme.fonts.missing", { name: font.name })}
         </p>
       ))}
       <Tabs>
@@ -727,9 +910,13 @@ function FontFields({
           <ListBox
             aria-label={t("theme.fonts.pairings")}
             selectionMode="single"
-            selectedKeys={pairing < 0 ? [] : [String(pairing)]}
+            selectedKeys={pairing === "-1" ? [] : [pairing]}
             onSelectionChange={(keys) => {
               const [index] = [...(keys as Set<string>)];
+              if (index === DEVICE) {
+                setFonts({ ...chosen, heading: undefined, body: undefined });
+                return;
+              }
               const chosenPair = index === undefined ? undefined : FONT_PAIRINGS[Number(index)];
               if (!chosenPair) return;
               const [heading, body] = chosenPair;
@@ -741,6 +928,14 @@ function FontFields({
               });
             }}
           >
+            <ListBoxItem
+              key={DEVICE}
+              id={DEVICE}
+              textValue={t("theme.fonts.device")}
+              description={t("theme.fonts.deviceHelp")}
+            >
+              {t("theme.fonts.device")}
+            </ListBoxItem>
             {FONT_PAIRINGS.map(([heading, body], i) => (
               <ListBoxItem
                 key={`${heading}-${body}`}
@@ -768,6 +963,9 @@ function FontFields({
     </>
   );
 }
+
+/** The choice of the learner's device fonts in the font lists. */
+const DEVICE = "device";
 
 /** T10: the course-wide entrance animation, and block and button corners. */
 function BlockFields({ draft, change }: FieldsProps) {

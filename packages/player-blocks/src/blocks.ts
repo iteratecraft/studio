@@ -108,10 +108,9 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
       element.style.setProperty("--accent", accentColor);
       element.style.setProperty("--button", accentColor);
       element.style.setProperty("--focus", accentColor);
-      element.style.setProperty(
-        "--accent-text",
-        textOn(accentColor) === "light" ? "#ffffff" : "#000000",
-      );
+      const text = textOn(accentColor) === "light" ? "#ffffff" : "#000000";
+      element.style.setProperty("--accent-text", text);
+      element.style.setProperty("--button-text", text);
     }
   }
   return frame;

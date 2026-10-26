@@ -1,9 +1,10 @@
 // The theme panel (M2-17; BLK-09, ENG-08) in Chromium against the in-memory host, under the desktop
 // app's content security policy: its sections beside the course in the real player, layout
-// styles, the cover and lesson header options, theme colours with contrast checks, fonts and
-// pairings, the author's font library, the block animation switch and theme block backgrounds,
-// by pointer and by keyboard, with axe on every new screen and on the themed player output in
-// both editor themes.
+// styles, the cover and lesson header options with the logo, header pictures and crops, theme
+// colours with contrast checks, device fonts, fonts and pairings, the author's font library, the
+// block animation switch, theme block backgrounds, text sizes and the per-lesson author, by
+// pointer and by keyboard, with axe on every new screen and on the themed player output in both
+// editor themes and in exported packages.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -15,10 +16,12 @@ import {
   contrastOf,
   type FontRef,
   type LessonEntry,
+  overlayFloor,
   SCHEMA_VERSION,
   type Theme,
   themeColors,
 } from "@course-suite/format";
+import { addAsset, createProject, memoryProjectFiles, saveProject } from "@course-suite/project";
 import { readZip } from "@course-suite/zip";
 import {
   expect,
@@ -236,11 +239,15 @@ test("blocks-editor T1 BLK-09, M2-17: the theme button opens its sections in ord
     "Cover pagePicture on the left",
     "Lesson headersLight",
     "Colours#ff631e",
-    "FontsNoto Sans and Noto Serif",
+    "FontsDevice fonts",
     "BlocksOn",
   ]);
   const frame = await player(page);
-  await expect(frame.getByRole("heading", { level: 1, name: "Keeping bees" })).toBeVisible();
+  const title = frame.getByRole("heading", { level: 1, name: "Keeping bees" });
+  await expect(title).toBeVisible();
+  // ENG-08: no font chosen, so the course is in the device's fonts and the package carries none.
+  await expect(title).toHaveCSS("font-family", /^system-ui, /);
+  expect(await (await shownFrame(page)).evaluate(() => document.fonts.size)).toBe(0);
   await page.getByRole("button", { name: "Back to the course" }).click();
   await expect(page.getByRole("textbox", { name: "Course title" })).toBeVisible();
   await expect(themeButton(page)).toBeEnabled();
@@ -492,7 +499,7 @@ test("blocks-editor W21 BLK-09, ENG-08: a custom font is added to the author's l
   expect(errors).toEqual([]);
 });
 
-test("UI-BLOCKS-EDITOR-R48 BLK-09: editing a custom font updates every course using it; deleting it returns those courses to the default font", async ({
+test("UI-BLOCKS-EDITOR-R48 BLK-09: editing a custom font updates every course using it; deleting it returns those courses to the device's fonts", async ({
   page,
 }) => {
   await openBees(page);
@@ -516,7 +523,7 @@ test("UI-BLOCKS-EDITOR-R48 BLK-09: editing a custom font updates every course us
     bees({ fonts: { heading: font } }, "0e6a2f4d-3b1c-4d5e-8f70-9a1b2c3d4e5f", "Wasps"),
   );
   await openTheme(page);
-  await expect(sectionButton(page, "Fonts")).toContainText("Comb and Noto Serif");
+  await expect(sectionButton(page, "Fonts")).toContainText("Comb and Device font");
 
   // Edit it here: a new name and a new regular face.
   await openSection(page, "Fonts");
@@ -537,36 +544,33 @@ test("UI-BLOCKS-EDITOR-R48 BLK-09: editing a custom font updates every course us
   );
   expect(Buffer.from(stored).equals(fontFile("literata"))).toBe(true);
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(sectionButton(page, "Fonts")).toContainText("Honeycomb and Noto Serif");
+  await expect(sectionButton(page, "Fonts")).toContainText("Honeycomb and Device font");
 
   // The first course shows the change too.
   await page.getByRole("button", { name: "Back to the course" }).click();
   await back(page);
   await card(page, "Keeping bees").click();
   await openTheme(page);
-  await expect(sectionButton(page, "Fonts")).toContainText("Honeycomb and Noto Serif");
+  await expect(sectionButton(page, "Fonts")).toContainText("Honeycomb and Device font");
   await player(page);
   await expectFontLoaded(page, `custom-${font.id}`);
 
-  // Delete it: both courses fall back to the default heading font.
+  // Delete it: both courses fall back to the device's fonts.
   await openSection(page, "Fonts");
   await page.getByRole("tab", { name: "Mix fonts" }).click();
   await page.getByRole("button", { name: "Delete Honeycomb" }).click();
   const confirm = page.getByRole("alertdialog", { name: "Delete Honeycomb?" });
-  await expect(confirm).toContainText("Courses that use it show the default font instead.");
+  await expect(confirm).toContainText("Courses that use it show the device's font instead.");
   await confirm.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Honeycomb was deleted")).toBeVisible();
   await expect(
     // The course names the font as it was when chosen.
-    page.getByText("Comb is no longer in your fonts, so the course shows Noto Sans."),
+    page.getByText("Comb is no longer in your fonts, so the course shows the device's font."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(sectionButton(page, "Fonts")).toContainText("Noto Sans and Noto Serif");
+  await expect(sectionButton(page, "Fonts")).toContainText("Device fonts");
   const frame = await player(page);
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveCSS(
-    "font-family",
-    /^"?noto-sans"?, /,
-  );
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveCSS("font-family", /^system-ui, /);
   const left = await page.evaluate(() =>
     [...window.editorTest.host.disk.keys()].filter((id) => id.startsWith("appdata/fonts/")),
   );
@@ -575,7 +579,7 @@ test("UI-BLOCKS-EDITOR-R48 BLK-09: editing a custom font updates every course us
   await back(page);
   await card(page, "Wasps").click();
   await openTheme(page);
-  await expect(sectionButton(page, "Fonts")).toContainText("Noto Sans and Noto Serif");
+  await expect(sectionButton(page, "Fonts")).toContainText("Device fonts");
 });
 
 test("[rise:3D] blocks-editor T10 BLK-09: the block animation switch is wired to the player; blocks fade in as they scroll into view, never under reduced motion", async ({
@@ -711,7 +715,7 @@ for (const editorTheme of ["light", "dark"] as const) {
   });
 }
 
-test("[rise:R18] [rise:3E] ENG-08, BLK-09, D-45: an exported web package carries the theme's fonts and only those, shows its custom font from disk with no network, opens past a skipped cover, and has no axe violation", async ({
+test("[rise:R18] [rise:3E] ENG-08, BLK-09, D-45: an exported web package carries the theme's fonts and only those with their licence, shows its custom font from disk with no network, opens past a skipped cover, and has no axe violation", async ({
   page,
 }) => {
   const course = bees({
@@ -732,14 +736,20 @@ test("[rise:R18] [rise:3E] ENG-08, BLK-09, D-45: an exported web package carries
   const zip = await readZip(built.value.zip);
   if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
   // The heading font (and the interface font, which follows it) and the body font: nothing else.
+  // The bundled family travels with its licence (OFL-1.1 section 2); the author's own font is
+  // theirs to license.
   expect(zip.value.names.filter((name) => name.startsWith("fonts/"))).toEqual([
     "fonts/custom-testfont01-bold.woff2",
     "fonts/custom-testfont01-italic.woff2",
     "fonts/custom-testfont01-regular.woff2",
+    "fonts/literata-OFL.txt",
     "fonts/literata-bold.woff2",
     "fonts/literata-italic.woff2",
     "fonts/literata-regular.woff2",
   ]);
+  expect(new TextDecoder().decode(await zip.value.read("fonts/literata-OFL.txt"))).toContain(
+    "SIL OPEN FONT LICENSE Version 1.1",
+  );
   const dir = mkdtempSync(join(tmpdir(), "theme-export-"));
   try {
     for (const name of zip.value.names) {
@@ -781,6 +791,478 @@ test("[rise:R18] [rise:3E] ENG-08, BLK-09, D-45: an exported web package carries
     expect(outside).toEqual([]);
     expect(errors).toEqual([]);
     // (axe reads style sheets by XMLHttpRequest, which file: pages refuse with a console error.)
+    expect(await violations(page)).toEqual([]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * A PNG of `width` by `height` pixels drawn by the browser: its left half red, its right half
+ * blue, so a crop shows which part it kept.
+ */
+async function png(page: Page, width: number, height: number): Promise<Uint8Array> {
+  const bytes = await page.evaluate(
+    async ([width, height]) => {
+      const canvas = new OffscreenCanvas(width, height);
+      const context = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+      context.fillStyle = "#c0392b";
+      context.fillRect(0, 0, width / 2, height);
+      context.fillStyle = "#1f4e99";
+      context.fillRect(width / 2, 0, width / 2, height);
+      const blob = await canvas.convertToBlob({ type: "image/png" });
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
+    },
+    [width, height] as const,
+  );
+  return new Uint8Array(bytes);
+}
+
+/** Opens `course` from a course file whose store holds the PNG `picture` under `key`. */
+async function openWithPicture(page: Page, course: Course, key: string, picture: Uint8Array) {
+  const disk = memoryProjectFiles();
+  const project = createProject(course);
+  await addAsset(project, picture, { name: key, type: "image/png", source: "upload" }, key);
+  await saveProject(disk, FILE, project);
+  await willPick(page, FILE, disk.files.get(FILE) as Uint8Array);
+  await page.getByRole("button", { name: "Open a course file", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: course.title })).toBeVisible();
+}
+
+/** Bees with a 200 by 100 cover picture. */
+function beesWithCover(theme?: Theme): Course {
+  return {
+    ...bees(theme),
+    cover: { key: "meadow.png", alt: "A hive in a meadow" },
+    media: [
+      {
+        id: "mcover0001",
+        key: "meadow.png",
+        source: "upload",
+        mimeType: "image/png",
+        width: 200,
+        height: 100,
+      },
+    ],
+  };
+}
+
+/** A picture setting of the panel, by its name. */
+const pictureGroup = (page: Page, name: string) => panel(page).getByRole("group", { name });
+
+/** The inline style a cropped picture of the player was moved with. */
+const cropStyle = (picture: Locator) =>
+  picture.evaluate((img: HTMLImageElement) => ({
+    left: img.style.left,
+    width: img.style.width,
+    ratio: (img.parentElement as HTMLElement).style.getPropertyValue("--crop-ratio"),
+  }));
+
+test("[rise:3E] blocks-editor T4 2.18 BLK-09: a logo is chosen through the open dialog with its alternative text, size and square, shown on the cover; a file that is no picture is refused; it saves with its media entry as one undo step", async ({
+  page,
+}) => {
+  const errors = errorsOf(page);
+  await openBees(page);
+  await openTheme(page);
+  await openSection(page, "Cover page");
+  const logo = pictureGroup(page, "Logo");
+  await willPick(page, "Downloads/notes.txt", new TextEncoder().encode("not a picture"));
+  await logo.getByRole("button", { name: "Choose a picture" }).click();
+  await expect(logo.getByRole("alert")).toHaveText("notes.txt is not a picture this app can show.");
+
+  await willPick(page, "Downloads/hive-logo.png", await png(page, 120, 60));
+  await logo.getByRole("button", { name: "Choose a picture" }).click();
+  await expect(logo.getByRole("button", { name: "Replace the picture" })).toBeVisible();
+  await expect(logo.getByRole("alert")).toHaveCount(0);
+  const alt = logo.getByRole("textbox", { name: "Alternative text" });
+  await alt.fill("Hive and Co.");
+  await alt.press("Enter");
+  await select(page, "Logo size").click();
+  await page.getByRole("option", { name: "Large (2x)" }).click();
+  await toggle(page, "Square logo");
+
+  // Shown on selection: 2x is 80 pixels high, and square.
+  const frame = await player(page);
+  const shown = frame.locator(".cover-logo.logo-large.logo-square");
+  await expect(shown.getByRole("img", { name: "Hive and Co." })).toBeVisible();
+  expect(await shown.locator(".logo-image").boundingBox()).toMatchObject({ width: 80, height: 80 });
+
+  await saveSection(page, "Cover page");
+  const course = await saved(page);
+  const key = course.theme?.cover?.logo?.key as string;
+  expect(key).toMatch(/^[0-9a-f]{64}\.png$/);
+  expect(course.theme).toEqual({
+    cover: { logo: { key, alt: "Hive and Co." }, logoSize: "large", logoSquare: true },
+  });
+  expect(course.media).toEqual([
+    expect.objectContaining({
+      key,
+      source: "upload",
+      mimeType: "image/png",
+      width: 120,
+      height: 60,
+    }),
+  ]);
+
+  // The logo and its media entry go in one undo step.
+  await page.getByRole("heading", { level: 2, name: "Theme" }).click();
+  await page.keyboard.press("Control+Z");
+  const undone = await saved(page);
+  expect(undone.theme).toBeUndefined();
+  expect(undone.media).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("[rise:3E] [rise:R18] blocks-editor T6 2.18 BLK-09, keyboard only: the image lesson header shows its picture with its alternative text and crop under a dark overlay at 60 %; an overlay too weak for 4.5:1 is flagged with the fix", async ({
+  page,
+}) => {
+  await openBees(page);
+  await themeButton(page).focus();
+  await page.keyboard.press("Enter");
+  await tabTo(page, sectionButton(page, "Lesson headers"));
+  await page.keyboard.press("Enter");
+  await chooseByKeyboard(page, "Header background", "Image");
+  const picture = pictureGroup(page, "Header picture");
+  await willPick(page, "Downloads/comb.png", await png(page, 200, 100));
+  await tabTo(page, picture.getByRole("button", { name: "Choose a picture" }));
+  await page.keyboard.press("Enter");
+  const alt = picture.getByRole("textbox", { name: "Alternative text" });
+  await tabTo(page, alt);
+  await page.keyboard.type("Frames of comb");
+  await page.keyboard.press("Enter");
+
+  // Keep the right half: the left edge moves to the middle and the width shrinks to fit.
+  await tabTo(page, picture.getByRole("button", { name: "Crop", exact: true }));
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Crop the picture" });
+  await tabTo(page, dialog.getByRole("spinbutton", { name: "Left edge (Percent)" }));
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("50");
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("spinbutton", { name: "Width (Percent)" })).toHaveValue("50");
+  await tabTo(page, dialog.getByRole("button", { name: "Save" }));
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(picture.getByText("Cropped")).toBeVisible();
+
+  const frame = await player(page);
+  await frame.getByRole("link", { name: "Begin course" }).click();
+  const header = frame.locator(".lesson-header");
+  await expect(header).toHaveClass(/header-image/);
+  await expect(header).toHaveClass(/text-light/);
+  const overlay = header.locator(".header-overlay");
+  await expect(overlay).toHaveCSS("background-color", "rgb(0, 0, 0)");
+  await expect(overlay).toHaveCSS("opacity", "0.6");
+  const img = header.getByRole("img", { name: "Frames of comb" });
+  await expect(img).toBeAttached();
+  // Half the picture's width and all its height: a square box with the picture at twice its
+  // width, moved left by a whole box.
+  await expect.poll(() => cropStyle(img)).toEqual({ left: "-100%", width: "200%", ratio: "1" });
+
+  // A weak overlay: the warning offers the lowest strength that keeps 4.5:1.
+  const floor = overlayFloor("#000000", "#ffffff") as number;
+  const strength = panel(page).getByRole("spinbutton", { name: "Overlay strength (Percent)" });
+  await tabTo(page, strength);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("20");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByText(
+      `The title may be hard to read over light parts of the picture. ${floor}% or more keeps it at 4.5:1.`,
+    ),
+  ).toBeVisible();
+  await tabTo(page, panel(page).getByRole("button", { name: `Use ${floor}%` }));
+  await page.keyboard.press("Enter");
+  await expect(strength).toHaveValue(String(floor));
+
+  await tabTo(page, panel(page).getByRole("button", { name: "Save", exact: true }));
+  await page.keyboard.press("Enter");
+  const course = await saved(page);
+  const key = course.theme?.headers?.image?.key as string;
+  expect(course.theme).toEqual({
+    headers: {
+      layout: "image",
+      image: { key, alt: "Frames of comb", crop: { x: 50, y: 0, width: 50, height: 100 } },
+      overlay: { color: "dark", opacity: floor },
+    },
+  });
+  expect(course.media.map((media) => media.key)).toEqual([key]);
+});
+
+test("[rise:3E] blocks-editor T4 2.18 BLK-09: the cover picture is cropped, the crop follows into the full-picture layout under its overlay, and a drawing cannot be cropped", async ({
+  page,
+}) => {
+  await launch(page);
+  await openWithPicture(page, beesWithCover(), "meadow.png", await png(page, 200, 100));
+  await openTheme(page);
+  await openSection(page, "Cover page");
+  await panel(page).getByRole("button", { name: "Crop the cover picture" }).click();
+  const dialog = page.getByRole("dialog", { name: "Crop the picture" });
+  await dialog.getByRole("spinbutton", { name: "Width (Percent)" }).fill("50");
+  await dialog.getByRole("spinbutton", { name: "Width (Percent)" }).press("Enter");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  const frame = await player(page);
+  const cover = frame.getByRole("img", { name: "A hive in a meadow" });
+  await expect.poll(() => cropStyle(cover)).toEqual({ left: "0%", width: "200%", ratio: "1" });
+
+  await select(page, "Cover layout").click();
+  await page.getByRole("option", { name: "Title over the picture" }).click();
+  await expect(frame.locator(".cover-image.crop-fill")).toBeVisible();
+  // The overlay lies over the picture and under the title.
+  const order = await frame
+    .locator(".cover")
+    .evaluate((element) => [...element.children].map((child) => child.className));
+  expect(order).toEqual(["cover-image crop-fill", "cover-overlay", "cover-text"]);
+
+  // A drawing as logo: SVG is not cropped (blocks-editor.md 2.18).
+  await willPick(
+    page,
+    "Downloads/mark.svg",
+    new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18"/></svg>',
+    ),
+  );
+  await pictureGroup(page, "Logo").getByRole("button", { name: "Choose a picture" }).click();
+  await expect(
+    pictureGroup(page, "Logo").getByText("Drawings (SVG) and animations (GIF) cannot be cropped."),
+  ).toBeVisible();
+  await expect(pictureGroup(page, "Logo").getByRole("button", { name: "Crop" })).toHaveCount(0);
+
+  await saveSection(page, "Cover page");
+  const theme = (await saved(page)).theme;
+  expect(theme?.cover?.crop).toEqual({ x: 0, y: 0, width: 50, height: 100, key: "meadow.png" });
+  expect(theme?.cover?.layout).toBe("full-image");
+});
+
+test("blocks-editor W6 BLK-09, keyboard only: the author is hidden on one lesson only, and hiding it on the cover hides it everywhere", async ({
+  page,
+}) => {
+  await openBees(page);
+  await tabTo(page, page.getByRole("button", { name: "Open The hive" }));
+  await page.keyboard.press("Enter");
+  const hide = page.getByRole("switch", { name: "Hide the author on this lesson" });
+  await tabTo(page, hide);
+  await page.keyboard.press("Space");
+  await expect(hide).toBeChecked();
+  const course = await saved(page);
+  expect((course.entries[0] as LessonEntry).authorHidden).toBe(true);
+  expect((course.entries[1] as LessonEntry).authorHidden).toBeUndefined();
+
+  await openTheme(page);
+  const frame = await player(page);
+  await frame.getByRole("link", { name: "Begin course" }).click();
+  await expect(frame.getByRole("heading", { level: 1, name: "The hive" })).toBeVisible();
+  await expect(frame.locator(".lesson-author")).toHaveCount(0);
+  await frame
+    .getByRole("link", { name: /The season/ })
+    .first()
+    .click();
+  await expect(frame.getByRole("heading", { level: 1, name: "The season" })).toBeVisible();
+  await expect(frame.locator(".lesson-author")).toHaveText("Robin Hale");
+
+  // Off on the cover: off on every lesson too.
+  await tabTo(page, sectionButton(page, "Cover page"));
+  await page.keyboard.press("Enter");
+  await tabTo(page, page.getByRole("switch", { name: "Show authors" }));
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByText("Off hides the author on the cover and on every lesson."),
+  ).toBeVisible();
+  // The preview stays at the lesson on show.
+  const after = await player(page);
+  await expect(after.getByRole("heading", { level: 1, name: "The season" })).toBeVisible();
+  await expect(after.locator(".lesson-author")).toHaveCount(0);
+});
+
+test("blocks-editor 2.18 BLK-09 [rise:R18]: the theme's default text sizes reach the player in rem, and an element filled with the accent colour keeps its text at 4.5:1", async ({
+  page,
+}) => {
+  const course = bees({ textSizes: { body: 20, heading: 40, subheading: 28 } });
+  const lesson = course.entries[0] as LessonEntry;
+  lesson.blocks.unshift(
+    {
+      id: "bhead00001",
+      category: "text",
+      variant: "heading",
+      items: [{ id: "ihead00001", kind: "content", title: "Inside the hive" }],
+    },
+    {
+      id: "bsubh00001",
+      category: "text",
+      variant: "subheading",
+      items: [{ id: "isubh00001", kind: "content", title: "The brood" }],
+    },
+  );
+  await launch(page);
+  await openFixture(page, FILE, course);
+  await openTheme(page);
+  const frame = await player(page);
+  await frame.getByRole("link", { name: "Begin course" }).click();
+  await expect(frame.getByRole("heading", { level: 2, name: "Inside the hive" })).toHaveCSS(
+    "font-size",
+    "40px",
+  );
+  await expect(frame.getByRole("heading", { level: 3, name: "The brood" })).toHaveCSS(
+    "font-size",
+    "28px",
+  );
+  await expect(frame.locator("body")).toHaveCSS("font-size", "20px");
+  const shown = await shownFrame(page);
+  expect(await variable(shown, "--text-body")).toBe("1.25rem");
+
+  // The default orange: buttons are light with dark text, but the accent is dark, so text on an
+  // element filled with it is white.
+  const [fill, text] = await shown.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.background = "var(--accent)";
+    probe.style.color = "var(--accent-text)";
+    document.body.append(probe);
+    const style = getComputedStyle(probe);
+    const colors = [style.backgroundColor, style.color];
+    probe.remove();
+    return colors.map(
+      (rgb) =>
+        `#${(rgb.match(/\d+/g) ?? []).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`,
+    );
+  });
+  expect(fill).toBe(themeColors(undefined).accent);
+  expect(text).toBe("#ffffff");
+  expect(contrastOf(text as string, fill as string)).toBeGreaterThanOrEqual(4.5);
+});
+
+for (const editorTheme of ["light", "dark"] as const) {
+  test(`UI-ACCESSIBILITY: no axe violation on the logo, header picture and crop screens, the lesson's author switch, or the player's logo, cropped cover and image header, in the ${editorTheme} theme`, async ({
+    page,
+  }) => {
+    const check = async (state: string) =>
+      expect(await violations(page), `${editorTheme}: ${state}`).toEqual([]);
+    const checkPlayer = async (state: string) => {
+      await player(page);
+      expect(await violations(await shownFrame(page)), `${editorTheme}: player ${state}`).toEqual(
+        [],
+      );
+    };
+    await launch(page, `?theme=${editorTheme}`);
+    await openWithPicture(
+      page,
+      beesWithCover({
+        cover: {
+          layout: "full-image",
+          crop: { key: "meadow.png", x: 10, y: 0, width: 60, height: 100 },
+          logo: {
+            key: "meadow.png",
+            alt: "Bee Keepers",
+            crop: { x: 0, y: 0, width: 50, height: 100 },
+          },
+          logoSize: "medium",
+          logoSquare: true,
+        },
+        headers: { layout: "image", image: { key: "meadow.png", alt: "" } },
+      }),
+      "meadow.png",
+      await png(page, 200, 100),
+    );
+    await openTheme(page);
+    await checkPlayer("cover with a logo over a cropped picture");
+    await openSection(page, "Cover page");
+    await check("cover page with a logo");
+    await pictureGroup(page, "Logo").getByRole("button", { name: "Crop", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Crop the picture" })).toBeVisible();
+    await check("crop dialog");
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await openSection(page, "Lesson headers");
+    await check("lesson headers with a picture");
+    await page.getByRole("button", { name: "Cancel" }).click();
+    const frame = await player(page);
+    await frame.getByRole("link", { name: "Begin course" }).click();
+    await expect(frame.locator(".lesson-header.header-image")).toBeVisible();
+    await checkPlayer("lesson with an image header");
+    await page.getByRole("button", { name: "Back to the course" }).click();
+    await page.getByRole("button", { name: "Open The hive" }).click();
+    await expect(
+      page.getByRole("switch", { name: "Hide the author on this lesson" }),
+    ).toBeVisible();
+    await check("lesson with the author switch");
+  });
+}
+
+test("[rise:3E] [rise:R18] BLK-09, ENG-08: an exported web package shows the logo, the cropped cover, the image header and the theme's text sizes from its own files, carries no font the author did not choose, and has no axe violation", async ({
+  page,
+}) => {
+  await page.goto("about:blank");
+  const picture = await png(page, 200, 100);
+  const course = beesWithCover({
+    cover: {
+      crop: { key: "meadow.png", x: 50, y: 0, width: 50, height: 100 },
+      logo: { key: "meadow.png", alt: "Bee Keepers" },
+      logoSize: "medium",
+    },
+    headers: {
+      layout: "image",
+      image: { key: "meadow.png", alt: "", crop: { x: 0, y: 0, width: 50, height: 100 } },
+    },
+    textSizes: { body: 18 },
+  });
+  (course.entries[1] as LessonEntry).authorHidden = true;
+  const built = await buildPackage({
+    course,
+    player: blocksPlayer({ language: "en" }),
+    exporter: webExporter(),
+    media: (key) => (key === "meadow.png" ? picture : undefined),
+    fonts: nodeFonts,
+    packageVersion: 1,
+  });
+  if (!built.ok) throw new Error(JSON.stringify(built.problems));
+  const zip = await readZip(built.value.zip);
+  if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
+  // No font chosen: the package carries none.
+  expect(zip.value.names.filter((name) => name.startsWith("fonts/"))).toEqual([]);
+  const dir = mkdtempSync(join(tmpdir(), "theme-pictures-"));
+  try {
+    for (const name of zip.value.names) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), (await zip.value.read(name)) as Uint8Array);
+    }
+    const base = pathToFileURL(`${dir}/`).href;
+    const outside: string[] = [];
+    await page.route(
+      (url) => !url.href.startsWith(base),
+      (route) => {
+        outside.push(route.request().url());
+        return route.abort();
+      },
+    );
+    const errors = errorsOf(page);
+    await page.goto(`${base}index.html`);
+    const logo = page.locator(".cover-logo.logo-medium").getByRole("img", { name: "Bee Keepers" });
+    await expect(logo).toBeVisible();
+    expect((await logo.boundingBox())?.height).toBe(60);
+    const cover = page.getByRole("img", { name: "A hive in a meadow" });
+    expect(await cropStyle(cover)).toEqual({ left: "-100%", width: "200%", ratio: "1" });
+    await expect(page.locator("body")).toHaveCSS("font-size", "18px");
+
+    await page.getByRole("link", { name: "Begin course" }).click();
+    const header = page.locator(".lesson-header.header-image");
+    await expect(header).toBeVisible();
+    await expect(header.locator(".header-overlay")).toHaveCSS("opacity", "0.6");
+    await expect(page.locator(".lesson-author")).toHaveText("Robin Hale");
+    await page
+      .getByRole("link", { name: /The season/ })
+      .first()
+      .click();
+    await expect(page.getByRole("heading", { level: 1, name: "The season" })).toBeVisible();
+    await expect(page.locator(".lesson-author")).toHaveCount(0);
+    expect(outside).toEqual([]);
+    expect(errors).toEqual([]);
+
+    // (axe reads style sheets by XMLHttpRequest, which file: pages refuse with a console error,
+    // so axe runs after the error check.)
+    await page.goBack();
+    await expect(header).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+    await page.goBack();
+    await expect(logo).toBeVisible();
     expect(await violations(page)).toEqual([]);
   } finally {
     rmSync(dir, { recursive: true, force: true });

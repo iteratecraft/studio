@@ -3,7 +3,14 @@
 // (M2-10, lesson-blocks.tsx). A quiz shows where its questions go (M2-15).
 import type { Command } from "@course-suite/doc-ops";
 import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
-import { EmptyState, ListBoxItem, Select, type ToastQueue, useStrings } from "@course-suite/ui";
+import {
+  EmptyState,
+  ListBoxItem,
+  Select,
+  Switch,
+  type ToastQueue,
+  useStrings,
+} from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
 import { DraftField, RichDraftField } from "./fields.js";
@@ -89,6 +96,21 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
             return name ? update({ author: { ...entry.author, name } }) : unset("author");
           }}
         />
+        {/* W6: hide the author on this lesson only. */}
+        {entry.kind === "lesson" && (
+          <Switch
+            isSelected={entry.authorHidden === true}
+            onChange={(on) =>
+              editor.dispatch(
+                on
+                  ? { type: "updateEntry", id: entry.id, set: { authorHidden: true } }
+                  : { type: "updateEntry", id: entry.id, unset: ["authorHidden"] },
+              )
+            }
+          >
+            {t("lesson.hideAuthor")}
+          </Switch>
+        )}
       </div>
       <LessonContent
         session={session}

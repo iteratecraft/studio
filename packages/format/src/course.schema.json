@@ -370,6 +370,10 @@
           "description": "Author shown on this lesson instead of the course authors.",
           "$ref": "#/$defs/Author"
         },
+        "authorHidden": {
+          "description": "No author on this lesson's header. Default false.",
+          "type": "boolean"
+        },
         "blocks": {
           "type": "array",
           "items": { "$ref": "#/$defs/Block" }
@@ -965,6 +969,22 @@
             "skip": {
               "description": "Published courses open at the first lesson, or where the learner stopped, instead of the cover. Default false.",
               "type": "boolean"
+            },
+            "crop": {
+              "description": "The part of the course's cover image shown; another image than the one it was made for shows whole.",
+              "$ref": "#/$defs/Crop"
+            },
+            "logo": {
+              "description": "Above the title. Default none.",
+              "$ref": "#/$defs/ThemeImage"
+            },
+            "logoSize": {
+              "description": "The logo's height: small 1x, medium 1.5x, large 2x. Default small.",
+              "enum": ["small", "medium", "large"]
+            },
+            "logoSquare": {
+              "description": "The logo in a square, cut to fit from its middle. Default false.",
+              "type": "boolean"
             }
           },
           "unevaluatedProperties": false
@@ -979,7 +999,15 @@
             },
             "layout": {
               "description": "Header background. Default light.",
-              "enum": ["light", "gray", "theme", "tint", "dark", "black", "color"]
+              "enum": ["light", "gray", "theme", "tint", "dark", "black", "color", "image"]
+            },
+            "image": {
+              "description": "Behind the title in the image layout; a lesson's own header image comes first.",
+              "$ref": "#/$defs/ThemeImage"
+            },
+            "overlay": {
+              "description": "Over the image of the image layout. Default dark at 60 %.",
+              "$ref": "#/$defs/Overlay"
             },
             "color": { "description": "Background of the color layout.", "$ref": "#/$defs/Color" },
             "contrast": {
@@ -1010,7 +1038,7 @@
           "enum": ["auto", "light", "dark"]
         },
         "fonts": {
-          "description": "Default: the first recommended pairing; the interface font follows the heading font.",
+          "description": "A role without a font shows in the learner's device fonts, so the package carries no font for it; the interface font follows the heading font.",
           "type": "object",
           "properties": {
             "heading": { "$ref": "#/$defs/FontRef" },
@@ -1030,8 +1058,63 @@
         "buttons": {
           "description": "Button corners. Default rounded.",
           "enum": ["rounded", "square"]
+        },
+        "textSizes": {
+          "description": "Default text sizes in CSS pixels, which follow the learner's own text size setting.",
+          "type": "object",
+          "properties": {
+            "body": {
+              "description": "Default 17.",
+              "type": "integer",
+              "minimum": 12,
+              "maximum": 32
+            },
+            "heading": {
+              "description": "Default 32.",
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 72
+            },
+            "subheading": {
+              "description": "Default 24.",
+              "type": "integer",
+              "minimum": 14,
+              "maximum": 48
+            }
+          },
+          "unevaluatedProperties": false
         }
       },
+      "unevaluatedProperties": false
+    },
+    "ThemeImage": {
+      "description": "An image of the theme from the media index, with its crop.",
+      "type": "object",
+      "properties": {
+        "key": { "$ref": "#/$defs/MediaKeyRef" },
+        "alt": {
+          "description": "Alternative text; empty marks the image as decorative.",
+          "type": "string"
+        },
+        "crop": { "$ref": "#/$defs/Crop" }
+      },
+      "required": ["key"],
+      "unevaluatedProperties": false
+    },
+    "Crop": {
+      "description": "The part of an image shown: a rectangle in percent of the image's width and height, from its top left corner.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "description": "The image it was made for, where the image is set apart from the crop.",
+          "$ref": "#/$defs/MediaKeyRef"
+        },
+        "x": { "$ref": "#/$defs/Percent" },
+        "y": { "$ref": "#/$defs/Percent" },
+        "width": { "type": "number", "minimum": 1, "maximum": 100 },
+        "height": { "type": "number", "minimum": 1, "maximum": 100 }
+      },
+      "required": ["x", "y", "width", "height"],
       "unevaluatedProperties": false
     },
     "Overlay": {

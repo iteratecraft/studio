@@ -4,7 +4,17 @@
 // properties set through the style object, which a page's content security policy allows (the
 // editor's preview runs under the desktop app's), and fonts are FontFace objects over the package's
 // own files: nothing loads from anywhere else (ADR-0004).
-import { type Block, type Course, type Theme, textColor, themeColors } from "@course-suite/format";
+import {
+  type Block,
+  type Course,
+  type Crop,
+  type MediaEntry,
+  TEXT_SIZES,
+  type Theme,
+  textColor,
+  themeColors,
+} from "@course-suite/format";
+import { h } from "./dom.js";
 import { fileUrl } from "./hooks.js";
 
 /** One face of a font the package carries: its file, by package path, weight and style. */
@@ -21,9 +31,10 @@ export interface PackagedFace {
  */
 export interface CourseFonts {
   families: Record<string, PackagedFace[]>;
-  heading: string;
-  body: string;
-  ui: string;
+  /** The family of each role; a role without one shows in the device's fonts. */
+  heading?: string;
+  body?: string;
+  ui?: string;
 }
 
 /** The device's own fonts, after the theme's and when a package carries none. */
@@ -44,12 +55,15 @@ export function themeVariables(
   families?: Pick<CourseFonts, "heading" | "body" | "ui">,
 ): Record<string, string> {
   const colors = themeColors(theme);
-  const font = (role: "heading" | "body" | "ui") =>
-    families ? `${quoted(families[role])}, ${SYSTEM}` : SYSTEM;
+  const font = (role: "heading" | "body" | "ui") => {
+    const family = families?.[role];
+    return family ? `${quoted(family)}, ${SYSTEM}` : SYSTEM;
+  };
   // player.css draws its accent, button and highlight colours from the --theme-* ones, so a white
   // card on a coloured block can take them back.
   return {
     "--theme-accent": colors.accent,
+    "--theme-accent-text": colors.accentText,
     "--theme-accent-soft": colors.accentSoft,
     "--theme-button": colors.button,
     "--theme-button-text": colors.buttonText,
@@ -62,7 +76,56 @@ export function themeVariables(
     "--font-ui": font("ui"),
     "--radius": theme?.corners === "square" ? "0" : "8px",
     "--button-radius": theme?.buttons === "square" ? "0" : "6px",
+    // In rem, so the learner's own text size setting still scales them (WCAG 1.4.4).
+    ...Object.fromEntries(
+      (Object.keys(TEXT_SIZES) as (keyof typeof TEXT_SIZES)[]).map((size) => [
+        `--text-${size}`,
+        `${(theme?.textSizes?.[size] ?? TEXT_SIZES[size]) / 16}rem`,
+      ]),
+    ),
   };
+}
+
+/**
+ * A picture of the theme (cover image, logo, header image) showing only its crop (blocks-editor.md
+ * T4, T6), drawn with CSS so every browser shows the same part without a second file. `fill`
+ * covers the box the caller sizes, as `object-fit: cover` does; otherwise the picture keeps the
+ * crop's shape. `className` goes on the outermost element.
+ */
+export function themePicture(
+  src: string,
+  alt: string,
+  entry: Pick<MediaEntry, "width" | "height"> | undefined,
+  crop: Crop | undefined,
+  className: string,
+  fill = false,
+): HTMLElement {
+  const width = entry?.width;
+  const height = entry?.height;
+  const img = h("img", { src, alt, width, height });
+  if (!crop) {
+    img.className = fill ? `${className} picture-fill` : className;
+    return img;
+  }
+  // The crop box has the crop's shape; the picture inside it is scaled and moved so only the crop
+  // shows. Its shape needs the picture's own, which the media index has, else the loaded picture.
+  const box = h("span", { class: "crop" }, img);
+  const shape = (across: number, down: number) =>
+    box.style.setProperty("--crop-ratio", String((crop.width * across) / (crop.height * down)));
+  if (width && height) shape(width, height);
+  else {
+    shape(1, 1);
+    img.addEventListener("load", () => shape(img.naturalWidth || 1, img.naturalHeight || 1));
+  }
+  img.style.width = `${(100 / crop.width) * 100}%`;
+  img.style.height = `${(100 / crop.height) * 100}%`;
+  img.style.left = `${(-crop.x / crop.width) * 100}%`;
+  img.style.top = `${(-crop.y / crop.height) * 100}%`;
+  if (!fill) {
+    box.classList.add(...className.split(" "));
+    return box;
+  }
+  return h("span", { class: `${className} crop-fill` }, box);
 }
 
 /** Sets `variables` on `element`, through its style object. */
@@ -99,7 +162,7 @@ export function isCourseFonts(value: unknown): value is CourseFonts {
   if (typeof value !== "object" || value === null) return false;
   const { families, heading, body, ui } = value as Record<string, unknown>;
   return (
-    [heading, body, ui].every((name) => typeof name === "string") &&
+    [heading, body, ui].every((name) => name === undefined || typeof name === "string") &&
     typeof families === "object" &&
     families !== null &&
     Object.values(families).every(
@@ -132,15 +195,16 @@ export function themeBackground(
 }
 
 /**
- * The background and text of the lesson header, or undefined for the light layout, the default
- * (blocks-editor.md 2.18 lesson headers).
+ * The background and text of the lesson header, or undefined for the light layout, the default,
+ * and for the image layout, which the shell draws with its picture and overlay (blocks-editor.md
+ * 2.18 lesson headers).
  */
 export function headerBackground(
   theme: Theme | undefined,
 ): { color: string; text: "light" | "dark" } | undefined {
   const headers = theme?.headers;
   const layout = headers?.layout ?? "light";
-  if (layout === "light") return undefined;
+  if (layout === "light" || layout === "image") return undefined;
   const colors = themeColors(theme);
   let color: string;
   let text: string;

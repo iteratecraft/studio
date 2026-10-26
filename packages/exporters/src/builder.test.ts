@@ -1,5 +1,6 @@
 import { nodeFonts, TEST_CUSTOM_FONT } from "@course-suite/fonts/test/node-fonts";
 import { type Course, PANEL } from "@course-suite/format";
+import { readZip } from "@course-suite/zip";
 import { describe, expect, test } from "vitest";
 import { PLAYER_STYLE } from "../dist/assets.js";
 import { stubCourse, stubInput, stubMedia, stubPlayer } from "../test/stub.js";
@@ -40,13 +41,7 @@ describe("buildPackage", () => {
     expect(first.files).toEqual([
       "adlcp_rootv1p2.xsd",
       "course/data.js",
-      // The default fonts (ENG-08): the course sets none.
-      "fonts/noto-sans-bold.woff2",
-      "fonts/noto-sans-italic.woff2",
-      "fonts/noto-sans-regular.woff2",
-      "fonts/noto-serif-bold.woff2",
-      "fonts/noto-serif-italic.woff2",
-      "fonts/noto-serif-regular.woff2",
+      // No fonts (ENG-08): the course chose none, so it shows in the device's fonts.
       "ims_xml.xsd",
       "imscp_rootv1p1p2.xsd",
       "imsmanifest.xml",
@@ -281,6 +276,7 @@ describe("fonts (ENG-08, BLK-09)", () => {
       "fonts/custom-testfont01-bold.woff2",
       "fonts/custom-testfont01-italic.woff2",
       "fonts/custom-testfont01-regular.woff2",
+      "fonts/montserrat-OFL.txt",
       "fonts/montserrat-bold.woff2",
       "fonts/montserrat-italic.woff2",
       "fonts/montserrat-regular.woff2",
@@ -297,15 +293,48 @@ describe("fonts (ENG-08, BLK-09)", () => {
     ]);
   });
 
-  test("UI-BLOCKS-EDITOR-R48 a custom font the library no longer has gives way to the default font of its role", async () => {
+  test("UI-BLOCKS-EDITOR-R48 a custom font the library no longer has gives way to the device's fonts", async () => {
     const gone = { kind: "custom", id: "gonefont01", name: "Gone" } as const;
     const { files, data } = await fontsOf(themed({ fonts: { heading: gone, body: gone } }));
-    expect(data).toMatchObject({
-      heading: "noto-sans",
-      body: "noto-serif",
-      ui: "noto-sans",
-    });
-    expect(files.some((path) => path.includes("gonefont01"))).toBe(false);
+    expect(data).toEqual({ families: {} });
+    expect(files).toEqual([]);
+  });
+
+  test("ENG-08, BLK-09: a course whose author chose no font carries no font: its text is in the learner's device fonts", async () => {
+    const { files, data } = await fontsOf(stubCourse());
+    expect(files).toEqual([]);
+    expect(data).toEqual({ families: {} });
+    // Only the body chosen: the package carries that family and nothing for the headings.
+    const body = await fontsOf(themed({ fonts: { body: { kind: "builtin", id: "literata" } } }));
+    expect(body.data).toMatchObject({ body: "literata" });
+    expect(body.data?.heading).toBeUndefined();
+    expect(body.files.every((path) => path.startsWith("fonts/literata-"))).toBe(true);
+  });
+
+  test("D-45, OFL-1.1 section 2: every bundled family a package carries has its licence beside it", async () => {
+    const { files } = await fontsOf(
+      themed({
+        fonts: {
+          heading: { kind: "builtin", id: "work-sans" },
+          body: { kind: "builtin", id: "crimson-pro" },
+        },
+      }),
+    );
+    expect(files.filter((path) => path.endsWith("OFL.txt"))).toEqual([
+      "fonts/crimson-pro-OFL.txt",
+      "fonts/work-sans-OFL.txt",
+    ]);
+    const zip = await readZip(
+      (
+        await built({
+          course: themed({ fonts: { heading: { kind: "builtin", id: "work-sans" } } }),
+        })
+      ).zip,
+    );
+    if (!zip.ok) throw new Error("unreadable package");
+    const licence = new TextDecoder().decode(await zip.value.read("fonts/work-sans-OFL.txt"));
+    expect(licence).toContain("SIL OPEN FONT LICENSE Version 1.1");
+    expect(licence).toContain("Work Sans Project Authors");
   });
 
   test("a custom font with only its regular face carries that face, as a .woff when it is one", async () => {
@@ -330,8 +359,13 @@ describe("fonts (ENG-08, BLK-09)", () => {
     });
     expect(found).toEqual([
       { file: "fonts/custom-testfont01-regular.font", message: "is not a WOFF or WOFF2 font" },
-      { file: "fonts/noto-serif", message: "is a font whose files are missing" },
     ]);
+    expect(
+      await problems({
+        course: themed({ fonts: { body: { kind: "builtin", id: "noto-serif" } } }),
+        fonts: () => undefined,
+      }),
+    ).toEqual([{ file: "fonts/noto-serif", message: "is a font whose files are missing" }]);
   });
 });
 

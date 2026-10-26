@@ -93,10 +93,7 @@ for (const standard of Object.keys(STANDARDS) as Standard[]) {
       }
       const fonts: PageCourse["fonts"] = {};
       const base64 = (data: Uint8Array | undefined) => data && Buffer.from(data).toString("base64");
-      for (const font of [
-        ...Object.values(fontsOf(course.theme)),
-        ...Object.values(fontsOf(undefined)),
-      ]) {
+      for (const font of Object.values(fontsOf(course.theme))) {
         const found = await nodeFonts(font);
         if (!found) continue;
         fonts[fontKey(font)] = {

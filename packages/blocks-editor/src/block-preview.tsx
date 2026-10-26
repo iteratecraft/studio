@@ -16,7 +16,8 @@ import {
 import { type FontLibrary, registerFont } from "./fonts.js";
 import type { CourseSession } from "./session.js";
 
-type Families = { heading: string; body: string; ui: string };
+/** A role left out shows in the device's fonts. */
+type Families = { heading?: string; body?: string; ui?: string };
 /** The families the editor registered for the course's heading, body and interface fonts. */
 const ThemeFamilies = createContext<Families | undefined>(undefined);
 
@@ -45,13 +46,12 @@ export function ThemeFonts({
   const [families, setFamilies] = useState<Families>();
   useEffect(() => {
     let live = true;
-    const fonts = library.resolve(theme);
-    void Promise.all([
-      registerFont(fonts.heading, library),
-      registerFont(fonts.body, library),
-      registerFont(fonts.ui, library),
-    ])
-      .then(([heading, body, ui]) => live && setFamilies({ heading, body, ui }))
+    const fonts = Object.entries(library.resolve(theme));
+    void Promise.all(fonts.map(([, font]) => registerFont(font, library)))
+      .then(
+        (keys) =>
+          live && setFamilies(Object.fromEntries(fonts.map(([role], i) => [role, keys[i]]))),
+      )
       .catch(() => {});
     return () => {
       live = false;

@@ -39,7 +39,7 @@ describe("the author's font library (BLK-09, blocks-editor.md T9, W21)", () => {
     expect(files?.bold).toBeUndefined();
   });
 
-  test("UI-BLOCKS-EDITOR-R48 editing a font changes what every course using it gets; deleting it returns them to the default font", async () => {
+  test("UI-BLOCKS-EDITOR-R48 editing a font changes what every course using it gets; deleting it returns them to the device's fonts", async () => {
     const { host, fonts } = await library();
     const added = await fonts.save({ name: "Comb", faces: { regular: font("wOF2", "one") } });
     const ref = { kind: "custom", id: added.id, name: "Comb" } as const;
@@ -57,11 +57,7 @@ describe("the author's font library (BLK-09, blocks-editor.md T9, W21)", () => {
     expect(fonts.fonts).toEqual([]);
     expect(dataFiles(host)).toEqual([]);
     expect(await fonts.source(ref)).toBeUndefined();
-    expect(fonts.resolve(theme)).toEqual({
-      heading: { kind: "builtin", id: "noto-sans" },
-      body: { kind: "builtin", id: "noto-serif" },
-      ui: { kind: "builtin", id: "noto-sans" },
-    });
+    expect(fonts.resolve(theme)).toEqual({});
   });
 
   test("an optional face can be removed; the regular face cannot, and only WOFF or WOFF2 under 5 MB is taken", async () => {

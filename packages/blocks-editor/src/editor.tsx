@@ -3,6 +3,7 @@
 // later waves; under it the course overview (title, author, description and the outline), one open
 // lesson, the theme panel, or the preview of the course in the real player.
 import { type Entry, lessonLink } from "@course-suite/format";
+import type { HostInterface } from "@course-suite/host";
 import {
   Button,
   IconButton,
@@ -55,6 +56,8 @@ export interface EditorFrameProps {
   clipboard: Clipboard;
   /** The author's fonts, in every course (M2-17). */
   library: FontLibrary;
+  /** The app's files and dialogs: the theme's pictures come through its open dialog (M2-17). */
+  host: HostInterface;
 }
 
 export function EditorFrame({
@@ -66,6 +69,7 @@ export function EditorFrame({
   onCopyEntry,
   clipboard,
   library,
+  host,
 }: EditorFrameProps) {
   const t = useStrings();
   useSession(session);
@@ -197,6 +201,7 @@ export function EditorFrame({
           </header>
           {view.kind === "theme" ? (
             <ThemeView
+              host={host}
               session={session}
               library={library}
               fonts={library.source}

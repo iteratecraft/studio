@@ -4,6 +4,7 @@ import type { Theme } from "./course.js";
 import {
   BUILTIN_FONTS,
   contrastOf,
+  cropOf,
   FONT_PAIRINGS,
   fontKey,
   fontsOf,
@@ -51,6 +52,20 @@ test("[rise:R18] BLK-09, ENG-08: automatic contrast keeps text at 4.5:1 and them
       contrastOf(PAGE_TEXT, c.accentSoft),
       `outline highlight of ${color}`,
     ).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test("[rise:R18] ENG-08: text on an element filled with the accent colour keeps 4.5:1 for 2,000 random theme colours, whatever the button text is", () => {
+  // The accent and the button differ: the default orange gives a button with dark text but an
+  // accent dark enough for white text, so one text colour cannot serve both.
+  const orange = themeColors(undefined);
+  expect(orange.buttonText).toBe("#000000");
+  expect(orange.accentText).toBe("#ffffff");
+  for (const color of [...randomColors(2000), ...THEME_COLORS]) {
+    for (const contrast of ["auto", "light", "dark"] as const) {
+      const c = themeColors({ color, contrast });
+      expect(contrastOf(c.accentText, c.accent), `text on ${color}`).toBeGreaterThanOrEqual(4.5);
+    }
   }
 });
 
@@ -103,14 +118,13 @@ test("UI-BLOCKS-EDITOR-R43 BLK-09: a layout style changes only the cover and hea
   }
 });
 
-test("BLK-09: fonts default to the first pairing, and the interface follows the heading", () => {
-  expect(fontsOf(undefined)).toEqual({
-    heading: { kind: "builtin", id: "noto-sans" },
-    body: { kind: "builtin", id: "noto-serif" },
-    ui: { kind: "builtin", id: "noto-sans" },
+test("BLK-09, ENG-08: a role without a chosen font shows in device fonts, and the interface follows the heading", () => {
+  expect(fontsOf(undefined)).toEqual({});
+  expect(fontsOf({ fonts: { body: { kind: "builtin", id: "literata" } } })).toEqual({
+    body: { kind: "builtin", id: "literata" },
   });
   const custom = { kind: "custom", id: "fontabc123", name: "House" } as const;
-  expect(fontsOf({ fonts: { heading: custom } }).ui).toEqual(custom);
+  expect(fontsOf({ fonts: { heading: custom } })).toEqual({ heading: custom, ui: custom });
   expect(fontKey(custom)).toBe("custom-fontabc123");
   expect(fontKey({ kind: "builtin", id: "inter" })).toBe("inter");
 });
@@ -135,6 +149,24 @@ test("a cover overlay must be dark enough for its text over any picture", () => 
   expect(overlayFloor("#ffff00", "#ffffff")).toBeUndefined();
 });
 
+test("BLK-09 blocks-editor T4, T6: a crop shows a part of the image it was made for, kept inside it", () => {
+  expect(cropOf(undefined, "a.png")).toBeUndefined();
+  expect(cropOf({ x: 10, y: 20, width: 50, height: 40 }, "a.png")).toEqual({
+    x: 10,
+    y: 20,
+    width: 50,
+    height: 40,
+  });
+  // Made for another picture: the new one shows whole.
+  expect(cropOf({ key: "b.png", x: 0, y: 0, width: 50, height: 50 }, "a.png")).toBeUndefined();
+  expect(cropOf({ key: "a.png", x: 80, y: 90, width: 50, height: 50 }, "a.png")).toEqual({
+    x: 80,
+    y: 90,
+    width: 20,
+    height: 10,
+  });
+});
+
 test("a course with a theme validates; an unknown theme setting does not", () => {
   const course = minimalCourse();
   course.theme = {
@@ -149,8 +181,15 @@ test("a course with a theme validates; an unknown theme setting does not", () =>
     animations: false,
     corners: "square",
     buttons: "square",
+    textSizes: { body: 18, heading: 36, subheading: 26 },
   };
   expect(validateCourse(course)).toEqual([]);
+  const big = { ...course, theme: { textSizes: { body: 80 } } };
+  expect(validateCourse(big as never)).not.toEqual([]);
+  const logo = { ...course, theme: { cover: { logo: { key: "nowhere.png" } } } };
+  expect(validateCourse(logo as never)).toEqual([
+    { path: "/theme/cover/logo/key", message: "is not in the media index" },
+  ]);
   const wrong = { ...course, theme: { ...course.theme, shade: "#000000" } };
   expect(validateCourse(wrong as never)).not.toEqual([]);
   const font = { ...course, theme: { fonts: { heading: { kind: "builtin", id: "comic" } } } };

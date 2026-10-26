@@ -3,7 +3,7 @@
 // it. Same course, player, media and options always give the same bytes.
 import { FONT_FACES, type FontFiles, fontFormat } from "@course-suite/fonts";
 import type { Course, FontRef, FontRole, PublishSettings } from "@course-suite/format";
-import { defaultFont, fontKey, fontsOf, validateCourse } from "@course-suite/format";
+import { fontKey, fontsOf, validateCourse } from "@course-suite/format";
 import type { CourseFonts, PackagedFace } from "@course-suite/player-blocks";
 import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
 import { checkResume, resumeCapFor } from "@course-suite/tracking";
@@ -174,38 +174,36 @@ export interface PackagedFonts {
 const ROLES: readonly FontRole[] = ["heading", "body", "ui"];
 
 /**
- * Every font the theme of `course` uses and only those (ENG-08, D-45), each face as a file in
- * `fonts/`, named by font key so a package never names a font by an address elsewhere. A custom font
- * the library no longer has gives way to the default font of its role (UI-BLOCKS-EDITOR-R48).
+ * Every font the theme of `course` chose and only those (ENG-08, D-45), each face as a file in
+ * `fonts/`, named by font key so a package never names a font by an address elsewhere, with the
+ * licence that must travel with it (OFL-1.1 section 2) as `fonts/<key>-OFL.txt`. A role without a
+ * font, or whose custom font the library no longer has, shows in the learner's device fonts
+ * (UI-BLOCKS-EDITOR-R48), so the package carries nothing for it.
  */
 export async function packagedFonts(course: Course, source: FontSource): Promise<PackagedFonts> {
   const chosen = fontsOf(course.theme);
   const read = new Map<string, Promise<FontFiles | undefined>>();
-  const load = (font: FontRef) => {
+  const fonts: CourseFonts = { families: {} };
+  const files: PackageFile[] = [];
+  const problems: Problem[] = [];
+  for (const role of ROLES) {
+    const font = chosen[role];
+    if (!font) continue;
     const key = fontKey(font);
     if (!read.has(key))
       read.set(
         key,
         Promise.resolve().then(() => source(font)),
       );
-    return read.get(key) as Promise<FontFiles | undefined>;
-  };
-  const fonts: CourseFonts = { families: {}, heading: "", body: "", ui: "" };
-  const files: PackageFile[] = [];
-  const problems: Problem[] = [];
-  for (const role of ROLES) {
-    let font = chosen[role];
-    let found = await load(font);
-    if (!found && font.kind === "custom") {
-      font = defaultFont(role);
-      found = await load(font);
-    }
-    const key = fontKey(font);
+    const found = await read.get(key);
     if (!found) {
-      problems.push({
-        file: `${FONTS_FOLDER}/${key}`,
-        message: "is a font whose files are missing",
-      });
+      // A bundled font is part of the app, so its files missing is a broken build, not a choice.
+      if (font.kind === "builtin") {
+        problems.push({
+          file: `${FONTS_FOLDER}/${key}`,
+          message: "is a font whose files are missing",
+        });
+      }
       continue;
     }
     fonts[role] = key;
@@ -227,6 +225,7 @@ export async function packagedFonts(course: Course, source: FontSource): Promise
         style: face === "italic" ? "italic" : "normal",
       });
     }
+    if (found.licence) files.push({ path: `${FONTS_FOLDER}/${key}-OFL.txt`, data: found.licence });
     fonts.families[key] = faces;
   }
   return { fonts, files, problems };

@@ -40,6 +40,7 @@ const TYPES: Record<string, string> = {
   mp4: "video/mp4",
   png: "image/png",
   svg: "image/svg+xml",
+  txt: "text/plain",
   vtt: "text/vtt",
   wav: "audio/wav",
   webm: "video/webm",
