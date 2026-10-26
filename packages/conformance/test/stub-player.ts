@@ -3,6 +3,7 @@
 // it was given and finishes, so a test can see that the package's files load in an LMS.
 import type { BuildInput, PlayerBundle } from "@course-suite/exporters";
 import { scorm12Exporter } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -64,6 +65,7 @@ export function stubInput(): BuildInput {
     player: stubPlayer(),
     exporter: scorm12Exporter(),
     media: (key) => (key === "cover.jpg" ? new Uint8Array([0xff, 0xd8, 0xff, 0xe0]) : undefined),
+    fonts: nodeFonts,
     packageVersion: 2,
   };
 }

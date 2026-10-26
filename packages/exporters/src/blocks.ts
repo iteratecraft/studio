@@ -2,8 +2,7 @@
 // player files every Blocks package ships, whatever the standard. An index page with an empty app
 // root, the player as one classic script and its style sheet under content-hashed names (so a
 // republished package never runs a stale cached player), and the course data file the player loads by
-// script tag. The builder adds `media/` beside them. The player uses the system font stack, so there
-// is no fonts folder yet.
+// script tag. The builder adds `media/` and the theme's `fonts/` beside them.
 import { courseDataScript, DATA_FILE, indexPage, largestResume } from "@course-suite/player-blocks";
 // Embedded at build time by scripts/bundle-player.ts, so building needs no file system (ADR-0006).
 import { PLAYER_SCRIPT, PLAYER_STYLE } from "../dist/assets.js";

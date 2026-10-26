@@ -45,7 +45,19 @@ test("a built SCORM 1.2 package reads back with its manifest and every file list
       type: "webcontent",
       scormType: "sco",
       href: "index.html",
-      files: ["course/data.js", "index.html", "media/cover.jpg", "player/boot.js"],
+      files: [
+        "course/data.js",
+        // The theme's default fonts (ENG-08): the manifest lists them like any content file.
+        "fonts/noto-sans-bold.woff2",
+        "fonts/noto-sans-italic.woff2",
+        "fonts/noto-sans-regular.woff2",
+        "fonts/noto-serif-bold.woff2",
+        "fonts/noto-serif-italic.woff2",
+        "fonts/noto-serif-regular.woff2",
+        "index.html",
+        "media/cover.jpg",
+        "player/boot.js",
+      ],
       dependencies: [],
     },
   ]);

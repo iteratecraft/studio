@@ -23,6 +23,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/preview": "workspace:*",
     "@playwright/test": "catalog:",

@@ -7,7 +7,7 @@
 import type { Course } from "@course-suite/format";
 import { pageHash, pagesOf, parseRoute } from "@course-suite/player-blocks";
 import type { AdapterCall } from "@course-suite/tracking";
-import { type MediaSource, type PreviewPackage, previewPackage } from "./files.js";
+import { type FontSource, type MediaSource, type PreviewPackage, previewPackage } from "./files.js";
 import { FRAME_URL, type FromFrame, type ToFrame } from "./frame.js";
 
 /** The document and its change events; a doc-ops Editor is one. */
@@ -19,6 +19,8 @@ export interface PreviewSource {
 export interface PreviewOptions {
   source: PreviewSource;
   media: MediaSource;
+  /** The files of the theme's fonts: bundled, or from the author's font library (ENG-08). */
+  fonts: FontSource;
   /** Id of the lesson or quiz to open first; the overview when absent. */
   start?: string | undefined;
   /** Accessible name of the frame. */
@@ -57,7 +59,7 @@ interface Load {
  * `data-pending` attribute: style it hidden, over the frame on show.
  */
 export function createPreview(container: HTMLElement, options: PreviewOptions): Preview {
-  const { source, media } = options;
+  const { source, media, fonts } = options;
   const startHash = options.start ? pageHash(options.start) : "";
   let hash = startHash;
   let scrollY = 0;
@@ -78,7 +80,7 @@ export function createPreview(container: HTMLElement, options: PreviewOptions): 
     pending = {
       frame,
       started: performance.now(),
-      files: previewPackage(source.document, media),
+      files: previewPackage(source.document, media, fonts),
     };
     container.append(frame);
   }

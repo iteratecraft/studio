@@ -10,6 +10,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import { sampleCourse } from "@course-suite/format/test/courses";
 import { FRAME_URL, previewPackage } from "@course-suite/preview";
 import { type Browser, chromium, expect, type Page, test } from "@playwright/test";
@@ -256,7 +257,7 @@ test("the course preview runs the real player in WebView2 under the shell's poli
   const svg = (text: string) =>
     new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg">${text}</svg>`);
   const media: Record<string, Uint8Array> = { "cover.svg": svg("c"), "compost-bin.svg": svg("b") };
-  const { index, files } = await previewPackage(course, (key) => media[key]);
+  const { index, files } = await previewPackage(course, (key) => media[key], nodeFonts);
   // What createPreview does, by hand: the page bundle has no preview yet (the editor brings it).
   const violations = await page.evaluate(
     async ({ url, index, files }) => {

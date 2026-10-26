@@ -4,7 +4,9 @@
 import {
   blocksPlayer,
   courseDataFor,
+  type FontSource,
   MEDIA_FOLDER,
+  packagedFonts,
   packagedMediaKeys,
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
@@ -12,6 +14,7 @@ import type { PackageFile } from "./frame.js";
 
 /** The bytes of a media file in the project, by storage key; undefined when it is missing. */
 export type MediaSource = (key: string) => Uint8Array | undefined | Promise<Uint8Array | undefined>;
+export type { FontSource };
 
 export interface PreviewPackage {
   /** The package's index page. */
@@ -41,6 +44,7 @@ const TYPES: Record<string, string> = {
   wav: "audio/wav",
   webm: "video/webm",
   webp: "image/webp",
+  woff: "font/woff",
   woff2: "font/woff2",
 };
 
@@ -48,17 +52,30 @@ const typeOf = (path: string, fallback = "") =>
   TYPES[path.slice(path.lastIndexOf(".") + 1).toLowerCase()] ?? fallback;
 
 /**
- * The plain web package of `course`, in memory. A media file the project does not have is left
- * out, so the player shows it as missing, as a package built without it would.
+ * The plain web package of `course`, in memory, with the fonts of its theme (ENG-08). A media file
+ * or font the project cannot give is left out, so the player shows it as missing, as a package
+ * built without it would.
  */
-export async function previewPackage(course: Course, media: MediaSource): Promise<PreviewPackage> {
+export async function previewPackage(
+  course: Course,
+  media: MediaSource,
+  fonts: FontSource,
+): Promise<PreviewPackage> {
   const player = blocksPlayer({ language: course.sourceLanguage ?? "en" });
-  const data = player.courseDataScript(courseDataFor(course, "web", PACKAGE_VERSION));
+  const themed = await packagedFonts(course, (font) =>
+    Promise.resolve()
+      .then(() => fonts(font))
+      .catch(() => undefined),
+  );
+  const data = player.courseDataScript(
+    courseDataFor(course, "web", PACKAGE_VERSION, undefined, themed.fonts),
+  );
   const files: PackageFile[] = [];
   for (const [path, bytes] of player.files) {
     if (path !== player.launchPage) files.push([path, bytes, typeOf(path)]);
   }
   files.push([data.path, data.data, typeOf(data.path)]);
+  for (const { path, data: bytes } of themed.files) files.push([path, bytes, typeOf(path)]);
   const keys = packagedMediaKeys(course);
   // A file the project cannot read shows as missing too; the rest of the course still shows.
   const bytes = await Promise.all(

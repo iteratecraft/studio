@@ -1,10 +1,12 @@
 // The export job (M2-06, ENG-15) in Node.js with the build in-process, as the server will run it.
+
 import {
   blocksPlayer,
   buildPackage,
   packagedMediaKeys,
   scorm12Exporter,
 } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 import { fullCourse } from "@course-suite/format/test/courses";
 import { describe, expect, test } from "vitest";
@@ -29,7 +31,7 @@ async function setup(course: Course, media = standIn, load?: () => Promise<void>
       [EXPORT_JOB]: exportJob({
         load: async () => {
           await load?.();
-          return { course, media: async (key) => media(key) };
+          return { course, media: async (key) => media(key), fonts: nodeFonts };
         },
         build: buildExport,
       }),
@@ -59,6 +61,7 @@ describe("export job", () => {
       player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
       exporter: scorm12Exporter(),
       media: standIn,
+      fonts: nodeFonts,
       packageVersion: 1,
     });
     if (!expected.ok) throw new Error(JSON.stringify(expected.problems));

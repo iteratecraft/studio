@@ -2,7 +2,7 @@
 // edit button that returns to the lesson on show, a restart that forgets the learner's progress,
 // and device buttons for computer, tablet and phone widths. The player runs in a sandboxed frame
 // from @course-suite/preview; this is only its frame of controls.
-import type { MediaSource, Preview, PreviewSource } from "@course-suite/preview";
+import type { FontSource, MediaSource, Preview, PreviewSource } from "@course-suite/preview";
 import {
   type CSSProperties,
   type Ref,
@@ -15,7 +15,7 @@ import { Button, ToggleButton, ToggleButtonGroup, Toolbar } from "./buttons.js";
 import { Icon } from "./icons.js";
 import { useStrings } from "./provider.js";
 
-export type { MediaSource, Preview, PreviewSource };
+export type { FontSource, MediaSource, Preview, PreviewSource };
 
 /** Widths the author previews at (UI-BLOCKS-EDITOR 2.20, R53); a computer gets the whole pane. */
 export const DEVICE_WIDTHS = { computer: undefined, tablet: 768, phone: 375 } as const;
@@ -26,6 +26,8 @@ export interface PreviewPaneProps {
   source: PreviewSource;
   /** The bytes of a project media file by storage key. Keep it stable: a new one reloads. */
   media: MediaSource;
+  /** The files of the theme's fonts (ENG-08). Keep it stable: a new one reloads. */
+  fonts: FontSource;
   /** Id of the lesson or quiz being edited, to open first; the overview when absent. */
   start?: string | undefined;
   /** The edit button: back to the editor at the lesson on show (undefined on the overview). */
@@ -36,7 +38,15 @@ export interface PreviewPaneProps {
   ref?: Ref<Pick<Preview, "page" | "scrollY" | "calls" | "restart">>;
 }
 
-export function PreviewPane({ source, media, start, onEdit, onRender, ref }: PreviewPaneProps) {
+export function PreviewPane({
+  source,
+  media,
+  fonts,
+  start,
+  onEdit,
+  onRender,
+  ref,
+}: PreviewPaneProps) {
   const t = useStrings();
   const [device, setDevice] = useState<Device>("computer");
   const stage = useRef<HTMLDivElement>(null);
@@ -59,6 +69,7 @@ export function PreviewPane({ source, media, start, onEdit, onRender, ref }: Pre
       running = createPreview(container, {
         source,
         media,
+        fonts,
         start,
         title: latest.current.title,
         onRender: (ms) => latest.current.onRender?.(ms),
@@ -70,7 +81,7 @@ export function PreviewPane({ source, media, start, onEdit, onRender, ref }: Pre
       running?.dispose();
       preview.current = null;
     };
-  }, [source, media, start]);
+  }, [source, media, fonts, start]);
 
   useImperativeHandle(
     ref,

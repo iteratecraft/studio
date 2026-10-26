@@ -1,5 +1,6 @@
 // A stub player bundle and a small course for tests, written by hand for this package. The real
 // player bundle comes from the player package (M1-09); it implements the same PlayerBundle contract.
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 import type { BuildInput, PlayerBundle } from "../src/index.js";
 import { scorm12Exporter } from "../src/index.js";
@@ -84,6 +85,7 @@ export function stubInput(overrides: Partial<BuildInput> = {}): BuildInput {
     player: stubPlayer(),
     exporter: scorm12Exporter({ typicalLearningTime: "PT20M" }),
     media: (key) => stubMedia[key],
+    fonts: nodeFonts,
     packageVersion: 3,
     ...overrides,
   };

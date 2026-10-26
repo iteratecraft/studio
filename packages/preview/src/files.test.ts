@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import { sampleCourse } from "@course-suite/format/test/courses";
 import { HOOKS_GLOBAL } from "@course-suite/player-blocks";
 import { readZip } from "@course-suite/zip";
@@ -21,13 +22,14 @@ describe("previewPackage", () => {
       player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
       exporter: webExporter(),
       media: (key) => media[key],
+      fonts: nodeFonts,
       packageVersion: 1,
     });
     if (!built.ok) throw new Error(JSON.stringify(built.problems));
     const zip = await readZip(built.value.zip);
     if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
 
-    const preview = await previewPackage(course, (key) => media[key]);
+    const preview = await previewPackage(course, (key) => media[key], nodeFonts);
     const exported = new Map<string, Uint8Array>();
     for (const name of zip.value.names)
       exported.set(name, (await zip.value.read(name)) as Uint8Array);
@@ -39,7 +41,7 @@ describe("previewPackage", () => {
   }, 30_000);
 
   test("gives each file the type a web server would, SVG images included", async () => {
-    const preview = await previewPackage(sampleCourse(), (key) => media[key]);
+    const preview = await previewPackage(sampleCourse(), (key) => media[key], nodeFonts);
     const types = Object.fromEntries(
       preview.files.map(([path, , type]) => [path.replace(/\.[0-9a-f]{10}\./, "."), type]),
     );
@@ -47,19 +49,31 @@ describe("previewPackage", () => {
       "player.js": "text/javascript",
       "player.css": "text/css",
       "course-data.js": "text/javascript",
+      "fonts/noto-sans-regular.woff2": "font/woff2",
+      "fonts/noto-sans-bold.woff2": "font/woff2",
+      "fonts/noto-sans-italic.woff2": "font/woff2",
+      "fonts/noto-serif-regular.woff2": "font/woff2",
+      "fonts/noto-serif-bold.woff2": "font/woff2",
+      "fonts/noto-serif-italic.woff2": "font/woff2",
       "media/cover.svg": "image/svg+xml",
       "media/compost-bin.svg": "image/svg+xml",
     });
   });
 
-  test("leaves out a media file the project cannot give, and still builds the rest", async () => {
-    const preview = await previewPackage(sampleCourse(), (key) => {
-      if (key === "cover.svg") throw new Error("unreadable");
-      return undefined;
-    });
-    expect(preview.files.map(([path]) => path).filter((path) => path.startsWith("media/"))).toEqual(
-      [],
+  test("leaves out a media file or font the project cannot give, and still builds the rest", async () => {
+    const preview = await previewPackage(
+      sampleCourse(),
+      (key) => {
+        if (key === "cover.svg") throw new Error("unreadable");
+        return undefined;
+      },
+      () => {
+        throw new Error("unreadable");
+      },
     );
+    expect(
+      preview.files.map(([path]) => path).filter((path) => /^(media|fonts)\//.test(path)),
+    ).toEqual([]);
     expect(preview.files).toHaveLength(3);
   });
 });

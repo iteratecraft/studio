@@ -78,4 +78,4 @@ so React Aria does not try (see `apps/desktop/index.html`).
   `@tauri-apps/*`: files, dialogs and processes go through the host interface (ADR-0006).
   `pnpm lint` enforces it; `tools/lint/editor-imports.test.ts` shows what it reports.
 - No ports: the kit needs no files, storage or time of its own. `PreviewPane` takes the media
-  bytes it shows from its caller.
+  bytes and the theme's font files it shows from its caller.

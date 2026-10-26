@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import { type Course, openCourse } from "@course-suite/format";
 import { sampleCourse } from "@course-suite/format/test/courses";
 import type { AdapterCall } from "@course-suite/tracking";
@@ -83,6 +84,7 @@ async function exportedWebPackage({ course, media }: Fixture): Promise<string> {
     player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
     exporter: webExporter(),
     media: (key) => media[key],
+    fonts: nodeFonts,
     packageVersion: 1,
   });
   if (!built.ok) throw new Error(JSON.stringify(built.problems));

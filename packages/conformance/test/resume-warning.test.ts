@@ -1,5 +1,6 @@
 // M2-07 on the long-resume corpus course (M1-28): the publish-time resume estimate keeps it under
 // SCORM 1.2's 4,096 characters, and a longer course built from its lessons gets the author warning.
+
 import {
   blocksPlayer,
   buildPackage,
@@ -7,6 +8,7 @@ import {
   scorm12Exporter,
   scorm2004Exporter,
 } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 import { describe, expect, test } from "vitest";
 import { corpusCourses } from "./blocks.js";
@@ -19,6 +21,7 @@ async function warnings(course: Course, exporter: Exporter) {
     player: blocksPlayer(),
     exporter,
     media: longResume?.media ?? (() => undefined),
+    fonts: nodeFonts,
     packageVersion: 1,
   });
   if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
