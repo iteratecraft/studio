@@ -414,12 +414,12 @@ Wave F, foundation:
 
 Wave G, editor core:
 
-- [ ] **M2-08** Authoring shell, project files and dashboard (BLK-01)
-- [ ] **M2-09** Course outline, lessons and sections (BLK-02)
-- [ ] **M2-10** Block editing core and common block settings (BLK-03)
-- [ ] **M2-11** Real-player preview (ENG-13)
+- [x] **M2-08** Authoring shell, project files and dashboard (BLK-01)
+- [x] **M2-09** Course outline, lessons and sections (BLK-02)
+- [x] **M2-10** Block editing core and common block settings (BLK-03)
+- [x] **M2-11** Real-player preview (ENG-13)
 
-Wave H, content:
+Wave H, content (D-42: two halves, H1 = M2-12, M2-13, M2-17; H2 = M2-14, M2-15, M2-16):
 
 - [ ] **M2-12** Text and static content blocks (BLK-04)
 - [ ] **M2-13** Media intake, media blocks and VTT captions (ENG-14 basic, BLK-05, ENG-07 captions)
@@ -493,6 +493,15 @@ Wave I, release:
 | D-35 | Long-resume author warning | **Decided 2026-10-25:** counts only the data the player really stores; a course under the SCORM 1.2 limit of 4,096 characters gets no warning | done |
 | D-36 | Deleting a lesson that buttons point to | **Decided 2026-10-25:** the buttons that point to it are removed with it, in the same undo step | done |
 | D-37 | Built-in control text | **Decided 2026-10-25:** React Aria's text for 34 languages (27 KB) stays until the editor's languages are chosen | revisit with editor languages |
+| D-38 | Spec items left for later waves | **Decided 2026-10-26:** cover images M2-13; starter templates M2-12; publish M2-18; translate M2b (BLK-16); send a copy M4 (BLK-18); lesson-template rows M3c (BLK-14); microlearning continuous or stepped mode M2-16 | done |
+| D-39 | Course folders, move and shortcuts on the dashboard | **Decided 2026-10-26:** none in the desktop app; personal folders come with the server edition (M3) | done |
+| D-40 | Ctrl/Cmd+S in text | **Decided 2026-10-26:** Ctrl/Cmd+S always saves the course; strikethrough is Ctrl/Cmd+Shift+X | done |
+| D-41 | Deleting a course on desktop | **Decided 2026-10-26:** moves it to a Deleted list with undo; the file on disk is never deleted | done |
+| D-42 | Wave H layout | **Decided 2026-10-26:** two halves of three tasks, each task branched from main and built side by side, each half with review, fix round and re-review | done |
+| D-43 | Where the ffmpeg build comes from (with D-12) | **Decided 2026-10-26:** a pinned LGPL build from a public GitHub release, checked by SHA-256, kept in the app data folder | done |
+| D-44 | Web embeds | **Decided 2026-10-26:** a short built-in provider list matched by URL pattern, no lookup service while authoring; the learner's browser loads the provider only when the learner plays it | done |
+| D-45 | Bundled fonts | **Decided 2026-10-26:** 8 open-licence (OFL) families as woff2 Latin subsets, about 1 MB; custom .woff upload; exports carry only the fonts used | done |
+| D-46 | Quiz flow (not in the spec) | **Decided 2026-10-26:** one question per page, submit, feedback, then a results page with retry | done |
 
 ## How to read the backlog
 
