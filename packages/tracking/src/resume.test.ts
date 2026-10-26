@@ -89,7 +89,11 @@ function encode(state: ResumeState, options = NO_CAP): string {
   return result.payload;
 }
 
-describe("round trip", () => {
+// The random-state loops take well under a second alone, but CI runs every package's tests at once
+// on a few cores, where this file has taken 15 to 24 s: those blocks get a budget for that.
+const LOOPS = 30_000;
+
+describe("round trip", { timeout: LOOPS }, () => {
   test("10,000 random states decode to the same state and package version", () => {
     const random = seeded(1);
     for (let i = 0; i < 10_000; i++) {
@@ -169,7 +173,7 @@ describe("canonical form", () => {
   });
 });
 
-describe("size caps", () => {
+describe("size caps", { timeout: LOOPS }, () => {
   test("the caps per target", () => {
     expect(RESUME_CAPS).toEqual({
       scorm12: 4_096,
@@ -256,7 +260,7 @@ describe("size caps", () => {
   });
 });
 
-describe("versions", () => {
+describe("versions", { timeout: LOOPS }, () => {
   test("[rise:R12] the envelope keeps the package version, so an update is detected", () => {
     const payload = encode({ done: ["lesson0001"] }, { packageVersion: "3", cap: 100 });
     expect(decodeResume(payload)).toMatchObject({ status: "ok", packageVersion: "3" });
