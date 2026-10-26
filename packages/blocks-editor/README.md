@@ -58,5 +58,8 @@ the style and format menus take it as it is.
 
 ## Size
 
-Built for the browser (`pnpm --filter @course-suite/web build`, then `size`, gzip -9): see the
-pull request for the current figures.
+Built for the browser (`pnpm --filter @course-suite/web build`, then `size`, gzip -9): this package
+with the engine packages it uses (doc-ops, format, host, project, zip) is 40.9 KB gzipped, on top of
+React (65.8 KB), React Aria (121.1 KB) and the kit (19.4 KB); `editor.html` loads 248.5 KB in all.
+The block previews (the player's block renderer and style sheet, 8.6 KB) load with the first lesson
+opened, and the player chunk of the course preview (46.6 KB) with the first preview. No dependency.
