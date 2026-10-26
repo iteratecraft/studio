@@ -506,18 +506,27 @@ test("closing the window asks the page, which lets it close with no course open"
  * The title of the app's main window, as Windows shows it. Asked without blocking the test's own
  * event loop, and given up after 20 s, so a slow PowerShell start cannot stall Playwright.
  */
-async function windowTitle(): Promise<string> {
-  const { stdout } = await promisify(execFile)(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      `[Diagnostics.Process]::GetProcessById(${app.pid}).MainWindowTitle`,
-    ],
-    { encoding: "utf8", timeout: 20_000 },
-  );
-  return stdout.trim();
+/**
+ * The app window's title, or undefined when PowerShell did not answer in time: it can take tens of
+ * seconds to start on a CI runner, so the caller's poll asks again rather than failing.
+ */
+async function windowTitle(): Promise<string | undefined> {
+  try {
+    const { stdout } = await promisify(execFile)(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `[Diagnostics.Process]::GetProcessById(${app.pid}).MainWindowTitle`,
+      ],
+      { encoding: "utf8", timeout: 45_000 },
+    );
+    return stdout.trim();
+  } catch (error) {
+    if ((error as { killed?: boolean }).killed) return undefined;
+    throw error;
+  }
 }
 
 /** The app process and every process below it (the WebView2 browser, renderer, GPU...). */

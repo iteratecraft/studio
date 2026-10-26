@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { staticBlocksCourse } from "../test/courses.js";
 import { edit } from "../test/edit.js";
+import type { Block } from "./course.js";
 import { validateCourse } from "./validate.js";
-import { VARIANTS, variantSettings } from "./variants.js";
+import { deepestHeadingLevel, headingLevel, VARIANTS, variantSettings } from "./variants.js";
 
 const READ = "/entries/0/blocks";
 const at = (id: string) => {
@@ -84,6 +85,13 @@ describe("text and static block variants (BLK-04)", () => {
       "must be one of",
     ],
     [
+      "an image linked to a script",
+      `${at("stimgcentr")}/variantSettings/link`,
+      "javascript:alert(1)",
+      "/variantSettings/link",
+      "must match",
+    ],
+    [
       "an unknown quote variant",
       `${at("stquotecar")}/variant`,
       "quote-z",
@@ -152,5 +160,40 @@ describe("text and static block variants (BLK-04)", () => {
     }
     expect(VARIANTS.statement?.note).toBe(VARIANTS.statement?.["statement-a"]);
     expect(VARIANTS.quote?.carousel).toBe(VARIANTS.quote?.["quote-a"]);
+  });
+});
+
+describe("the heading outline of a lesson (BLK-04)", () => {
+  const text = (variant: string, level?: number, title = "<p>x</p>"): Block => ({
+    id: `blk${variant}${level ?? ""}`,
+    category: "text",
+    variant,
+    items: [{ id: "itm", kind: "content", title, text: "<p>Body</p>" }],
+    ...(level !== undefined && { variantSettings: { headingLevel: level } }),
+  });
+
+  test("[rise:3C] a heading asks for its chosen level, else 2 for a heading and 3 for a subheading", () => {
+    expect(headingLevel(text("heading"))).toBe(2);
+    expect(headingLevel(text("paragraph-with-subheading"))).toBe(3);
+    expect(headingLevel(text("subheading", 5))).toBe(5);
+    // No heading: a paragraph, an empty heading, another category.
+    expect(headingLevel(text("paragraph", 4))).toBeUndefined();
+    expect(headingLevel(text("heading", 2, ""))).toBeUndefined();
+    expect(headingLevel({ id: "b", category: "statement", variant: "note" })).toBeUndefined();
+  });
+
+  test("[rise:3C] accessibility W18: a heading may go at most one level below the nearest heading above it", () => {
+    const blocks = [
+      text("heading"),
+      text("paragraph"),
+      text("subheading"),
+      text("heading", 2, ""),
+      text("subheading", 5),
+    ];
+    // Under the lesson title, level 2; a paragraph or an empty heading does not count.
+    expect(deepestHeadingLevel(blocks, 0)).toBe(2);
+    expect(deepestHeadingLevel(blocks, 2)).toBe(3);
+    expect(deepestHeadingLevel(blocks, 4)).toBe(4);
+    expect(deepestHeadingLevel(blocks, 5)).toBe(6);
   });
 });

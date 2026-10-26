@@ -5,7 +5,8 @@
 // Sibling variants that the editor switches between share one table, so a switch keeps every
 // setting valid (UI-BLOCKS-EDITOR-R25). The validator checks documents against these tables and the
 // player and the editor read settings through `variantSettings`, so the defaults live here only.
-import type { Block } from "./course.js";
+import type { Block, ContentItem } from "./course.js";
+import { LINK_PATTERN } from "./richtext.js";
 
 /** One setting: its JSON Schema (the subset the validator knows) and the value it has when unset. */
 export interface Setting {
@@ -99,6 +100,9 @@ const IMAGE: Record<string, Setting> = {
   // Text on an image: the colour laid over the picture, at an opacity in percent.
   overlay: { schema: COLOR, default: "#000000" },
   overlayOpacity: { schema: int(0, 100), default: 50 },
+  // Where the picture links to: a web page or a lesson of the course (2.10); unset, no link. A
+  // linked picture opens its link instead of enlarging.
+  link: { schema: { type: "string", pattern: LINK_PATTERN } },
 };
 
 const GALLERY: Record<string, Setting> = {
@@ -243,3 +247,45 @@ export const FULL_BLEED: ReadonlySet<string> = new Set([
   "image/banner",
   "quote/on-image",
 ]);
+
+/** Heading level of each text variant that shows a heading, when the author has not chosen one. */
+const HEADING_LEVELS: Readonly<Record<string, number>> = {
+  "paragraph-with-heading": 2,
+  heading: 2,
+  "paragraph-with-subheading": 3,
+  subheading: 3,
+};
+
+/**
+ * Whether a text variant has a heading, and the level it takes by default (rise.md 3C): 2 for a
+ * heading, 3 for a subheading; undefined for a variant without one.
+ */
+export const defaultHeadingLevel = (block: Pick<Block, "category" | "variant">) =>
+  block.category === "text" ? HEADING_LEVELS[block.variant] : undefined;
+
+/**
+ * The level of the heading element a block shows (2 to 6, the lesson title being the only level
+ * 1): the author's choice, else its variant's default; undefined when the block shows no heading,
+ * because its variant has none or its heading is empty. The player builds the element from it.
+ */
+export function headingLevel(block: Block): number | undefined {
+  const fallback = defaultHeadingLevel(block);
+  const item = block.items?.find((one): one is ContentItem => one.kind === "content");
+  if (fallback === undefined || !item?.title) return undefined;
+  const { headingLevel: level } = variantSettings<{ headingLevel?: number }>(block);
+  return level ?? fallback;
+}
+
+/**
+ * The deepest heading level the block at `index` of a lesson's `blocks` can take without skipping
+ * a level (BLK-04 "the page heading outline stays valid"; WCAG 1.3.1; accessibility.md W18 "do
+ * not skip levels"): one below the nearest heading above it, or 2 under the lesson title. The
+ * editor offers no deeper level and warns when a move or a deletion leaves a heading too deep.
+ */
+export function deepestHeadingLevel(blocks: readonly Block[], index: number): number {
+  for (let i = Math.min(index, blocks.length) - 1; i >= 0; i--) {
+    const level = headingLevel(blocks[i] as Block);
+    if (level !== undefined) return level + 1;
+  }
+  return 2;
+}

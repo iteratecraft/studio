@@ -64,17 +64,17 @@ test("BLK-04: a variant setting at its default is left out of the document", () 
   });
 });
 
-test("[rise:3C] blocks-editor 2.5: a table's header row goes in thead, the others in tbody, its text escaped", () => {
+test("[rise:3C] blocks-editor 2.5: a table's header row goes in thead, the others in tbody, each cell's rich text as it is", () => {
   expect(
     writeTable({
       header: true,
       rows: [
-        ["Name", "A & B"],
-        ["<x>", ""],
+        ["Name", "A &amp; B"],
+        ["<strong>Orion</strong> in <em>winter</em>", '<a href="#/lessons/lessplan01">Plan</a>'],
       ],
     }),
   ).toBe(
-    "<table><thead><tr><th>Name</th><th>A &amp; B</th></tr></thead><tbody><tr><td>&lt;x&gt;</td><td></td></tr></tbody></table>",
+    '<table><thead><tr><th>Name</th><th>A &amp; B</th></tr></thead><tbody><tr><td><strong>Orion</strong> in <em>winter</em></td><td><a href="#/lessons/lessplan01">Plan</a></td></tr></tbody></table>',
   );
   expect(writeTable({ header: false, rows: [["one"]] })).toBe(
     "<table><tbody><tr><td>one</td></tr></tbody></table>",

@@ -5,10 +5,12 @@
 // the block has nothing to show yet. A checklist and the carousels are finished item by item
 // (UI-BLOCKS-R51, R52) through the lesson's hooks.
 import type { Block, ContentItem, LessonEntry, MediaRef } from "@course-suite/format";
-import { textOn, variantSettings } from "@course-suite/format";
+import { headingLevel, isSafeLink, textOn, variantSettings } from "@course-suite/format";
 import { formatLabel, type LabelKey, type Labels } from "@course-suite/labels";
 import type { BlockContext } from "./blocks.js";
-import { h, richText, uid } from "./dom.js";
+import { h, linkOut, richText, uid } from "./dom.js";
+import { shownItems } from "./progress.js";
+import { pagesOf, parseRoute } from "./route.js";
 
 /** What a renderer gets: the block context with the media address resolved. */
 export type StaticContext = BlockContext & { mediaUrl: (key: string) => string };
@@ -100,20 +102,29 @@ function heading(level: number, html: string, labels: Labels, space?: unknown): 
   return element;
 }
 
+/** The blocks of the lesson that holds `block`; the block alone when it is shown on its own. */
+function lessonBlocks(block: Block, { course }: StaticContext): readonly Block[] {
+  const lesson = course.entries.find(
+    (entry): entry is LessonEntry =>
+      entry.kind === "lesson" && entry.blocks.some((other) => other.id === block.id),
+  );
+  return lesson?.blocks ?? [block];
+}
+
 /**
  * Text (2.5): a heading at the author's level (2 to 6, so the lesson title stays the only level 1),
  * a body text in one to three columns, or both.
  */
 const text =
-  (level: number | undefined, body: boolean): Renderer =>
-  (block, { labels }) => {
+  (body: boolean): Renderer =>
+  (block, context) => {
+    const { labels } = context;
     const item = contents(block)[0];
-    const s = variantSettings<{ headingLevel?: number; columns: number; headingSpace: number }>(
-      block,
-    );
+    const s = variantSettings<{ columns: number; headingSpace: number }>(block);
+    const level = headingLevel(block);
     const title =
       level !== undefined && item?.title
-        ? heading(s.headingLevel ?? level, item.title, labels, body ? s.headingSpace : undefined)
+        ? heading(level, item.title, labels, body ? s.headingSpace : undefined)
         : undefined;
     const main =
       body && item?.text
@@ -395,7 +406,7 @@ function carousel(
 }
 
 const quoteCarousel: Renderer = (block, context) => {
-  const items = contents(block).filter((item) => item.text);
+  const items = shownItems(block);
   if (items.length === 0) return undefined;
   const s = variantSettings<QuoteSettings>(block);
   return carousel(
@@ -417,7 +428,7 @@ const quoteCarousel: Renderer = (block, context) => {
  * white or black on it.
  */
 const list: Renderer = (block, context) => {
-  const items = contents(block).filter((item) => item.text);
+  const items = shownItems(block);
   if (items.length === 0) return undefined;
   const s = variantSettings<{
     markerSpace: number;
@@ -456,6 +467,7 @@ const list: Renderer = (block, context) => {
 
 interface ImageSettings {
   zoom: boolean;
+  link?: string;
   cornerRadius: number;
   position: string;
   size: string;
@@ -487,7 +499,7 @@ const image: Renderer = (block, context) => {
   if (picked && (variant === "centered" || variant === "image-text")) {
     picked.style.borderRadius = px(s.cornerRadius);
   }
-  const shown = picked && zoomable(picked, labels, s.zoom);
+  const shown = picked && (linked(picked, s.link, context) ?? zoomable(picked, labels, s.zoom));
   if (variant === "image-text") {
     if (!shown && !words) return undefined;
     return h(
@@ -505,6 +517,26 @@ const image: Renderer = (block, context) => {
     words && variant !== "banner" ? h("figcaption", { class: "caption" }, words) : undefined,
   );
 };
+
+/**
+ * A picture that links to a web page or a lesson (2.10, W15 step 3), instead of enlarging; none
+ * without a safe link. A decorative picture gives the link no name, so the lesson's title or the
+ * address names it.
+ */
+function linked(
+  image: HTMLImageElement,
+  link: string | undefined,
+  { course, labels }: StaticContext,
+): HTMLElement | undefined {
+  if (!link || !isSafeLink(link)) return undefined;
+  const element = linkOut(h("a", { class: "image-link", href: link }, image), labels);
+  if (!image.alt) {
+    const route = parseRoute(link, pagesOf(course));
+    const name = route.kind === "page" ? route.page.title : link;
+    element.prepend(h("span", { class: "visually-hidden" }, name));
+  }
+  return element;
+}
 
 /** A gallery image with its caption. */
 function galleryFigure(item: ContentItem, s: ImageSettings, context: StaticContext) {
@@ -534,7 +566,7 @@ const grid: Renderer = (block, context) => {
 };
 
 const galleryCarousel: Renderer = (block, context) => {
-  const items = contents(block);
+  const items = shownItems(block);
   if (items.length === 0) return undefined;
   const s = variantSettings<ImageSettings>(block);
   return carousel(
@@ -554,13 +586,9 @@ const galleryCarousel: Renderer = (block, context) => {
  * The number a numbered divider shows (2.14): it counts the numbered dividers down its lesson, from
  * the last one that restarts at its own number.
  */
-function dividerNumber(block: Block, { course }: StaticContext): number {
-  const lesson = course.entries.find(
-    (entry): entry is LessonEntry =>
-      entry.kind === "lesson" && entry.blocks.some((other) => other.id === block.id),
-  );
+function dividerNumber(block: Block, context: StaticContext): number {
   let number = 0;
-  for (const other of lesson?.blocks ?? [block]) {
+  for (const other of lessonBlocks(block, context)) {
     if (other.category !== "divider" || other.variant !== "numbered") continue;
     const s = variantSettings<{ restart: boolean; start: number }>(other);
     number = s.restart ? s.start : number + 1;
@@ -570,11 +598,11 @@ function dividerNumber(block: Block, { course }: StaticContext): number {
 }
 
 export const STATIC_RENDERERS: Record<string, Renderer> = {
-  "text/paragraph": text(undefined, true),
-  "text/paragraph-with-heading": text(2, true),
-  "text/paragraph-with-subheading": text(3, true),
-  "text/heading": text(2, false),
-  "text/subheading": text(3, false),
+  "text/paragraph": text(true),
+  "text/paragraph-with-heading": text(true),
+  "text/paragraph-with-subheading": text(true),
+  "text/heading": text(false),
+  "text/subheading": text(false),
   "text/columns": columns,
   "text/table": table,
   "statement/statement-a": statement,

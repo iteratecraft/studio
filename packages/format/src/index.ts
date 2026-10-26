@@ -24,6 +24,7 @@ export {
 export {
   isLessonLink,
   isSafeLink,
+  LINK_PATTERN,
   lessonLink,
   RICH_TEXT_ATTRIBUTES,
   RICH_TEXT_DROPPED,
@@ -33,8 +34,11 @@ export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from ".
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
 export type { Setting } from "./variants.js";
 export {
+  deepestHeadingLevel,
+  defaultHeadingLevel,
   EMBED_PROVIDERS,
   FULL_BLEED,
+  headingLevel,
   settingsTable,
   VARIANTS,
   variantSettings,

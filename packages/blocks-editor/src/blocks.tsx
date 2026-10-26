@@ -6,7 +6,7 @@
 import type { Command, Editor } from "@course-suite/doc-ops";
 import type { Block, ContentItem, Question } from "@course-suite/format";
 import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
-import type { ComponentType } from "react";
+import { type ComponentType, useId } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
 import {
@@ -26,6 +26,8 @@ import {
   QUOTE_TYPES,
   STATEMENT_TYPES,
   TEXT_FORMAT,
+  useHeadingWarning,
+  Warning,
 } from "./static-blocks.js";
 
 /** Library groups in the library's order. Most are format categories; AI and templates are not. */
@@ -131,15 +133,20 @@ function textFields(title: StringKey | undefined, body: boolean): ComponentType<
     const t = useStrings();
     const item = content(block);
     const newId = () => idMaker(editor.document)();
+    // A heading that would skip a level says so here too, where the author works (BLK-04).
+    const warning = useHeadingWarning(block, editor);
+    const warningId = useId();
     return (
       <>
         {title && (
           <DraftField
             label={t(title)}
+            {...(warning && { "aria-describedby": warningId })}
             value={textOf(item?.title ?? "")}
             command={(text) => setContent(block, newId, "title", inlineHtml(text))}
           />
         )}
+        {title && <Warning id={warningId}>{warning}</Warning>}
         {body && (
           <RichDraftField
             label={t("field.text")}

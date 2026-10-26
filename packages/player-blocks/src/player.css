@@ -902,8 +902,10 @@ h3.block-heading {
   padding: 18px 24px;
 }
 
+/* Fills that carry --accent-text take the button colour, which is the accent colour until a
+   theme gives buttons a colour of their own: --accent-text is the text that keeps 4.5:1 on it. */
 .table-wrap thead th {
-  background: var(--accent);
+  background: var(--button, var(--accent));
   color: var(--accent-text);
 }
 
@@ -1188,7 +1190,7 @@ h3.block-heading {
   height: 1.75em;
   padding: 0 0.25em;
   border-radius: 999px;
-  background: var(--marker, var(--accent));
+  background: var(--marker, var(--button, var(--accent)));
   color: var(--marker-text, var(--accent-text));
   font-size: 0.875em;
   font-weight: 700;
@@ -1257,6 +1259,19 @@ h3.block-heading {
   cursor: zoom-in;
 }
 
+/* A picture that links somewhere (2.10): the link is the picture's box. */
+.image-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.width-full .image-link,
+.image-side .image-link {
+  width: auto;
+}
+
 .column .zoom-frame {
   margin-bottom: 12px;
 }
@@ -1300,9 +1315,9 @@ h3.block-heading {
 .zoom-close {
   min-height: 44px;
   padding: 0 20px;
-  border: 2px solid var(--accent);
+  border: 2px solid var(--button, var(--accent));
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--button, var(--accent));
   color: var(--accent-text);
   font: inherit;
   font-weight: 600;

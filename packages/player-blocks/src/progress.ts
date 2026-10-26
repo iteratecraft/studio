@@ -4,6 +4,7 @@
 // is what the resume codec stores.
 import type {
   Block,
+  ContentItem,
   Course,
   LessonEntry,
   Question,
@@ -72,6 +73,20 @@ const lockedMedia = (block: Block) =>
  */
 const BY_ITEM = new Set(["list/checkbox", "gallery/carousel", "quote/carousel"]);
 const byItem = (block: Block) => BY_ITEM.has(`${block.category}/${block.variant}`);
+
+/**
+ * The items a list, a quote carousel or a gallery shows, which are also the items a block finished
+ * item by item waits for: list points and quotes with text, and every picture of a gallery. A
+ * point or quote whose text was cleared shows nothing, so nobody can finish it.
+ */
+export function shownItems(block: Block): ContentItem[] {
+  const items = (block.items ?? []).filter((item): item is ContentItem => item.kind === "content");
+  return block.category === "gallery" ? items : items.filter((item) => item.text);
+}
+
+/** Every item a block finished item by item shows is done; one that shows none has nothing to do. */
+const allItemsDone = (block: Block, done: ReadonlySet<string>) =>
+  byItem(block) && shownItems(block).every((item) => done.has(item.id));
 
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (block: Block) =>
@@ -188,7 +203,8 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
   const counts = (lesson: LessonEntry, block: Block) =>
     done.has(block.id) || (seen(lesson, block) && !isGate(block));
   const finished = (lesson: LessonEntry, block: Block) =>
-    done.has(block.id) || (seen(lesson, block) && !needsAction(block));
+    done.has(block.id) ||
+    (seen(lesson, block) && (!needsAction(block) || allItemsDone(block, done)));
 
   function shownBlocks(lesson: LessonEntry): number {
     const gate = lesson.blocks.findIndex((block) => isGate(block) && !done.has(block.id));
@@ -299,7 +315,7 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
         view(lesson);
         return;
       }
-      const items = block.items ?? [];
+      const items = shownItems(block);
       // A finished block keeps no item state: its id alone says every item is done, which keeps
       // the saved state small (standards.md §4.2).
       if (!byItem(block) || done.has(block.id) || !items.some((other) => other.id === item)) return;
@@ -464,7 +480,7 @@ export function largestResume(course: Course): ResumeState {
         .flatMap((block) => {
           // A block finished item by item saves all its items but one while in progress, then
           // only its own id.
-          const items = byItem(block) ? (block.items ?? []).slice(1) : [];
+          const items = byItem(block) ? shownItems(block).slice(1) : [];
           return items.length > 1 ? items.map((item) => item.id) : [block.id];
         }),
     ],

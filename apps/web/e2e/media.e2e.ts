@@ -277,9 +277,9 @@ test.describe("pictures in the image and gallery blocks (BLK-04)", () => {
     await block.getByRole("button", { name: /Block type/ }).click();
     await page.getByRole("option", { name: "Image carousel" }).click();
     // A carousel shows every picture in turn; a grid of three only its first three.
-    await expect(
-      row(page, /^Image carousel/).locator(".be-block-preview img.image"),
-    ).toHaveCount(2);
+    await expect(row(page, /^Image carousel/).locator(".be-block-preview img.image")).toHaveCount(
+      2,
+    );
     course = await saved(page);
     expect(lessonOf(course).blocks[0]).toMatchObject({
       variant: "carousel",
