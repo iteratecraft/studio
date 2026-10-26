@@ -16,6 +16,13 @@ export const english = {
   "toast.dismiss": "Dismiss",
   "search.clear": "Clear search",
   "list.items": { one: "{count} item", other: "{count} items" },
+  "list.selected": "{count} selected",
+  "pages.label": "Pages of {label}",
+  "pages.range": "{start}–{end} of {total}",
+  "pages.previous": "Previous page",
+  "pages.next": "Next page",
+  "pages.page": "Page",
+  "pages.of": "{page} of {pages}",
 
   // Common actions
   "action.cancel": "Cancel",
@@ -30,6 +37,8 @@ export const english = {
   "action.delete": "Delete",
   "action.restore": "Restore",
   "action.remove": "Remove from list",
+  "action.clearSelection": "Clear selection",
+  "error.title": "That did not work",
 
   // Blocks editor: the window and the dashboard (M2-08)
   "app.version": "Version {version}",
@@ -71,6 +80,11 @@ export const english = {
   "dashboard.emptyDeletedConfirm":
     "Remove every deleted course from this list? Their files stay on your computer.",
   "dashboard.deletedToast": "Moved to Deleted: {title}",
+  "dashboard.deletedManyToast": {
+    one: "Moved {count} course to Deleted",
+    other: "Moved {count} courses to Deleted",
+  },
+  "dashboard.selection": "Selected courses",
   "newCourse.title": "New course",
   "newMicrolearning.title": "New microlearning",
   "newCourse.saveTitle": "Save the new course",
@@ -92,6 +106,17 @@ export const english = {
   "recover.damaged": "{name} could not be opened, but a copy saved automatically was found.",
   "recover.restore": "Recover changes",
   "recover.discard": "Open the saved file",
+  "recover.rename":
+    "{name} was not closed properly last time. A copy saved automatically has changes the file does not have. Renaming saves the file, and the version you do not use is dropped.",
+  "recover.duplicate":
+    "{name} was not closed properly last time. A copy saved automatically has changes the file does not have. Which version should be copied?",
+  "recover.copy":
+    "{name} was not closed properly last time. A copy saved automatically has changes the file does not have. Copying the lesson saves the file, and the version you do not use is dropped.",
+  "recover.copyBlocks":
+    "{name} was not closed properly last time. A copy saved automatically has changes the file does not have. Copying the blocks saves the file, and the version you do not use is dropped.",
+  "recover.useRecovered": "Use the recovered changes",
+  "recover.useSaved": "Use the saved file",
+  "saveAs.title": "Save the course as",
   "unsaved.title": "Save changes to {title}?",
   "unsaved.body": "If you don't save, the changes since you last saved are lost.",
 
@@ -101,10 +126,15 @@ export const english = {
   "editor.undo": "Undo",
   "editor.redo": "Redo",
   "editor.save": "Save",
+  "editor.saveAs": "Save as",
   "editor.theme": "Theme",
   "editor.preview": "Preview",
   "editor.publish": "Publish",
   "editor.courseTitle": "Course title",
+  "editor.sourceLanguage": "Source language",
+  "editor.sourceLanguageHelp":
+    "The language the course is written in, as a code such as en-US or fr-CA.",
+  "editor.sourceLanguageInvalid": "Enter a language code such as en-US or fr-CA.",
   "editor.outline": "Outline",
   "editor.author": "Author shown to learners",
   "editor.authorHelp": "Leave it empty to hide the author.",

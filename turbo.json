@@ -14,7 +14,8 @@
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "env": ["CI"]
+      "env": ["CI"],
+      "passThroughEnv": ["E2E_PORT"]
     }
   },
   "boundaries": {

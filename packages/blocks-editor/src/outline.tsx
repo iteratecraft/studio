@@ -295,9 +295,7 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
                   placeholder={t(UNTITLED[entry.kind])}
                   className="be-row-title"
                   value={entry.title}
-                  onCommit={(value) =>
-                    editor.dispatch({ type: "updateEntry", id: entry.id, set: { title: value } })
-                  }
+                  command={(text) => ({ type: "updateEntry", id: entry.id, set: { title: text } })}
                 />
                 {hidden > 0 && (
                   <span className="be-row-meta">{t("course.lessons", { count: hidden })}</span>

@@ -76,21 +76,33 @@ export const typeId = (block: { category: string; variant: string }) =>
 const content = (block: Block): ContentItem | undefined =>
   block.items?.find((item): item is ContentItem => item.kind === "content");
 
-/** Updates the block's first content item, or adds one (a block made by an importer may have none). */
+/**
+ * The edit of the block's first content item, or the one adding it (a block made by an importer
+ * may have none); none for no text in a block without one.
+ */
 function setContent(
-  editor: Editor,
   block: Block,
   id: () => string,
   field: "title" | "text",
   html: string,
-) {
+): Command[] {
   const item = content(block);
-  const command: Command = item
-    ? html
+  if (!item) {
+    return html
+      ? [
+          {
+            type: "insertItem",
+            parent: block.id,
+            value: { id: id(), kind: "content", [field]: html },
+          },
+        ]
+      : [];
+  }
+  return [
+    html
       ? { type: "updateItem", id: item.id, set: { [field]: html } }
-      : { type: "updateItem", id: item.id, unset: [field] }
-    : { type: "insertItem", parent: block.id, value: { id: id(), kind: "content", [field]: html } };
-  if (item || html) editor.dispatch(command);
+      : { type: "updateItem", id: item.id, unset: [field] },
+  ];
 }
 
 /** Text blocks: a heading, a body text, or both (blocks-editor.md 2.5). */
@@ -105,14 +117,14 @@ function textFields(title: StringKey | undefined, body: boolean): ComponentType<
           <DraftField
             label={t(title)}
             value={textOf(item?.title ?? "")}
-            onCommit={(value) => setContent(editor, block, newId, "title", inlineHtml(value))}
+            command={(text) => setContent(block, newId, "title", inlineHtml(text))}
           />
         )}
         {body && (
           <RichDraftField
             label={t("field.text")}
             value={item?.text ?? ""}
-            onCommit={(html) => setContent(editor, block, newId, "text", html)}
+            command={(html) => setContent(block, newId, "text", html)}
           />
         )}
       </>
@@ -121,17 +133,15 @@ function textFields(title: StringKey | undefined, body: boolean): ComponentType<
 }
 
 /** Continue: its own button label and locked hint, empty for the defaults (blocks-interactions.md 2.11). */
-function ContinueFields({ block, editor }: FieldsProps) {
+function ContinueFields({ block }: FieldsProps) {
   const t = useStrings();
   const settings = block.variantSettings ?? {};
-  const set = (name: "buttonLabel" | "hintText", value: string) => {
+  const set = (name: "buttonLabel" | "hintText", value: string): Command => {
     const { [name]: _, ...others } = settings;
     const next = value.trim() ? { ...others, [name]: value.trim() } : others;
-    editor.dispatch(
-      Object.keys(next).length > 0
-        ? { type: "updateBlock", id: block.id, set: { variantSettings: next } }
-        : { type: "updateBlock", id: block.id, unset: ["variantSettings"] },
-    );
+    return Object.keys(next).length > 0
+      ? { type: "updateBlock", id: block.id, set: { variantSettings: next } }
+      : { type: "updateBlock", id: block.id, unset: ["variantSettings"] };
   };
   const text = (name: string) =>
     typeof settings[name] === "string" ? (settings[name] as string) : "";
@@ -141,13 +151,13 @@ function ContinueFields({ block, editor }: FieldsProps) {
         label={t("field.buttonLabel")}
         description={t("field.buttonLabelHelp")}
         value={text("buttonLabel")}
-        onCommit={(value) => set("buttonLabel", value)}
+        command={(text) => set("buttonLabel", text)}
       />
       <DraftField
         label={t("field.hint")}
         description={t("field.hintHelp")}
         value={text("hintText")}
-        onCommit={(value) => set("hintText", value)}
+        command={(text) => set("hintText", text)}
       />
     </>
   );
@@ -162,15 +172,13 @@ function QuestionFields({ block, editor }: FieldsProps) {
   const question = block.question;
   if (!question) return <p className="be-note">{t("field.noFields")}</p>;
   const update = (set: Partial<Question>) =>
-    editor.dispatch({ type: "updateQuestion", id: question.id, set } as Command);
+    ({ type: "updateQuestion", id: question.id, set }) as Command;
   return (
     <>
       <RichDraftField
         label={t("field.question")}
         value={question.prompt}
-        onCommit={(prompt) => {
-          if (prompt) update({ prompt });
-        }}
+        command={(prompt) => (prompt ? update({ prompt }) : undefined)}
       />
       {(question.kind === "single-choice" || question.kind === "multiple-response") &&
         question.answers.map((answer, i) => (
@@ -178,14 +186,11 @@ function QuestionFields({ block, editor }: FieldsProps) {
             <DraftField
               label={t("field.answer", { number: i + 1 })}
               value={textOf(answer.text)}
-              onCommit={(value) => {
-                if (value.trim())
-                  editor.dispatch({
-                    type: "updateAnswer",
-                    id: answer.id,
-                    set: { text: inlineHtml(value) },
-                  });
-              }}
+              command={(text) =>
+                text.trim()
+                  ? { type: "updateAnswer", id: answer.id, set: { text: inlineHtml(text) } }
+                  : undefined
+              }
             />
             <Checkbox
               isSelected={answer.correct}
@@ -212,12 +217,12 @@ function QuestionFields({ block, editor }: FieldsProps) {
           description={t("field.acceptedHelp")}
           multiline
           value={question.acceptedAnswers.join("\n")}
-          onCommit={(value) => {
-            const accepted = value
+          command={(text) => {
+            const accepted = text
               .split(/\r?\n/)
               .map((line) => line.trim())
               .filter(Boolean);
-            if (accepted.length > 0) update({ acceptedAnswers: accepted });
+            return accepted.length > 0 ? update({ acceptedAnswers: accepted }) : undefined;
           }}
         />
       )}
@@ -227,26 +232,20 @@ function QuestionFields({ block, editor }: FieldsProps) {
             <DraftField
               label={t("field.pairItem", { number: i + 1 })}
               value={textOf(pair.prompt)}
-              onCommit={(value) => {
-                if (value.trim())
-                  editor.dispatch({
-                    type: "updatePair",
-                    id: pair.id,
-                    set: { prompt: inlineHtml(value) },
-                  });
-              }}
+              command={(text) =>
+                text.trim()
+                  ? { type: "updatePair", id: pair.id, set: { prompt: inlineHtml(text) } }
+                  : undefined
+              }
             />
             <DraftField
               label={t("field.pairMatch", { number: i + 1 })}
               value={textOf(pair.match)}
-              onCommit={(value) => {
-                if (value.trim())
-                  editor.dispatch({
-                    type: "updatePair",
-                    id: pair.id,
-                    set: { match: inlineHtml(value) },
-                  });
-              }}
+              command={(text) =>
+                text.trim()
+                  ? { type: "updatePair", id: pair.id, set: { match: inlineHtml(text) } }
+                  : undefined
+              }
             />
           </div>
         ))}

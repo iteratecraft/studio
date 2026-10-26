@@ -20,6 +20,7 @@ import {
   MenuItem,
   MenuSeparator,
   MenuTrigger,
+  Pagination,
   Popover,
   ProgressBar,
   PSEUDO_LOCALES,
@@ -102,6 +103,7 @@ export function Gallery() {
     return THEMES.find((name) => name === asked) ?? "system";
   });
   const [locale, setLocale] = useState(() => params.get("lang") ?? "en");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -332,6 +334,10 @@ export function Gallery() {
             <p className="gallery-pane">Outline</p>
             <p className="gallery-pane">Lesson</p>
           </Splitter>
+        </Section>
+
+        <Section id="pagination" title="Pagination">
+          <Pagination label="Courses" total={45} pageSize={10} page={page} onPageChange={setPage} />
         </Section>
 
         <Section id="empty-state" title="Empty state">

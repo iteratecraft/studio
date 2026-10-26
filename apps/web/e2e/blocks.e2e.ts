@@ -1136,6 +1136,7 @@ test.describe("copying blocks to a lesson or a course", () => {
     await copy();
     const offer = page.getByRole("alertdialog", { name: "Recover unsaved changes?" });
     await expect(offer).toContainText("Herb pots.crs was not closed properly last time.");
+    await expect(offer).toContainText("Copying the blocks saves the file");
     // Escape copies nothing, and leaves that course's file and its autosaved work alone.
     await page.keyboard.press("Escape");
     await expect(offer).toHaveCount(0);
@@ -1144,7 +1145,7 @@ test.describe("copying blocks to a lesson or a course", () => {
 
     // Recovering copies into the recovered work, which the author chose to keep.
     await copy();
-    await offer.getByRole("button", { name: "Recover changes" }).click();
+    await offer.getByRole("button", { name: "Use the recovered changes" }).click();
     await expect(
       page.getByRole("alertdialog", {
         name: "Copied 4 blocks to the end of Pots in Herb pots, unsaved",

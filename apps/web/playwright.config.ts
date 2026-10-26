@@ -2,8 +2,8 @@
 /// <reference types="node" />
 import { defineConfig, devices } from "@playwright/test";
 
-// E2E_PORT lets a second checkout run its own server beside one already on the default port.
-const port = Number(process.env.E2E_PORT ?? 4173);
+// E2E_PORT lets runs from several checkouts on one machine each test their own build.
+const port = Number(process.env.E2E_PORT) || 4173;
 
 export default defineConfig({
   testDir: "e2e",

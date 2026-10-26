@@ -119,6 +119,7 @@ body,
 }
 
 .be-courses .cs-GridListItem {
+  position: relative;
   padding: 0;
   border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius-lg);
@@ -140,6 +141,47 @@ body,
   padding: var(--cs-space-2);
 }
 
+/* The select box shows on hover, focus and once anything is selected (H8). */
+.be-courses .cs-Checkbox {
+  opacity: 0;
+}
+
+.be-courses--grid .cs-Checkbox {
+  position: absolute;
+  inset-block-start: var(--cs-space-3);
+  inset-inline-end: var(--cs-space-3);
+  z-index: 1;
+}
+
+.be-courses--selecting .cs-Checkbox {
+  opacity: 1;
+}
+
+.be-courses
+  .cs-GridListItem:is([data-hovered], [data-focus-visible], [data-selected], :focus-within)
+  .cs-Checkbox {
+  opacity: 1;
+}
+
+.be-selection {
+  align-items: center;
+  margin-bottom: var(--cs-space-3);
+  padding: var(--cs-space-1) var(--cs-space-2);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-accent-soft);
+}
+
+.be-selection-count {
+  margin-inline-end: auto;
+  font-size: var(--cs-text-sm);
+  font-weight: var(--cs-weight-strong);
+}
+
+.be-courses-wrap + .cs-Pagination {
+  margin-top: var(--cs-space-3);
+}
+
 .be-cover {
   display: flex;
   align-items: center;
@@ -159,7 +201,7 @@ body,
 }
 
 .be-courses--list .be-card {
-  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  grid-template-columns: auto 3rem minmax(0, 1fr) auto;
   align-items: center;
 }
 
@@ -204,6 +246,10 @@ body,
   max-width: 48rem;
   margin: 0 auto;
   padding: var(--cs-space-6) var(--cs-space-4);
+}
+
+.be-language {
+  max-width: 20rem;
 }
 
 .be-course-title .cs-Input {

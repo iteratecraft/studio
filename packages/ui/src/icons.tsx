@@ -11,6 +11,7 @@ const PATHS = {
   bullets: "M6 4h7.5M6 8h7.5M6 12h7.5M2.5 4h.5M2.5 8h.5M2.5 12h.5",
   check: "M3 8.5l3.2 3.2L13 4.5",
   "chevron-down": "M4 6l4 4 4-4",
+  "chevron-left": "M10 4L6 8l4 4",
   "chevron-right": "M6 4l4 4-4 4",
   "clear-format": "M3 3.5h8M7 3.5L5 13M3 13h4M10 10l3.5 3.5M13.5 10L10 13.5",
   close: "M4 4l8 8M12 4l-8 8",
@@ -56,7 +57,13 @@ export type IconName = keyof typeof PATHS;
 export const ICON_NAMES = Object.keys(PATHS) as IconName[];
 
 // Icons that point along the reading direction turn round in right-to-left languages.
-const MIRRORED: ReadonlySet<IconName> = new Set(["back", "chevron-right", "redo", "undo"]);
+const MIRRORED: ReadonlySet<IconName> = new Set([
+  "back",
+  "chevron-left",
+  "chevron-right",
+  "redo",
+  "undo",
+]);
 // Dot icons need a thicker pen to be seen.
 const DOTTED: ReadonlySet<IconName> = new Set(["grip", "more"]);
 

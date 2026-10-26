@@ -12,9 +12,9 @@ import {
   ToolbarSeparator,
   useStrings,
 } from "@course-suite/ui";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { shownTitle, TITLE_MAX } from "./course.js";
-import { DraftEditor, DraftField, keepDrafts, LinkTargets, RichDraftField } from "./fields.js";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { DEFAULT_LANGUAGE, languageCode, shownTitle, TITLE_MAX } from "./course.js";
+import { DraftField, DraftSession, LinkTargets, RichDraftField } from "./fields.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
@@ -44,6 +44,7 @@ export interface EditorFrameProps {
   session: CourseSession;
   toasts: ToastQueue;
   onSave: () => void;
+  onSaveAs: () => void;
   onClose: () => void;
   /** Copy to another course (blocks-editor.md W5, C8). */
   onCopyEntry: (entry: Entry) => void;
@@ -55,6 +56,7 @@ export function EditorFrame({
   session,
   toasts,
   onSave,
+  onSaveAs,
   onClose,
   onCopyEntry,
   clipboard,
@@ -68,7 +70,7 @@ export function EditorFrame({
   const [view, setView] = useState<View>({ kind: "overview" });
   // UI-BLOCKS-EDITOR-R15: undo history belongs to one screen and goes when the author leaves it.
   const go = (next: View) => {
-    keepDrafts();
+    session.commitDrafts();
     editor.clearHistory();
     setView(next);
   };
@@ -102,22 +104,19 @@ export function EditorFrame({
   // A new screen: focus starts at its heading, for keyboard and screen reader users.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
-  /** Saves the file with what the text fields hold. */
-  const save = useCallback(() => {
-    keepDrafts();
-    onSave();
-  }, [onSave]);
 
   // Keyboard (blocks-editor.md 5.1): Ctrl/Cmd+Z undoes, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo,
-  // Ctrl/Cmd+S keeps what the fields hold and saves the file. In a text field the field's own undo
-  // applies. Heard on the way down, as list rows keep their controls' keys to themselves.
+  // Ctrl/Cmd+S saves the file with what the fields hold, Ctrl/Cmd+Shift+S saves it as a new file. In
+  // a text field the field's own undo applies. Heard on the way down, as list rows keep their
+  // controls' keys to themselves.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === "s") {
         event.preventDefault();
-        save();
+        if (event.shiftKey) onSaveAs();
+        else onSave();
       } else if (!isTextEntry(event.target) && (key === "z" || key === "y")) {
         event.preventDefault();
         if (key === "y" || event.shiftKey) editor.redo();
@@ -126,7 +125,7 @@ export function EditorFrame({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editor, save]);
+  }, [editor, onSave, onSaveAs]);
 
   const stateText = {
     saved: t("save.saved"),
@@ -136,7 +135,7 @@ export function EditorFrame({
   }[state.kind];
 
   return (
-    <DraftEditor.Provider value={editor}>
+    <DraftSession.Provider value={session}>
       <LinkTargets value={lessons}>
         <div className="be-editor">
           <header className="be-bar">
@@ -160,7 +159,10 @@ export function EditorFrame({
                 isDisabled={!editor.canRedo}
                 onPress={() => editor.redo()}
               />
-              <IconButton icon="save" label={t("editor.save")} onPress={save} />
+              <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
+              <Button variant="quiet" onPress={onSaveAs}>
+                {t("editor.saveAs")}
+              </Button>
               <ToolbarSeparator />
               {/* Theme arrives with M2-17, publish with M2-18. */}
               <Button variant="quiet" isDisabled>
@@ -242,14 +244,14 @@ export function EditorFrame({
           )}
         </div>
       </LinkTargets>
-    </DraftEditor.Provider>
+    </DraftSession.Provider>
   );
 }
 
 /**
  * The course fields of the overview (C2, blocks-editor.md 2.2): the title (UI-BLOCKS-EDITOR-R13:
- * up to 100 characters), the author shown to learners (empty hides it, C3, W6) and the description
- * shown on the cover. Each edit is one undo step, kept when the field loses focus or on Enter.
+ * up to 100 characters), the source language code (BLK-01), the author shown to learners (empty
+ * hides it, C3, W6) and the description shown on the cover. They save while typing (fields.tsx).
  */
 function CourseFields({ session }: { session: CourseSession }) {
   const t = useStrings();
@@ -263,19 +265,30 @@ function CourseFields({ session }: { session: CourseSession }) {
         className="be-course-title"
         value={title}
         maxLength={TITLE_MAX}
-        onCommit={(value) => editor.dispatch({ type: "updateCourse", set: { title: value } })}
+        command={(text) => ({ type: "updateCourse", set: { title: text } })}
+      />
+      <DraftField
+        label={t("editor.sourceLanguage")}
+        description={t("editor.sourceLanguageHelp")}
+        errorMessage={t("editor.sourceLanguageInvalid")}
+        className="be-language"
+        value={editor.document.sourceLanguage ?? DEFAULT_LANGUAGE}
+        command={(text) => {
+          const sourceLanguage = languageCode(text);
+          return sourceLanguage === undefined
+            ? undefined
+            : { type: "updateCourse", set: { sourceLanguage } };
+        }}
       />
       <DraftField
         label={t("editor.author")}
         description={t("editor.authorHelp")}
         value={first?.name ?? ""}
-        onCommit={(value) => {
-          const name = value.trim();
-          editor.dispatch(
-            name
-              ? { type: "updateCourse", set: { authors: [{ ...first, name }, ...others] } }
-              : { type: "updateCourse", unset: ["authors"] },
-          );
+        command={(text) => {
+          const name = text.trim();
+          return name
+            ? { type: "updateCourse", set: { authors: [{ ...first, name }, ...others] } }
+            : { type: "updateCourse", unset: ["authors"] };
         }}
       />
       {/* Rich text (2.2): its formatting is edited, never flattened. */}
@@ -283,12 +296,10 @@ function CourseFields({ session }: { session: CourseSession }) {
         label={t("editor.description")}
         description={t("editor.descriptionHelp")}
         value={description}
-        onCommit={(html) =>
-          editor.dispatch(
-            html
-              ? { type: "updateCourse", set: { description: html } }
-              : { type: "updateCourse", unset: ["description"] },
-          )
+        command={(html) =>
+          html
+            ? { type: "updateCourse", set: { description: html } }
+            : { type: "updateCourse", unset: ["description"] }
         }
       />
     </div>

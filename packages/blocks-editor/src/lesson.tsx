@@ -1,6 +1,7 @@
 // One open lesson or quiz (blocks-editor.md L1, C11; rise.md 3B; BLK-02): the lesson switcher, the
 // lesson's own fields (title, description, the author shown on it) and its blocks, edited in place
 // (M2-10, lesson-blocks.tsx). A quiz shows where its questions go (M2-15).
+import type { Command } from "@course-suite/doc-ops";
 import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
 import { EmptyState, ListBoxItem, Select, type ToastQueue, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
@@ -40,10 +41,18 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
         ),
       })),
   ];
-  const update = (set: Partial<Pick<LessonEntry, "title" | "description" | "author">>) =>
-    editor.dispatch({ type: "updateEntry", id: entry.id, set });
-  const unset = (field: "description" | "author") =>
-    editor.dispatch({ type: "updateEntry", id: entry.id, unset: [field] });
+  const update = (
+    set: Partial<Pick<LessonEntry, "title" | "description" | "author">>,
+  ): Command => ({
+    type: "updateEntry",
+    id: entry.id,
+    set,
+  });
+  const unset = (field: "description" | "author"): Command => ({
+    type: "updateEntry",
+    id: entry.id,
+    unset: [field],
+  });
 
   return (
     <section className="be-lesson" aria-labelledby={headingId}>
@@ -64,21 +73,20 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
         <DraftField
           label={t(quiz ? "outline.quizTitle" : "outline.lessonTitle")}
           value={entry.title}
-          onCommit={(title) => update({ title })}
+          command={(title) => update({ title })}
         />
         <RichDraftField
           label={t("editor.description")}
           value={entry.description ?? ""}
-          onCommit={(html) => (html ? update({ description: html }) : unset("description"))}
+          command={(html) => (html ? update({ description: html }) : unset("description"))}
         />
         <DraftField
           label={t("lesson.author")}
           description={t("lesson.authorHelp")}
           value={entry.author?.name ?? ""}
-          onCommit={(value) => {
-            const name = value.trim();
-            if (name) update({ author: { ...entry.author, name } });
-            else unset("author");
+          command={(text) => {
+            const name = text.trim();
+            return name ? update({ author: { ...entry.author, name } }) : unset("author");
           }}
         />
       </div>

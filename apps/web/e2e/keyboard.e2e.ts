@@ -56,6 +56,9 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   await press(page, "Tab", page.getByRole("grid", { name: "Lessons" }).getByRole("row").first());
   await press(page, "Tab", page.getByRole("row", { name: "Basics" }));
   await press(page, "Tab", page.getByRole("separator", { name: "Resize the outline" }));
+  // On the first page, previous is disabled and skipped.
+  await press(page, "Tab", page.getByRole("button", { name: /Page$/ }));
+  await press(page, "Tab", page.getByRole("button", { name: "Next page" }));
   await press(page, "Tab", page.getByRole("button", { name: "Add a lesson" }).last());
   // Progress bars and icons are not stops; Tab leaves the page.
   await page.keyboard.press("Tab");
@@ -402,6 +405,26 @@ test("splitter: the arrows follow the reading direction right to left", async ({
   await handle.focus();
   await page.keyboard.press("ArrowLeft");
   await expect(handle).toHaveAttribute("aria-valuenow", "32");
+});
+
+test("pagination: previous and next turn the page, the page jump picks one, the range is announced", async ({
+  page,
+}) => {
+  const bar = page.getByRole("navigation", { name: "Pages of Courses" });
+  await expect(bar).toContainText("1–10 of 45");
+  await expect(bar.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  await bar.getByRole("button", { name: "Next page" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(bar.locator("[aria-live=polite]")).toHaveText("11–20 of 45");
+  await press(page, "Shift+Tab", bar.getByRole("button", { name: /Page$/ }));
+  await press(page, "Shift+Tab", bar.getByRole("button", { name: "Previous page" }));
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "2 of 5" })).toBeFocused();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await expect(bar.locator("[aria-live=polite]")).toHaveText("41–45 of 45");
+  await expect(bar.getByRole("button", { name: "Next page" })).toBeDisabled();
 });
 
 test("empty state, progress bars and icons are not keyboard stops", async ({ page }) => {

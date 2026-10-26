@@ -1,9 +1,10 @@
-// Text fields that edit the course (UI-BLOCKS-EDITOR-R13 "saves while typing", blocks-editor.md 2.2,
-// 2.3). What is typed reaches the course after a short pause in typing, so autosave keeps it, and
-// again on Enter, on leaving the field and before the course is saved, closed or left (keepDrafts).
-// Everything typed in one visit to a field is one undo step; Escape puts back the text the field had
-// when that visit began.
-import type { Editor } from "@course-suite/doc-ops";
+// Text fields that edit the course and save while typing (UI-BLOCKS-EDITOR-R13, blocks-editor.md
+// 2.2, 2.3), plain or formatted. What is typed goes into the document after a pause in typing, at
+// least every 2 s while typing goes on, on Enter, on leaving the field and whenever the session
+// saves, leaves or closes (CourseSession.commitDrafts), so autosave keeps it. One editing of a field
+// is one undo step; Escape takes that step back. Text a field was given is never rewritten until the
+// author edits it.
+import type { Command } from "@course-suite/doc-ops";
 import {
   cleanRichText,
   type LinkTarget,
@@ -13,159 +14,180 @@ import {
   type TextFieldProps,
 } from "@course-suite/ui";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import type { CourseSession } from "./session.js";
 
-/** How long typing pauses before a field hands what it holds to the course. */
-export const TYPING_PAUSE_MS = 800;
+/** A pause in typing this long puts the field's text into the document. */
+export const TYPING_PAUSE_MS = 500;
+/** While typing goes on without a pause, the text still reaches the document this often. */
+export const TYPING_MAX_WAIT_MS = 2000;
 
-/** The editor whose undo steps the fields join: one step for each visit to a field. */
-export const DraftEditor = createContext<Pick<Editor, "beginGroup" | "endGroup"> | undefined>(
-  undefined,
-);
+/** The open course, whose document the fields edit and whose saves take what they hold. */
+export const DraftSession = createContext<CourseSession | undefined>(undefined);
 
 /** The lessons and quizzes of the open course, which links in formatted text may go to (L13). */
 export const LinkTargets = createContext<readonly LinkTarget[]>([]);
 
-const drafts = new Set<() => void>();
+/**
+ * The edit that puts `text` into the document: a command or a list of them (one step), `[]` when
+ * there is nothing to change, or undefined while the text is not valid, which then stays out of
+ * the document and marks the field invalid.
+ */
+export type DraftCommand = (text: string) => Command | Command[] | undefined;
 
 /**
- * Hands what every DraftField on the page holds to the course, before the course is saved, closed
- * or left.
+ * The text of a field while it is edited, put into the document as `tidy` makes it (see the top
+ * of this file): `change` on every edit, `end` when the editing ends, `escape` to take it back.
  */
-export function keepDrafts(): void {
-  for (const keep of [...drafts]) keep();
+function useDraft(stored: string, command: DraftCommand, tidy: (text: string) => string) {
+  const session = useContext(DraftSession);
+  if (!session) throw new Error("A draft field needs a DraftSession");
+  const { editor } = session;
+  const [value, setValue] = useState(stored);
+  const typed = useRef(value);
+  const edit = useRef<{
+    timer: ReturnType<typeof setTimeout> | undefined;
+    since: number | undefined;
+    open: boolean;
+  }>({ timer: undefined, since: undefined, open: false });
+  // The document changed by other means (undo, redo): show it, unless the author is typing here.
+  // While typing, the document may hold the text tidied (trimmed, say), which must not move the
+  // text under the author's cursor.
+  const editing = useRef(false);
+  // Counts finished editings, so that the field then shows what the document holds.
+  const [ends, setEnds] = useState(0);
+  useEffect(() => {
+    if (editing.current) return;
+    typed.current = stored;
+    setValue(stored);
+  }, [stored, ends]);
+
+  const commit = () => {
+    const state = edit.current;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.since = undefined;
+    if (!editing.current) return;
+    const text = tidy(typed.current);
+    const next = command(text);
+    if (!next || text === stored || (Array.isArray(next) && next.length === 0)) return;
+    if (state.open) {
+      editor.dispatch(next);
+      return;
+    }
+    editor.beginGroup();
+    const result = editor.dispatch(next);
+    if (result.ok && result.ops.length > 0) state.open = true;
+    else editor.endGroup();
+  };
+  const end = () => {
+    commit();
+    if (edit.current.open) editor.endGroup();
+    edit.current.open = false;
+    if (editing.current) setEnds((count) => count + 1);
+    editing.current = false;
+  };
+  const latest = useRef(commit);
+  latest.current = commit;
+  useEffect(() => session.holdDraft(() => latest.current()), [session]);
+  const endOnUnmount = useRef(end);
+  endOnUnmount.current = end;
+  useEffect(() => () => endOnUnmount.current(), []);
+
+  return {
+    value,
+    change(text: string) {
+      editing.current = true;
+      typed.current = text;
+      setValue(text);
+      const state = edit.current;
+      clearTimeout(state.timer);
+      state.since ??= Date.now();
+      const wait = Math.min(TYPING_PAUSE_MS, state.since + TYPING_MAX_WAIT_MS - Date.now());
+      state.timer = setTimeout(() => latest.current(), Math.max(0, wait));
+    },
+    end,
+    /** Back to the text before this editing: what it put in the document is one step. */
+    escape() {
+      clearTimeout(edit.current.timer);
+      editing.current = false;
+      if (edit.current.open) {
+        edit.current.open = false;
+        editor.endGroup();
+        editor.undo();
+      } else {
+        typed.current = stored;
+        setValue(stored);
+      }
+    },
+  };
 }
 
+const asTyped = (text: string) => text;
+
 export interface DraftFieldProps
-  extends Omit<TextFieldProps, "value" | "defaultValue" | "onChange" | "onBlur" | "onKeyDown"> {
-  /** The value the course holds. */
+  extends Omit<
+    TextFieldProps,
+    "value" | "defaultValue" | "onChange" | "onBlur" | "onKeyDown" | "isInvalid"
+  > {
+  /** The text the document holds. */
   value: string;
-  /** Called with a changed value when the field hands it to the course. */
-  onCommit: (value: string) => void;
+  /** The edit that puts the text into the document (DraftCommand). */
+  command: DraftCommand;
   /** Several lines: Enter starts a new line. */
   multiline?: boolean;
 }
 
+/** A text field of the course document that saves while typing (see the top of this file). */
 export function DraftField({
-  value: kept,
-  onCommit,
+  value: stored,
+  command,
   multiline = false,
-  ...props
+  ...field
 }: DraftFieldProps) {
-  const draft = useDraft(kept, onCommit);
+  const draft = useDraft(stored, command, asTyped);
   const Field = multiline ? TextArea : TextField;
   return (
     <Field
-      {...props}
+      {...field}
       value={draft.value}
+      isInvalid={command(draft.value) === undefined}
       onChange={draft.change}
-      onBlur={draft.leave}
+      onBlur={draft.end}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !multiline) draft.leave();
-        else if (event.key === "Escape") draft.revert();
+        if (event.key === "Enter" && !multiline) draft.end();
+        else if (event.key === "Escape") draft.escape();
         else event.continuePropagation();
       }}
     />
   );
 }
 
-/**
- * What a field holds while it is edited, handed to the course after a pause in typing, on `leave`
- * and on keepDrafts, as `tidy` makes it; one undo step for each visit to the field.
- */
-function useDraft(
-  kept: string,
-  onCommit: (value: string) => void,
-  tidy: (value: string) => string = (value) => value,
-) {
-  const group = useContext(DraftEditor);
-  const [value, setValue] = useState(kept);
-  // The value before this visit's first change, while the visit's undo step is open.
-  const visit = useRef<{ start: string }>(undefined);
-  // Shows what the course holds, as an undo or redo changes it and when a visit ends, but not
-  // during a visit: the course may hold the text tidied (trimmed, say), which must not move the
-  // text under the author's cursor.
-  const [visits, setVisits] = useState(0);
-  useEffect(() => {
-    if (!visit.current) setValue(kept);
-  }, [kept, visits]);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  /** Hands `next` to the course if it changed; `last` ends the visit and its undo step. */
-  const keep = (next: string, last: boolean) => {
-    clearTimeout(timer.current);
-    // Untouched text is never handed over, even where tidying would change it: a course file's
-    // own text stays as it is until the author edits it.
-    const tidied = next === kept ? kept : tidy(next);
-    if (tidied !== kept) {
-      if (!visit.current) {
-        visit.current = { start: kept };
-        group?.beginGroup();
-      }
-      onCommit(tidied);
-    }
-    if (last && visit.current) {
-      visit.current = undefined;
-      group?.endGroup();
-      setVisits((count) => count + 1);
-    }
-  };
-  const latest = useRef({ end: () => {}, pause: () => {} });
-  latest.current = { end: () => keep(value, true), pause: () => keep(value, false) };
-  useEffect(() => {
-    const end = () => latest.current.end();
-    drafts.add(end);
-    return () => {
-      drafts.delete(end);
-      clearTimeout(timer.current);
-      if (visit.current) {
-        visit.current = undefined;
-        group?.endGroup();
-      }
-    };
-  }, [group]);
-  return {
-    value,
-    change(next: string) {
-      setValue(next);
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => latest.current.pause(), TYPING_PAUSE_MS);
-    },
-    leave: () => keep(value, true),
-    /** Puts back the text the field had when this visit began. */
-    revert() {
-      const start = visit.current?.start ?? kept;
-      setValue(start);
-      keep(start, true);
-    },
-  };
-}
-
 export interface RichDraftFieldProps {
   label: string;
   description?: string;
   hideLabel?: boolean;
-  /** The rich text the course holds. */
+  /** The rich text the document holds. */
   value: string;
-  /** Called with changed, normalised rich text ("" for none) when the field hands it over. */
-  onCommit: (html: string) => void;
+  /** The edit that puts the normalised rich text ("" for none) into the document. */
+  command: DraftCommand;
 }
 
 /**
- * Formatted text handed to the course like a DraftField's (after a pause in typing, when focus
- * leaves the field and its tools, and on keepDrafts), one undo step for each visit; Escape puts
- * back the text the field had when the visit began. What it hands over is normalised rich text.
+ * Formatted text of the course document that saves while typing, like a DraftField; editing ends
+ * when focus leaves the field and its tools. What it puts in the document is normalised rich text.
  */
-export function RichDraftField({ value: kept, onCommit, ...props }: RichDraftFieldProps) {
+export function RichDraftField({ value: stored, command, ...props }: RichDraftFieldProps) {
   const lessons = useContext(LinkTargets);
-  const draft = useDraft(kept, onCommit, cleanRichText);
+  const draft = useDraft(stored, command, cleanRichText);
   return (
     <RichTextField
       {...props}
       lessons={lessons}
       value={draft.value}
       onChange={draft.change}
-      onLeave={draft.leave}
+      onLeave={draft.end}
       onKeyDown={(event) => {
-        if (event.key === "Escape") draft.revert();
+        if (event.key === "Escape") draft.escape();
       }}
     />
   );
