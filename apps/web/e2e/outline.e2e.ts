@@ -2,7 +2,7 @@
 // renaming, reordering, folding, duplicating, copying and deleting outline entries, and opening a
 // lesson, by pointer and by keyboard, with axe on every screen in both themes.
 import { type Course, type LessonEntry, SCHEMA_VERSION } from "@course-suite/format";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { violations } from "./axe.ts";
 import {
   back,
@@ -105,6 +105,24 @@ const outlineOf = (course: Course) => course.entries.map((entry) => `${entry.kin
 async function pointerAway(page: Page): Promise<void> {
   await page.getByRole("heading", { level: 2, name: "Outline" }).hover();
   await expect(page.getByRole("tooltip")).toHaveCount(0);
+}
+
+/** Records each text the page puts in the field `input` from now on; the result reads them. */
+async function shownIn(input: Locator): Promise<() => Promise<string[]>> {
+  type Watched = HTMLInputElement & { shown: string[] };
+  await input.evaluate((element: HTMLInputElement) => {
+    const shown: string[] = [];
+    const own = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    Object.defineProperty(element, "value", {
+      get: () => own?.get?.call(element),
+      set: (text: string) => {
+        shown.push(text);
+        own?.set?.call(element, text);
+      },
+    });
+    Object.assign(element, { shown });
+  });
+  return () => input.evaluate((element) => (element as Watched).shown);
 }
 
 /** The course in the newest autosave next to course file `file`, if there is one. */
@@ -383,19 +401,24 @@ test.describe("course outline", () => {
     course = await saved(page);
     expect(course.entries.map((entry) => entry.id)).toEqual(workshop().entries.map((e) => e.id));
     await toggle.click();
-    expect(await titles(page)).toHaveLength(6);
+    await expect.poll(() => titles(page)).toHaveLength(6);
 
     // Add below: the new row comes right under, with its title field focused.
     await rowAction(page, "Welcome", "Add section header below");
     const fresh = outline(page).getByRole("textbox", { name: "Section header title" }).nth(1);
     await expect(fresh).toBeFocused();
     await page.keyboard.type("Safety first");
+    const shown = await shownIn(fresh);
     await page.keyboard.press("Enter");
     expect(outlineOf(await saved(page)).slice(1, 4)).toEqual([
       "lesson Welcome",
       "section Safety first",
       "lesson Tools",
     ]);
+    // Enter ends the editing showing the title as typed. The row gets the renamed entry a render
+    // later: a field that went back to the row's title then showed the old, empty one for a moment,
+    // and a save or a key press in that moment put it back into the course.
+    expect(await shown()).not.toContain("");
   });
 
   test("[rise:3B] UI-BLOCKS-EDITOR-R10: a duplicated lesson lands directly below the original, with new ids", async ({
