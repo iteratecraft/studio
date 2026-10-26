@@ -49,6 +49,10 @@
         "learnerMarkDone": {
           "description": "While navigation is free, learners may mark an unfinished lesson (not a quiz) done. Default false.",
           "type": "boolean"
+        },
+        "videoSpeed": {
+          "description": "Learners may play videos from 0.25 to 2 times their speed. Default true.",
+          "type": "boolean"
         }
       },
       "unevaluatedProperties": false
@@ -224,9 +228,24 @@
         "alt": {
           "description": "Alternative text; empty marks the image as decorative.",
           "type": "string"
+        },
+        "captions": {
+          "description": "Caption tracks of a video, one WebVTT file per language.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/CaptionTrack" }
         }
       },
       "required": ["key"],
+      "unevaluatedProperties": false
+    },
+    "CaptionTrack": {
+      "description": "A WebVTT caption file of a video, in one language.",
+      "type": "object",
+      "properties": {
+        "key": { "$ref": "#/$defs/MediaKeyRef" },
+        "language": { "$ref": "#/$defs/Language" }
+      },
+      "required": ["key", "language"],
       "unevaluatedProperties": false
     },
     "Author": {
@@ -646,7 +665,11 @@
       "type": "object",
       "properties": {
         "audio": { "$ref": "#/$defs/MediaRef" },
-        "transcript": { "$ref": "#/$defs/RichText" }
+        "transcript": { "$ref": "#/$defs/RichText" },
+        "position": {
+          "description": "Where the narration player sits in the block. Default bottom.",
+          "enum": ["top", "bottom"]
+        }
       },
       "required": ["audio"],
       "unevaluatedProperties": false
