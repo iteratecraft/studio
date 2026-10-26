@@ -101,6 +101,7 @@ for (const standard of Object.keys(STANDARDS) as Standard[]) {
           regular: base64(found.regular) as string,
           ...(found.bold && { bold: base64(found.bold) }),
           ...(found.italic && { italic: base64(found.italic) }),
+          ...(found.licence && { licence: base64(found.licence) }),
         };
       }
       sent.push({ name, course, media: files, fonts });

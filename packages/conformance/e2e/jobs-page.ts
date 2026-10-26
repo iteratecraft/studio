@@ -16,10 +16,16 @@ export interface PageCourse {
   course: Course;
   /** Base64 bytes of each media file by storage key. */
   media: Record<string, string>;
-  /** The theme's and the default fonts by font key: name and base64 bytes of each face. */
+  /** The theme's fonts by font key: name, and base64 bytes of each face and of the licence. */
   fonts: Record<
     string,
-    { name: string; regular: string; bold?: string | undefined; italic?: string | undefined }
+    {
+      name: string;
+      regular: string;
+      bold?: string | undefined;
+      italic?: string | undefined;
+      licence?: string | undefined;
+    }
   >;
 }
 
@@ -46,12 +52,15 @@ async function exportAll(courses: PageCourse[], standard: Standard) {
             fonts: (font) => {
               const found = fonts[fontKey(font)];
               if (!found) return undefined;
-              const { name, regular, bold, italic } = found;
+              const { name, regular, bold, italic, licence } = found;
+              const optional = (text: string | undefined) =>
+                text === undefined ? undefined : bytes(text);
               return {
                 name,
                 regular: bytes(regular),
-                bold: bold === undefined ? undefined : bytes(bold),
-                italic: italic === undefined ? undefined : bytes(italic),
+                bold: optional(bold),
+                italic: optional(italic),
+                licence: optional(licence),
               };
             },
           };
