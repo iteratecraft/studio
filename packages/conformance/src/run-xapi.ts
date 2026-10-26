@@ -3,7 +3,7 @@
 // those the test LMS's launcher prepares, with its one-time fetch URL (C-1), reporting to the test
 // LMS's in-memory LRS. The run ends when the course page goes away and the LRS has gone quiet;
 // it returns what the LRS holds and every request the page made.
-import { type Browser, chromium, type Page } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
 import type { LrsRequest, MemoryLrs } from "./memory-lrs.js";
 import type { CoursePackage } from "./package.js";
 import {
@@ -25,7 +25,8 @@ export const firstRead = (request: LrsRequest) =>
   request.method === "GET" && request.resource === "activities/state" && request.status === 404;
 
 export interface XapiRunOptions {
-  browser?: Browser;
+  /** The browser to open the host page in; the caller owns it and closes it. */
+  browser: Browser;
   /** The LRS of an earlier run, so a relaunch finds its state. Default: a new LRS. */
   lrs?: MemoryLrs;
   /**
@@ -63,7 +64,7 @@ export interface XapiRun {
 
 export async function runXapiPackage(
   pkg: CoursePackage,
-  options: XapiRunOptions = {},
+  options: XapiRunOptions,
 ): Promise<XapiRun> {
   const { kind } = pkg.descriptor;
   if (kind !== "tincan" && kind !== "cmi5") {
@@ -75,53 +76,48 @@ export async function runXapiPackage(
     ...(lrsOptions && { lrsOptions }),
   });
   try {
-    const browser = options.browser ?? (await chromium.launch());
-    try {
-      const page = await browser.newPage();
-      const run: XapiRun = {
-        lrs: lms.lrs,
-        origin: lms.origin,
-        fetches: lms.fetches,
-        requests: [],
-        pageErrors: [],
-        consoleErrors: [],
-      };
-      page.on("request", (request) => run.requests.push(request.url()));
-      page.on("pageerror", (error) => run.pageErrors.push(error.message));
-      page.on("console", (message) => {
-        // Chromium logs every HTTP error status, such as the 404 of a first launch's state
-        // document; `lrs.requests` holds those statuses.
-        if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
-          run.consoleErrors.push(message.text());
-        }
-      });
-      try {
-        await options.prepare?.(page);
-        const params = new URLSearchParams();
-        const values: Record<string, string | null> = {
-          ...(kind === "cmi5"
-            ? lms.cmi5Launch(options.cmi5)
-            : {
-                endpoint: lms.xapiEndpoint,
-                auth: TEST_LAUNCH.auth,
-                actor: JSON.stringify(TEST_LAUNCH.actor),
-                registration: TEST_LAUNCH.registration,
-              }),
-          ...options.launch,
-        };
-        for (const [name, value] of Object.entries(values))
-          if (value !== null) params.set(name, value);
-        await page.goto(`${lms.origin}/package/${pkg.launchHref}?${params}`);
-        await options.drive?.(page);
-        // Leaving the page is the learner closing the course: it fires pagehide (standards.md rule 9).
-        await page.goto("about:blank");
-        await quiet(lms.lrs, options.timeoutMs ?? 10_000);
-        return run;
-      } finally {
-        await page.close();
+    const page = await options.browser.newPage();
+    const run: XapiRun = {
+      lrs: lms.lrs,
+      origin: lms.origin,
+      fetches: lms.fetches,
+      requests: [],
+      pageErrors: [],
+      consoleErrors: [],
+    };
+    page.on("request", (request) => run.requests.push(request.url()));
+    page.on("pageerror", (error) => run.pageErrors.push(error.message));
+    page.on("console", (message) => {
+      // Chromium logs every HTTP error status, such as the 404 of a first launch's state
+      // document; `lrs.requests` holds those statuses.
+      if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
+        run.consoleErrors.push(message.text());
       }
+    });
+    try {
+      await options.prepare?.(page);
+      const params = new URLSearchParams();
+      const values: Record<string, string | null> = {
+        ...(kind === "cmi5"
+          ? lms.cmi5Launch(options.cmi5)
+          : {
+              endpoint: lms.xapiEndpoint,
+              auth: TEST_LAUNCH.auth,
+              actor: JSON.stringify(TEST_LAUNCH.actor),
+              registration: TEST_LAUNCH.registration,
+            }),
+        ...options.launch,
+      };
+      for (const [name, value] of Object.entries(values))
+        if (value !== null) params.set(name, value);
+      await page.goto(`${lms.origin}/package/${pkg.launchHref}?${params}`);
+      await options.drive?.(page);
+      // Leaving the page is the learner closing the course: it fires pagehide (standards.md rule 9).
+      await page.goto("about:blank");
+      await quiet(lms.lrs, options.timeoutMs ?? 10_000);
+      return run;
     } finally {
-      if (!options.browser) await browser.close();
+      await page.close();
     }
   } finally {
     await lms.close();
