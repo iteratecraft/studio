@@ -31,6 +31,7 @@ import { BlockPreview } from "./block-preview.js";
 import { FormatMenu, StyleMenu } from "./block-settings.js";
 import { BLOCK_TYPES, type BlockType, blockName, idMaker, typeName, typeOf } from "./blocks.js";
 import { ManageBlocks, moveTogether } from "./manage.js";
+import { NarrationMenu, narratable } from "./narration.js";
 import { AfterRender } from "./outline.js";
 import type { CourseSession } from "./session.js";
 
@@ -88,7 +89,8 @@ export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: Lesso
     const other = { up: "down", down: "up" }[wanted.part as string];
     const target =
       wanted.part === "field"
-        ? enabled("input, textarea, [role=textbox]")
+        ? // A media block's first step is its file: the choose button comes first.
+          (enabled(".be-drop button") ?? enabled("input, textarea, [role=textbox]"))
         : (enabled(`[data-part=${wanted.part}]`) ??
           (other ? enabled(`[data-part=${other}]`) : null) ??
           enabled(".be-block-tools button"));
@@ -309,6 +311,7 @@ export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: Lesso
                           block={block}
                           next={index < blocks.length - 1}
                         />
+                        {narratable(block) && <NarrationMenu editor={editor} block={block} />}
                         <IconButton
                           icon="arrow-up"
                           label={t("outline.moveUp")}

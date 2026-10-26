@@ -9,6 +9,14 @@ import { newContentId } from "@course-suite/format";
 import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import type { ComponentType } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
+import {
+  AttachmentFields,
+  AudioFields,
+  EmbedFields,
+  GalleryFields,
+  ImageFields,
+  VideoFields,
+} from "./media-fields.js";
 
 /** Library groups in the library's order. Most are format categories; AI and templates are not. */
 export const GROUPS = [
@@ -80,7 +88,7 @@ const content = (block: Block): ContentItem | undefined =>
  * The edit of the block's first content item, or the one adding it (a block made by an importer
  * may have none); none for no text in a block without one.
  */
-function setContent(
+export function setContent(
   block: Block,
   id: () => string,
   field: "title" | "text",
@@ -283,6 +291,58 @@ const answer = (id: () => string, t: Translate, key: StringKey, correct: boolean
   correct,
 });
 
+/**
+ * Image, gallery and multimedia blocks (M2-13; blocks-editor.md 2.10 to 2.12). A new one waits for
+ * its file: the format ships no stock pictures (2.10's stock placeholder), and the player shows
+ * nothing for a block without one. Image variants switch among themselves keeping the image and
+ * text, and so do galleries (UI-BLOCKS-EDITOR-R25).
+ */
+const MEDIA_TYPES: BlockType[] = [
+  ...(["centered", "full-width", "image-text", "text-on-image", "banner"] as const).map(
+    (variant): BlockType => ({
+      group: "image",
+      variant,
+      label: `variant.image.${variant}`,
+      create: (id, t) => ({
+        id: id(),
+        category: "image",
+        variant,
+        ...((variant === "image-text" || variant === "text-on-image") && {
+          items: [{ id: id(), kind: "content", text: paragraph(t) }],
+        }),
+      }),
+      Fields: ImageFields,
+      switchable: true,
+    }),
+  ),
+  ...(["carousel", "grid-2", "grid-3", "grid-4"] as const).map(
+    (variant): BlockType => ({
+      group: "gallery",
+      variant,
+      label: `variant.gallery.${variant}`,
+      create: (id) => ({ id: id(), category: "gallery", variant }),
+      Fields: GalleryFields,
+      switchable: true,
+    }),
+  ),
+  ...(
+    [
+      ["audio", AudioFields],
+      ["video", VideoFields],
+      ["embed", EmbedFields],
+      ["attachment", AttachmentFields],
+    ] as const
+  ).map(
+    ([variant, Fields]): BlockType => ({
+      group: "multimedia",
+      variant,
+      label: `variant.multimedia.${variant}`,
+      create: (id) => ({ id: id(), category: "multimedia", variant }),
+      Fields,
+    }),
+  ),
+];
+
 const later = (group: Group, variants: string[]): BlockType[] =>
   variants.map((variant) => ({
     group,
@@ -337,10 +397,9 @@ export const BLOCK_TYPES: readonly BlockType[] = [
   ...later("statement", ["a", "b", "c", "d", "note"]),
   ...later("quote", ["a", "b", "c", "d", "on-image", "carousel"]),
   ...later("list", ["numbered", "bulleted", "checkbox"]),
-  // The player shows centred and full-width images; adding images comes with media (M2-13).
-  ...later("image", ["centered", "full-width", "image-text", "text-on-image", "banner"]),
-  ...later("gallery", ["carousel", "grid-2", "grid-3", "grid-4"]),
-  ...later("multimedia", ["audio", "video", "embed", "attachment", "code-snippet"]),
+  // Media blocks (M2-13, media-fields.tsx).
+  ...MEDIA_TYPES,
+  ...later("multimedia", ["code-snippet"]),
   ...later("interactive", [
     "accordion",
     "tabs",

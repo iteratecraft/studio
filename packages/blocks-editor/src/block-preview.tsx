@@ -2,7 +2,7 @@
 // real player renderer). It is drawn again whenever the block changes, so every edit shows at once.
 // The preview is a picture of the block: the fields edit it, so it takes no focus or clicks and
 // screen readers skip it. The player's renderer loads with the first lesson opened.
-import type { Block, Course } from "@course-suite/format";
+import { type Block, type Course, mediaKeysIn } from "@course-suite/format";
 import { useStrings } from "@course-suite/ui";
 import { useEffect, useRef, useState } from "react";
 
@@ -37,12 +37,13 @@ export function BlockPreview({
     const urls: string[] = [];
     void (async () => {
       const { draw } = await playerView();
-      // The block's media files as in-memory addresses, which the editor's policy allows.
+      // The block's pictures as in-memory addresses, which the editor's policy allows. Audio and
+      // video stay out: the preview is a picture of the block, and their files can be large.
       const files = new Map<string, string>();
-      for (const ref of block.media ?? []) {
-        const entry = index.find((media) => media.key === ref.key);
+      for (const used of mediaKeysIn(block)) {
+        const entry = index.find((media) => media.key === used);
         const key = entry && (entry.variantKey ?? entry.key);
-        if (!key || files.has(key)) continue;
+        if (!key || files.has(key) || !entry.mimeType?.startsWith("image/")) continue;
         const bytes = await media(key);
         if (!live) return;
         if (!bytes) continue;

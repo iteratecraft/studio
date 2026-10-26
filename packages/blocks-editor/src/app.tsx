@@ -19,6 +19,7 @@ import {
   createProject,
   discardAutosaves,
   type Project,
+  readAsset,
   saveProject,
 } from "@course-suite/project";
 import { ToastQueue, ToastRegion, UiProvider, useStrings } from "@course-suite/ui";
@@ -31,9 +32,11 @@ import {
   useSyncExternalStore,
 } from "react";
 import { blankCourse, fileNameFor, shownTitle } from "./course.js";
+import { coverThumbnail, coverUrl } from "./cover.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
 import { ChoiceDialog, PickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import { MediaIntakeProvider } from "./intake.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import {
   itemOf,
@@ -79,6 +82,36 @@ function App({ host }: { host: HostInterface }) {
   const [layout, setLayout] = useState<LayoutKey>("grid");
   const [session, setSession] = useState<CourseSession>();
   const [clip, setClip] = useState<Clip>();
+  // Blob addresses of the cards' cover copies, by data file name (H8).
+  const [covers, setCovers] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    const wanted = new Set(items.flatMap((item) => (item.cover ? [item.cover] : [])));
+    const added = [...wanted].filter((name) => !covers.has(name));
+    const stale = [...covers.keys()].filter((name) => !wanted.has(name));
+    if (added.length === 0 && stale.length === 0) return;
+    let live = true;
+    void Promise.all(added.map((name) => coverUrl(host, name))).then((urls) => {
+      if (!live) {
+        for (const url of urls) if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      setCovers((old) => {
+        const next = new Map(old);
+        for (const name of stale) {
+          URL.revokeObjectURL(next.get(name) as string);
+          next.delete(name);
+        }
+        added.forEach((name, i) => {
+          const url = urls[i];
+          if (url) next.set(name, url);
+        });
+        return next;
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [host, items, covers]);
   const filters = [{ name: t("file.filter"), extensions: ["crs"] }];
 
   /** Changes the course list and keeps it in the host's storage. */
@@ -174,15 +207,25 @@ function App({ host }: { host: HostInterface }) {
       />
     ));
 
-  const remember = async (file: FileRef, course: Course) => {
+  /**
+   * Puts the course's card in the list, with a small copy of its cover read through `media` (a
+   * project's or a session's media files by storage key).
+   */
+  const remember = async (
+    file: FileRef,
+    course: Course,
+    media: (key: string) => Promise<Uint8Array | undefined>,
+  ) => {
     markMissing(file, false);
     const updated = (await host.files.modified(file).catch(() => undefined)) ?? Date.now();
-    await updateLibrary((items) => withItem(items, itemOf(file, course, updated)));
+    const cover = await coverThumbnail(host, course, media);
+    await updateLibrary((items) => withItem(items, itemOf(file, course, updated, cover)));
   };
+  const projectMedia = (project: Project) => (key: string) => readAsset(project, key);
 
   const start = async (file: FileRef, project: Project, dirty: boolean) => {
     setSession(new CourseSession(host, file, project, dirty));
-    await remember(file, project.course);
+    await remember(file, project.course, projectMedia(project));
   };
 
   /** Opens a course file, offering autosaved work left by a crash (packages/project). */
@@ -312,7 +355,7 @@ function App({ host }: { host: HostInterface }) {
     };
     const copy = copyProject(source, course);
     await saveProject(host.files.projectFiles(file), file.name, copy);
-    await remember(file, course);
+    await remember(file, course, projectMedia(copy));
   };
 
   const rename = async (item: LibraryItem) => {
@@ -324,7 +367,7 @@ function App({ host }: { host: HostInterface }) {
     if (!renamed.ok) throw new Error(renamed.errors.map((error) => error.message).join("; "));
     project.course = renamed.document;
     await saveProject(host.files.projectFiles(item.file), item.file.name, project);
-    await remember(item.file, project.course);
+    await remember(item.file, project.course, projectMedia(project));
   };
 
   /** Courses and microlearning items other than the open one that can be opened, to copy into. */
@@ -375,7 +418,7 @@ function App({ host }: { host: HostInterface }) {
     }
     project.course = result.document;
     await saveProject(host.files.projectFiles(target.file), target.file.name, project);
-    await remember(target.file, project.course);
+    await remember(target.file, project.course, projectMedia(project));
     toasts.add(
       {
         title: done(project.course),
@@ -570,7 +613,7 @@ function App({ host }: { host: HostInterface }) {
     if (!session) return;
     try {
       await session.save();
-      await remember(session.file, session.editor.document);
+      await remember(session.file, session.editor.document, session.media);
     } catch {
       // The failure shows in the save state; the file on disk is the previous one.
     }
@@ -588,7 +631,7 @@ function App({ host }: { host: HostInterface }) {
     if (!file) return;
     try {
       await session.saveAs(file);
-      await remember(file, session.editor.document);
+      await remember(file, session.editor.document, session.media);
     } catch {
       // The failure shows in the save state; the course stays on its old file.
     }
@@ -622,7 +665,7 @@ function App({ host }: { host: HostInterface }) {
       try {
         if (answer === "save") {
           await session.save();
-          await remember(session.file, session.editor.document);
+          await remember(session.file, session.editor.document, session.media);
         } else await session.discard();
       } catch {
         return false;
@@ -646,21 +689,24 @@ function App({ host }: { host: HostInterface }) {
   return (
     <>
       {session ? (
-        <EditorFrame
-          key={session.id}
-          session={session}
-          toasts={toasts}
-          onSave={() => void save()}
-          onSaveAs={() => void saveAs().catch(failure)}
-          onClose={() => void closeCourse()}
-          onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
-          clipboard={clipboard(session)}
-        />
+        // Media files come in, and are converted, through the host (M2-13).
+        <MediaIntakeProvider key={session.id} host={host} session={session}>
+          <EditorFrame
+            session={session}
+            toasts={toasts}
+            onSave={() => void save()}
+            onSaveAs={() => void saveAs().catch(failure)}
+            onClose={() => void closeCourse()}
+            onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
+            clipboard={clipboard(session)}
+          />
+        </MediaIntakeProvider>
       ) : (
         <Dashboard
           appName={app.name}
           version={app.version}
           items={items}
+          covers={covers}
           missing={missing}
           sort={sort}
           onSortChange={(key) => {

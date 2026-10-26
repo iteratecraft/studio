@@ -52,6 +52,8 @@ export interface DashboardProps {
   appName: string;
   version: string;
   items: readonly LibraryItem[];
+  /** Blob addresses of the cards' cover copies, by `LibraryItem.cover`. */
+  covers: ReadonlyMap<string, string>;
   /** Ids of the files found missing. */
   missing: ReadonlySet<string>;
   sort: SortKey;
@@ -167,6 +169,7 @@ export function Dashboard(props: DashboardProps) {
                   items={courses}
                   layout={props.layout}
                   missing={props.missing}
+                  covers={props.covers}
                   onAction={props.onAction}
                   empty={
                     <EmptyState icon="search" title={t("dashboard.noMatch")} level={2}>
@@ -205,6 +208,7 @@ export function Dashboard(props: DashboardProps) {
               items={deleted}
               layout={props.layout}
               missing={props.missing}
+              covers={props.covers}
               onAction={props.onAction}
               inDeleted
               empty={<EmptyState icon="trash" title={t("dashboard.deletedEmpty")} level={2} />}
@@ -222,6 +226,7 @@ function CourseList({
   items,
   layout,
   missing,
+  covers,
   onAction,
   inDeleted = false,
   empty,
@@ -230,6 +235,7 @@ function CourseList({
   items: LibraryItem[];
   layout: LayoutKey;
   missing: ReadonlySet<string>;
+  covers: ReadonlyMap<string, string>;
   onAction: DashboardProps["onAction"];
   inDeleted?: boolean;
   empty: ReactNode;
@@ -315,7 +321,11 @@ function CourseList({
                   {/* Space on the card selects it too, so the box needs no stop of its own. */}
                   <Checkbox slot="selection" excludeFromTabOrder />
                   <div className="be-cover" data-kind={item.kind} aria-hidden="true">
-                    <Icon name="file" size={28} />
+                    {item.cover && covers.get(item.cover) ? (
+                      <img src={covers.get(item.cover)} alt="" />
+                    ) : (
+                      <Icon name="file" size={28} />
+                    )}
                   </div>
                   <div className="be-card-text">
                     <span className="be-card-title">{title}</span>

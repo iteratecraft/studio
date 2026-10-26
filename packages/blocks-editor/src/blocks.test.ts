@@ -27,6 +27,19 @@ test("[rise:3C] blocks-editor W7, BLK-03: each type the player shows today makes
     "text/paragraph-with-subheading",
     "text/heading",
     "text/subheading",
+    "image/centered",
+    "image/full-width",
+    "image/image-text",
+    "image/text-on-image",
+    "image/banner",
+    "gallery/carousel",
+    "gallery/grid-2",
+    "gallery/grid-3",
+    "gallery/grid-4",
+    "multimedia/audio",
+    "multimedia/video",
+    "multimedia/embed",
+    "multimedia/attachment",
     "knowledge-check/single-choice",
     "knowledge-check/multiple-response",
     "knowledge-check/fill-in",
@@ -45,8 +58,8 @@ test("[rise:3C] blocks-editor W7, BLK-03: each type the player shows today makes
     if (!result.ok) throw new Error(`${type.variant}: ${JSON.stringify(result.errors)}`);
     course = result.document;
   }
-  // Every id made is new: ten blocks, and their items, questions, answers and pairs.
+  // Every id made is new: every block, and their items, questions, answers and pairs.
   const ids = JSON.stringify(course).match(/"id":"[a-z][a-z0-9]{9}"/g) ?? [];
   expect(new Set(ids).size).toBe(ids.length);
-  expect((course.entries[0] as LessonEntry).blocks).toHaveLength(10);
+  expect((course.entries[0] as LessonEntry).blocks).toHaveLength(available.length);
 });

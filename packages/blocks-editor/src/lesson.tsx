@@ -6,6 +6,7 @@ import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
 import { EmptyState, ListBoxItem, Select, type ToastQueue, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
+import { HeaderImageField } from "./cover.js";
 import { DraftField, RichDraftField } from "./fields.js";
 import { type Clipboard, LessonBlocks } from "./lesson-blocks.js";
 import type { CourseSession } from "./session.js";
@@ -89,6 +90,7 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
             return name ? update({ author: { ...entry.author, name } }) : unset("author");
           }}
         />
+        {entry.kind === "lesson" && <HeaderImageField editor={editor} lesson={entry} />}
       </div>
       <LessonContent
         session={session}

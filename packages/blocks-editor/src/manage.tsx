@@ -194,12 +194,13 @@ export function ManageBlocks({
                   <div className="be-settings">
                     <BackgroundFields
                       settings={blocks.find((block) => block.id === chosen[0])?.settings ?? {}}
-                      onChange={(next) =>
-                        editor.dispatch(
-                          blocks
+                      onChange={(next, media = []) =>
+                        editor.dispatch([
+                          ...media,
+                          ...blocks
                             .filter((block) => selected.has(block.id))
                             .map((block) => withSettings(block, next)),
-                        )
+                        ])
                       }
                     />
                   </div>
