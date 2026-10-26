@@ -62,7 +62,7 @@ test("records the SCORM 2004 call trace of the test SCO", async ({ browser }) =>
   );
 });
 
-test("returns the partial trace when the SCO never finishes", async () => {
+test("returns the partial trace when the SCO never finishes", async ({ browser }) => {
   const manifest = readFileSync(
     new URL("../fixtures/scorm12-sco/imsmanifest.xml", import.meta.url),
   );
@@ -74,8 +74,7 @@ test("returns the partial trace when the SCO never finishes", async () => {
     ]),
   );
   if (!result.ok) throw new Error(JSON.stringify(result.problems));
-  // No browser passed: runPackage launches and closes its own.
-  const run = await runPackage(result.value, { timeoutMs: 1_000 });
+  const run = await runPackage(result.value, { browser, timeoutMs: 1_000 });
   expect(run.finished).toBe(false);
   expect(run.trace.map((call) => call.method)).toEqual(["LMSInitialize"]);
 });
