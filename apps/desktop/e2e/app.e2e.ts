@@ -315,7 +315,9 @@ test("the course preview runs the real player in WebView2 under the shell's poli
 test("closing the window asks the page, which lets it close with no course open", async () => {
   // PowerShell can take tens of seconds to start on a CI runner.
   test.setTimeout(150_000);
-  const closed = page.waitForEvent("close", { timeout: 120_000 });
+  // The window, its page and then WebView2 go. The test ends only once the connection to WebView2
+  // has ended too: Playwright's end-of-test trace handling fails on a connection that is closing.
+  const closed = new Promise<void>((resolve) => browser.once("disconnected", () => resolve()));
   // WM_CLOSE, as the window's close button sends.
   await promisify(execFile)(
     "powershell.exe",
