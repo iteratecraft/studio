@@ -2,7 +2,7 @@
 // media, lets the exporter for the chosen standard write its descriptor, checks the result and zips
 // it. Same course, player, media and options always give the same bytes.
 import type { Course, PublishSettings } from "@course-suite/format";
-import { validateCourse } from "@course-suite/format";
+import { usedMediaKeys, validateCourse } from "@course-suite/format";
 import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
 import { checkResume, resumeCapFor } from "@course-suite/tracking";
 import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "@course-suite/zip";
@@ -122,9 +122,15 @@ export const MEDIA_FOLDER = "media";
 /** The storage key a package takes a media entry's bytes from: its optimised variant when it has one. */
 const packagedKey = (entry: Course["media"][number]) => entry.variantKey ?? entry.key;
 
+/** The media index entries the course refers to; a file nothing uses stays out of packages (BLK-05). */
+const usedMedia = (course: Course) => {
+  const used = usedMediaKeys(course);
+  return course.media.filter((entry) => used.has(entry.key));
+};
+
 /** Storage keys of every media file a package of `course` holds, each once: what `media` is asked for. */
 export const packagedMediaKeys = (course: Course): string[] => [
-  ...new Set(course.media.map(packagedKey)),
+  ...new Set(usedMedia(course).map(packagedKey)),
 ];
 
 /**
@@ -138,7 +144,7 @@ export function courseDataFor(
   lrs?: LrsSettings,
 ): CourseData {
   const media = Object.fromEntries(
-    course.media.map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
+    usedMedia(course).map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
   );
   return { course: withoutExt(course), standard, packageVersion, media, ...(lrs && { lrs }) };
 }
@@ -180,7 +186,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     });
   }
 
-  // Asset collector: every media index entry, as its optimised variant when it has one.
+  // Asset collector: every media file the course uses, as its optimised variant when it has one.
   const collected = new Set<string>();
   for (const key of packagedMediaKeys(course)) {
     const path = `${MEDIA_FOLDER}/${key}`;

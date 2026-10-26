@@ -6,6 +6,16 @@ import { accentReadable, isCorrect, SURFACE, textOn } from "@course-suite/format
 import type { Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
+import {
+  attachmentBlock,
+  audioBlock,
+  embedBlock,
+  galleryBlock,
+  imageBlock,
+  type MediaContext,
+  narrationOf,
+  videoBlock,
+} from "./media.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
 
@@ -20,6 +30,8 @@ export interface LessonHooks {
   saved(questionId: string): Response | undefined;
   /** Runs `update` now and after every progress change. */
   watch(update: () => void): void;
+  /** A block that needs an action is done: a carousel seen through, a locked video played. */
+  completed(block: Block): void;
 }
 
 export interface BlockContext {
@@ -32,19 +44,42 @@ export interface BlockContext {
 
 type Renderer = (block: Block, context: BlockContext) => HTMLElement | undefined;
 
+/** What the media blocks need, from a block's context. */
+const media =
+  (render: (block: Block, context: MediaContext) => HTMLElement | undefined): Renderer =>
+  (block, { course, labels, lesson, mediaUrl: url = mediaUrl }) =>
+    render(block, {
+      course,
+      labels,
+      url,
+      ...(lesson && { completed: (done: Block) => lesson.completed(done) }),
+    });
+
 const RENDERERS: Record<string, Renderer> = {
   "text/paragraph": (block, { labels }) => textBlock(block, labels, undefined),
   "text/paragraph-with-heading": (block, { labels }) => textBlock(block, labels, 2),
   "text/paragraph-with-subheading": (block, { labels }) => textBlock(block, labels, 3),
   "text/heading": (block, { labels }) => headingBlock(block, labels, 2),
   "text/subheading": (block, { labels }) => headingBlock(block, labels, 3),
-  "image/centered": (block, context) => imageBlock(block, context),
-  "image/full-width": (block, context) => imageBlock(block, context),
   "divider/continue": continueBlock,
   "knowledge-check/single-choice": check,
   "knowledge-check/multiple-response": check,
   "knowledge-check/fill-in": check,
   "knowledge-check/matching": check,
+  // Media blocks (M2-13).
+  "image/centered": media(imageBlock),
+  "image/full-width": media(imageBlock),
+  "image/image-text": media(imageBlock),
+  "image/text-on-image": media(imageBlock),
+  "image/banner": media(imageBlock),
+  "gallery/carousel": media(galleryBlock),
+  "gallery/grid-2": media(galleryBlock),
+  "gallery/grid-3": media(galleryBlock),
+  "gallery/grid-4": media(galleryBlock),
+  "multimedia/audio": media(audioBlock),
+  "multimedia/video": media(videoBlock),
+  "multimedia/embed": media(embedBlock),
+  "multimedia/attachment": media(attachmentBlock),
 };
 
 /**
@@ -65,14 +100,18 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (!content) return undefined;
   const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
     block.settings ?? {};
-  const full = block.variant === "full-width";
+  const full = block.variant === "full-width" || block.variant === "banner";
+  const narration = media(narrationOf)(block, context);
+  const top = narration && block.settings?.narration?.position === "top";
   const frame = h(
     "div",
     { class: `block block-${block.category}`, "data-block": block.id },
     h(
       "div",
       { class: full ? "block-inner width-full" : `block-inner width-${contentWidth ?? "medium"}` },
+      top ? narration : undefined,
       content,
+      top ? undefined : narration,
     ),
   );
   // Through the style object, not a style attribute, which a page's content security policy may
@@ -81,7 +120,22 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.paddingTop = `${padding.top}px`;
     frame.style.paddingBottom = `${padding.bottom}px`;
   }
-  // shortcut: an image background shows as no background until media blocks arrive (M2-13).
+  // An image background with its overlay: a dark one makes the text light, a light one dark
+  // (UI-BLOCKS-EDITOR-R22).
+  const image =
+    background?.kind === "image" &&
+    context.course.media.find((media) => media.key === background.image.key);
+  if (background?.kind === "image" && image) {
+    const dark = background.overlay !== "light";
+    const alpha = Math.min(100, Math.max(0, background.opacity ?? 50));
+    const tint = dark ? `rgb(0 0 0 / ${alpha}%)` : `rgb(255 255 255 / ${alpha}%)`;
+    const url = (context.mediaUrl ?? mediaUrl)(image.variantKey ?? image.key);
+    frame.style.backgroundImage = `linear-gradient(${tint}, ${tint}), url("${url}")`;
+    frame.style.backgroundSize = "cover";
+    frame.style.backgroundPosition = "center";
+    frame.classList.add("has-background", dark ? "text-light" : "text-dark");
+    if (cardStyle !== "transparent") frame.classList.add("cards-white");
+  }
   if (background?.kind === "color") {
     frame.style.backgroundColor = background.color;
     frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);
@@ -144,24 +198,6 @@ function textBlock(
       : undefined,
     item.text ? richText(item.text, labels) : undefined,
   );
-}
-
-function imageBlock(
-  block: Block,
-  { course, mediaUrl: url = mediaUrl }: BlockContext,
-): HTMLElement | undefined {
-  const ref = block.media?.[0];
-  const entry = ref && course.media.find((media) => media.key === ref.key);
-  if (!ref || !entry) return undefined;
-  // An empty or missing alt text marks the image as decorative (ADR-0002 MediaRef).
-  return h("img", {
-    class: "image",
-    src: url(entry.variantKey ?? entry.key),
-    alt: ref.alt ?? "",
-    width: entry.width,
-    height: entry.height,
-    loading: "lazy",
-  });
 }
 
 /** Address of a media file: its path in the package, relative to the index page (see fileUrl). */

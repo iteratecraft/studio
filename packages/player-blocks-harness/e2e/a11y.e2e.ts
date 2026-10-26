@@ -6,7 +6,12 @@
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { type Course, openCourse } from "@course-suite/format";
-import { fullCourse, minimalCourse, sampleCourse } from "@course-suite/format/test/courses";
+import {
+  fullCourse,
+  mediaCourse,
+  minimalCourse,
+  sampleCourse,
+} from "@course-suite/format/test/courses";
 import type { Locator, Page } from "@playwright/test";
 import { expectAccessible, violations } from "./axe.ts";
 import { continueBlock, course, everyBlockCourse, lesson, paragraph, quiz } from "./courses.ts";
@@ -111,6 +116,7 @@ const fixtures: [string, () => Course][] = [
   ["minimal", minimalCourse],
   ["every block", () => everyBlockCourse()],
   ["must pass", mustPass],
+  ["media", mediaCourse],
 ];
 
 test.describe("WCAG 2.2 A and AA on every page", () => {

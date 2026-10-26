@@ -100,6 +100,12 @@ export const english = {
     "media.fullScreen": "Full screen",
     "media.exitFullScreen": "Leave full screen",
     "media.transcript": "Transcript",
+    "narration.label": "Narration",
+    "embed.load": "Show the content from {provider}",
+    "embed.notice": "It loads from {provider}, outside this course.",
+    "embed.preview": "The content from {provider} loads here in the published course.",
+    "embed.title": "Content from {provider}",
+    "attachment.download": "Download {name}",
 
     "status.loading": "Loading",
     "error.loadFailed": "Part of this course could not load: {part}",

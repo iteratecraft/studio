@@ -1,6 +1,13 @@
+import type { LessonEntry } from "@course-suite/format";
 import { describe, expect, test } from "vitest";
 import { stubCourse, stubInput, stubMedia, stubPlayer } from "../test/stub.js";
-import { buildPackage, type CourseData, type PlayerBundle, unsafePath } from "./index.js";
+import {
+  buildPackage,
+  type CourseData,
+  courseDataFor,
+  type PlayerBundle,
+  unsafePath,
+} from "./index.js";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
@@ -91,6 +98,28 @@ describe("buildPackage", () => {
     ]);
   });
 
+  test("BLK-05: leaves out media the course no longer uses, and gives the player no path for it", async () => {
+    const course = stubCourse();
+    course.media.push({ id: "media00009", key: "old-photo.jpg", source: "upload" });
+    const asked: string[] = [];
+    const { files } = await built({
+      course,
+      media: (key) => {
+        asked.push(key);
+        return stubMedia[key];
+      },
+    });
+    expect(asked.sort()).toEqual(["cover-small.jpg", "diagram.svg"]);
+    expect(files.filter((path) => path.startsWith("media/"))).toEqual([
+      "media/cover-small.jpg",
+      "media/diagram.svg",
+    ]);
+    expect(Object.keys(courseDataFor(course, "scorm12", 1).media).sort()).toEqual([
+      "cover.jpg",
+      "diagram.svg",
+    ]);
+  });
+
   test("names a missing launch page", async () => {
     expect(await problems({ player: { ...stubPlayer(), launchPage: "start.html" } })).toEqual([
       { file: "start.html", message: "is the player's launch page but is missing" },
@@ -173,11 +202,21 @@ describe("buildPackage", () => {
 Read more at https://example.org/guide-two
 `;
 
-    /** The stub input with extra media files (storage key to text) in the course's media index. */
+    /**
+     * The stub input with extra media files (storage key to text) in the course's media index, each
+     * used by a block (unused files stay out of packages).
+     */
     function withMedia(files: Record<string, string>) {
       const course = stubCourse();
+      const lesson = course.entries[0] as LessonEntry;
       for (const [index, key] of Object.keys(files).entries()) {
         course.media.push({ id: `media1000${index}`, key, source: "upload" });
+        lesson.blocks.push({
+          id: `block1000${index}`,
+          category: "multimedia",
+          variant: "attachment",
+          media: [{ key }],
+        });
       }
       const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
       return { course, media };

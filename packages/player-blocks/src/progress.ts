@@ -40,8 +40,8 @@ const isGate = (block: Block) => isContinue(block) || requiresCorrect(block);
 
 /**
  * Blocks a continue block can wait for, by `category/variant`: each is finished by an interaction,
- * not by being seen (UI-BLOCKS-R45). Buttons and attachments never are (UI-BLOCKS-R19). Audio,
- * video and slide-app blocks join when their blocks and settings exist.
+ * not by being seen (UI-BLOCKS-R45). Buttons and attachments never are (UI-BLOCKS-R19). Audio and
+ * video join only with forward seeking off (below); slide-app blocks when their blocks exist.
  */
 const REQUIRABLE = new Set([
   "interactive/accordion",
@@ -56,11 +56,21 @@ const REQUIRABLE = new Set([
   "gallery/carousel",
 ]);
 
+/**
+ * Audio and video with forward seeking off: played to the end, not seen (UI-BLOCKS-EDITOR-R37,
+ * UI-BLOCKS-R45).
+ */
+const lockedMedia = (block: Block) =>
+  block.category === "multimedia" &&
+  (block.variant === "audio" || block.variant === "video") &&
+  block.variantSettings?.forwardSeeking === false;
+
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (block: Block) =>
   isContinue(block) ||
   block.category === "knowledge-check" ||
-  REQUIRABLE.has(`${block.category}/${block.variant}`);
+  REQUIRABLE.has(`${block.category}/${block.variant}`) ||
+  lockedMedia(block);
 
 /** How a page shows in the outline. */
 export type PageStatus = "not-started" | "in-progress" | "done" | "failed" | "locked";
@@ -95,6 +105,8 @@ export interface Progress {
   answerCheck(lesson: LessonEntry, block: Block, response: Response, correct: boolean): void;
   /** Whether a continue block's requirement is met (UI-BLOCKS-R44). */
   continueReady(lesson: LessonEntry, block: Block): boolean;
+  /** A block that needs an action is done: a carousel seen through, a locked video played. */
+  completeBlock(lesson: LessonEntry, block: Block): void;
   /** The saved response to a question: knowledge checks and the quiz attempt in progress. */
   response(questionId: string): Response | undefined;
   isDone(id: string): boolean;
@@ -274,6 +286,12 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
       view(lesson);
     },
 
+    completeBlock(lesson, block) {
+      if (!needsAction(block) || done.has(block.id)) return;
+      done.add(block.id);
+      view(lesson);
+    },
+
     continueReady(lesson, block) {
       const index = lesson.blocks.indexOf(block);
       const kind = requirement(block);
@@ -406,10 +424,8 @@ export function largestResume(course: Course): ResumeState {
   return {
     done: [
       ...pages.map((page) => page.id),
-      // Continue blocks are pressed and knowledge checks answered; no other block is saved as done.
-      ...blocks
-        .filter((block) => isContinue(block) || block.category === "knowledge-check")
-        .map((block) => block.id),
+      // Every block finished by an action is saved as done once it is; no other block is.
+      ...blocks.filter(needsAction).map((block) => block.id),
     ],
     visited: Object.fromEntries(
       lessons.map((lesson) => [lesson.id, lesson.blocks.map((block) => block.id)]),

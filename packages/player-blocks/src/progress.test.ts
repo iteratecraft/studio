@@ -137,6 +137,33 @@ describe("continue blocks", () => {
     expect(progress.continueReady(checklist, checklist.blocks[1] as Block)).toBe(false);
     expect(progress.continueReady(button, button.blocks[1] as Block)).toBe(true);
   });
+
+  test("[rise:3G] UI-BLOCKS-EDITOR-R37, UI-BLOCKS-R45, R52: audio and video are requirable only with forward seeking off; they and carousels finish by completeBlock", () => {
+    const media = (variant: string, forwardSeeking?: boolean): Block => ({
+      id: newId("m"),
+      category: variant === "carousel" ? "gallery" : "multimedia",
+      variant,
+      ...(forwardSeeking !== undefined && { variantSettings: { forwardSeeking } }),
+    });
+    const free = lesson(media("video"), continueBlock("block-above"));
+    const locked = lesson(media("audio", false), continueBlock("block-above"));
+    const slides = lesson(media("carousel"), continueBlock("block-above"));
+    const file = lesson(media("attachment"), continueBlock("block-above"));
+    const progress = createProgress(course([free, locked, slides, file]));
+    for (const page of [free, locked, slides, file]) progress.view(page);
+    expect(progress.continueReady(free, free.blocks[1] as Block)).toBe(true);
+    expect(progress.continueReady(file, file.blocks[1] as Block)).toBe(true);
+    expect(progress.continueReady(locked, locked.blocks[1] as Block)).toBe(false);
+    expect(progress.continueReady(slides, slides.blocks[1] as Block)).toBe(false);
+    progress.completeBlock(locked, locked.blocks[0] as Block);
+    progress.completeBlock(slides, slides.blocks[0] as Block);
+    expect(progress.continueReady(locked, locked.blocks[1] as Block)).toBe(true);
+    expect(progress.continueReady(slides, slides.blocks[1] as Block)).toBe(true);
+    // A block that needs no action is never saved as done.
+    progress.completeBlock(file, file.blocks[0] as Block);
+    expect(progress.isDone((file.blocks[0] as Block).id)).toBe(false);
+    expect(largestResume(course([locked])).done).toContain((locked.blocks[0] as Block).id);
+  });
 });
 
 describe("knowledge checks", () => {
