@@ -806,11 +806,14 @@ test.describe("block backgrounds", () => {
     await page.keyboard.press("Enter");
     await page.getByRole("option", { name: "Light, with dark text" }).focus();
     await page.keyboard.press("Enter");
+    // The choice's list closes first; an Escape sent before that would close only the list.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
     await expect(drawn).toHaveClass(/text-dark/);
     course = await saved(page);
     expect(lessonOf(course).blocks[0]?.settings?.background).toMatchObject({ overlay: "light" });
     // Undo goes back to the dark overlay, then to no background at all.
     await page.keyboard.press("Escape");
+    await expect(style).toHaveCount(0);
     await heading(page, "River walk").click();
     await page.keyboard.press("Control+Z");
     await expect(drawn).toHaveClass(/text-light/);
