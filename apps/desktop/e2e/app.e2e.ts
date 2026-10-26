@@ -385,9 +385,10 @@ test("D-43: a job id that is not a plain id is refused before any file is named 
   const info = (await shell("media_converter", {})) as { value: { installed: boolean } };
   expect(await shell("media_cancel", { job: "early-1" })).toMatchObject({ ok: true });
   const early = await media("media_install", { job: "early-1" });
-  // Not installed (as on CI): the download never starts. Installed: there is nothing to stop.
+  // Not installed (as on CI): stopped as it starts, where a lost cancel would download the
+  // converter. Installed: there is nothing to stop.
   expect(early).toMatchObject(
-    info.value.installed ? { ok: true } : { ok: false, error: "cancelled", progress: 0 },
+    info.value.installed ? { ok: true } : { ok: false, error: "cancelled" },
   );
   expect(existsSync(join(localData, "media-work", "early-1.zip"))).toBe(false);
 });
