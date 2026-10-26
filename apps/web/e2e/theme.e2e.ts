@@ -162,6 +162,33 @@ async function shownFrame(page: Page): Promise<Frame> {
   return frame as Frame;
 }
 
+/** Whether `error` is a read cut short because a live update swapped its frame away. */
+const swappedAway = (error: unknown) =>
+  error instanceof Error &&
+  /Frame was detached|Execution context was destroyed/.test(error.message);
+
+/**
+ * `read` from the player, or undefined when a live update swapped its frame away mid-read, so a
+ * poll reads again from the frame that replaced it. Any other failure stays a failure.
+ */
+const unlessSwapped = <T>(read: Promise<T>): Promise<T | undefined> =>
+  read.catch((error: unknown) => {
+    if (swappedAway(error)) return undefined;
+    throw error;
+  });
+
+/** Runs `read` in the frame on show, and again in the next one if a live update swaps it away. */
+async function inShown<T>(page: Page, read: (frame: Frame) => Promise<T>): Promise<T> {
+  for (;;) {
+    const frame = await shownFrame(page);
+    try {
+      return await read(frame);
+    } catch (error) {
+      if (!swappedAway(error)) throw error;
+    }
+  }
+}
+
 /** A custom property the theme set on the player's page. */
 const variable = (frame: Frame, name: string) =>
   frame.evaluate(
@@ -178,7 +205,7 @@ const fontLoaded = (frame: Frame, family: string) =>
 
 /** Waits until the player on show has the font family loaded. */
 const expectFontLoaded = (page: Page, family: string) =>
-  expect.poll(async () => fontLoaded(await shownFrame(page), family).catch(() => false)).toBe(true);
+  expect.poll(() => inShown(page, (frame) => fontLoaded(frame, family))).toBe(true);
 
 /** Presses Tab until `target` has the focus, at most 40 times. */
 async function tabTo(page: Page, target: Locator): Promise<void> {
@@ -247,7 +274,7 @@ test("blocks-editor T1 BLK-09, M2-17: the theme button opens its sections in ord
   await expect(title).toBeVisible();
   // ENG-08: no font chosen, so the course is in the device's fonts and the package carries none.
   await expect(title).toHaveCSS("font-family", /^system-ui, /);
-  expect(await (await shownFrame(page)).evaluate(() => document.fonts.size)).toBe(0);
+  expect(await inShown(page, (frame) => frame.evaluate(() => document.fonts.size))).toBe(0);
   await page.getByRole("button", { name: "Back to the course" }).click();
   await expect(page.getByRole("textbox", { name: "Course title" })).toBeVisible();
   await expect(themeButton(page)).toBeEnabled();
@@ -354,9 +381,7 @@ test("[rise:R18] UI-BLOCKS-EDITOR-R19 UI-BLOCKS-EDITOR-R45 BLK-09, keyboard only
     `rgb(${[1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(", ")})`;
   await expect(begin).toHaveCSS("background-color", rgb(colors.button));
   await expect(begin).toHaveCSS("color", "rgb(255, 255, 255)");
-  await expect
-    .poll(async () => variable(await shownFrame(page), "--theme").catch(() => ""))
-    .toBe(nearest);
+  await expect.poll(() => inShown(page, (frame) => variable(frame, "--theme"))).toBe(nearest);
 });
 
 test("[rise:3E] UI-BLOCKS-EDITOR-R47 BLK-09: the cover's start button, authors, layout and skip, shown in the player", async ({
@@ -669,9 +694,7 @@ for (const editorTheme of ["light", "dark"] as const) {
       expect(await violations(page), `${editorTheme}: ${state}`).toEqual([]);
     const checkPlayer = async (state: string) => {
       await player(page);
-      expect(await violations(await shownFrame(page)), `${editorTheme}: player ${state}`).toEqual(
-        [],
-      );
+      expect(await inShown(page, violations), `${editorTheme}: player ${state}`).toEqual([]);
     };
     await openBees(
       page,
@@ -855,13 +878,18 @@ function beesWithCover(theme?: Theme): Course {
 /** A picture setting of the panel, by its name. */
 const pictureGroup = (page: Page, name: string) => panel(page).getByRole("group", { name });
 
-/** The inline style a cropped picture of the player was moved with. */
+/**
+ * The inline style a cropped picture of the player was moved with; undefined when a live update
+ * swapped the frame away mid-read, so a poll reads it again from the new one.
+ */
 const cropStyle = (picture: Locator) =>
-  picture.evaluate((img: HTMLImageElement) => ({
-    left: img.style.left,
-    width: img.style.width,
-    ratio: (img.parentElement as HTMLElement).style.getPropertyValue("--crop-ratio"),
-  }));
+  unlessSwapped(
+    picture.evaluate((img: HTMLImageElement) => ({
+      left: img.style.left,
+      width: img.style.width,
+      ratio: (img.parentElement as HTMLElement).style.getPropertyValue("--crop-ratio"),
+    })),
+  );
 
 test("[rise:3E] blocks-editor T4 2.18 BLK-09: a logo is chosen through the open dialog with its alternative text, size and square, shown on the cover; a file that is no picture is refused; it saves with its media entry as one undo step", async ({
   page,
@@ -890,7 +918,9 @@ test("[rise:3E] blocks-editor T4 2.18 BLK-09: a logo is chosen through the open 
   const frame = await player(page);
   const shown = frame.locator(".cover-logo.logo-large.logo-square");
   await expect(shown.getByRole("img", { name: "Hive and Co." })).toBeVisible();
-  expect(await shown.locator(".logo-image").boundingBox()).toMatchObject({ width: 80, height: 80 });
+  await expect
+    .poll(() => unlessSwapped(shown.locator(".logo-image").boundingBox()))
+    .toMatchObject({ width: 80, height: 80 });
 
   await saveSection(page, "Cover page");
   const course = await saved(page);
@@ -1016,10 +1046,15 @@ test("[rise:3E] blocks-editor T4 2.18 BLK-09: the cover picture is cropped, the 
   await page.getByRole("option", { name: "Title over the picture" }).click();
   await expect(frame.locator(".cover-image.crop-fill")).toBeVisible();
   // The overlay lies over the picture and under the title.
-  const order = await frame
-    .locator(".cover")
-    .evaluate((element) => [...element.children].map((child) => child.className));
-  expect(order).toEqual(["cover-image crop-fill", "cover-overlay", "cover-text"]);
+  await expect
+    .poll(() =>
+      unlessSwapped(
+        frame
+          .locator(".cover")
+          .evaluate((element) => [...element.children].map((child) => child.className)),
+      ),
+    )
+    .toEqual(["cover-image crop-fill", "cover-overlay", "cover-text"]);
 
   // A drawing as logo: SVG is not cropped (blocks-editor.md 2.18).
   await willPick(
@@ -1114,24 +1149,25 @@ test("blocks-editor 2.18 BLK-09 [rise:R18]: the theme's default text sizes reach
     "28px",
   );
   await expect(frame.locator("body")).toHaveCSS("font-size", "20px");
-  const shown = await shownFrame(page);
-  expect(await variable(shown, "--text-body")).toBe("1.25rem");
+  expect(await inShown(page, (frame) => variable(frame, "--text-body"))).toBe("1.25rem");
 
   // The default orange: buttons are light with dark text, but the accent is dark, so text on an
   // element filled with it is white.
-  const [fill, text] = await shown.evaluate(() => {
-    const probe = document.createElement("span");
-    probe.style.background = "var(--accent)";
-    probe.style.color = "var(--accent-text)";
-    document.body.append(probe);
-    const style = getComputedStyle(probe);
-    const colors = [style.backgroundColor, style.color];
-    probe.remove();
-    return colors.map(
-      (rgb) =>
-        `#${(rgb.match(/\d+/g) ?? []).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`,
-    );
-  });
+  const [fill, text] = await inShown(page, (frame) =>
+    frame.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.background = "var(--accent)";
+      probe.style.color = "var(--accent-text)";
+      document.body.append(probe);
+      const style = getComputedStyle(probe);
+      const colors = [style.backgroundColor, style.color];
+      probe.remove();
+      return colors.map(
+        (rgb) =>
+          `#${(rgb.match(/\d+/g) ?? []).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`,
+      );
+    }),
+  );
   expect(fill).toBe(themeColors(undefined).accent);
   expect(text).toBe("#ffffff");
   expect(contrastOf(text as string, fill as string)).toBeGreaterThanOrEqual(4.5);
@@ -1145,9 +1181,7 @@ for (const editorTheme of ["light", "dark"] as const) {
       expect(await violations(page), `${editorTheme}: ${state}`).toEqual([]);
     const checkPlayer = async (state: string) => {
       await player(page);
-      expect(await violations(await shownFrame(page)), `${editorTheme}: player ${state}`).toEqual(
-        [],
-      );
+      expect(await inShown(page, violations), `${editorTheme}: player ${state}`).toEqual([]);
     };
     await launch(page, `?theme=${editorTheme}`);
     await openWithPicture(
