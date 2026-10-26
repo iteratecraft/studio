@@ -58,8 +58,11 @@ at a time in the editor.
   the page's reach. `media_convert` runs `ffmpeg.exe` with arguments built in Rust around two paths:
   a file the page may read (the scope rule above) and an output in the Rust-only `media-work`
   folder, whose bytes it returns and deletes; a data file under `data\media-work` (a dropped file) is
-  deleted once read. Progress comes back through a channel; `media_cancel` kills the child process.
-  No shell is involved. The build is not in the app or its installer.
+  deleted once read. Progress comes back through a channel; `media_cancel` kills the child process,
+  and a cancel that arrives before its task started stops that task as it starts. The page's job id
+  names the task's files in `media-work`, so every media command first checks it is a plain id (1 to
+  64 letters, digits and hyphens), never a path. Nothing is unpacked unless the download's size and
+  SHA-256 are the pin's. No shell is involved. The build is not in the app or its installer.
 - **Drag and drop:** the window's own file-drop handling is off (`dragDropEnabled: false`), so
   files dragged from the desktop reach the editor's drop zones as the browser's `File`s, which it
   reads; a drop grants no path.

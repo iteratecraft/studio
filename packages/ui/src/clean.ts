@@ -18,7 +18,19 @@ const RENAMED: Readonly<Record<string, string>> = {
   div: "p",
 };
 /** Elements that stand on their own at the top level; anything else goes into a paragraph. */
-const BLOCKS = new Set(["p", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "blockquote", "pre"]);
+const BLOCKS = new Set([
+  "p",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "ul",
+  "ol",
+  "blockquote",
+  "pre",
+  "table",
+]);
 
 /** Course rich text from the HTML a rich-text field holds; "" when it holds no text. */
 export function cleanRichText(html: string): string {

@@ -31,5 +31,13 @@ export {
 } from "./richtext.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
+export type { Setting } from "./variants.js";
+export {
+  EMBED_PROVIDERS,
+  FULL_BLEED,
+  settingsTable,
+  VARIANTS,
+  variantSettings,
+} from "./variants.js";
 export type { Cue, VttResult } from "./vtt.js";
 export { cleanCueText, formatVttTime, parseVtt, parseVttTime, serializeVtt } from "./vtt.js";

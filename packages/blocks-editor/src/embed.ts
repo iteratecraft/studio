@@ -4,12 +4,14 @@
 // player frame only when the learner asks for it. Start times in a pasted link are kept (2.17:
 // "parameters honoured").
 
+import { EMBED_PROVIDERS } from "@course-suite/format";
+
 export interface Embed {
   /** What the author pasted: the page address, or the frame address in embed code. */
   url: string;
   /** The provider's player frame. */
   embedUrl: string;
-  provider: string;
+  provider: (typeof EMBED_PROVIDERS)[number];
 }
 
 /** Seconds from `90`, `90s` or `1h2m3s`; undefined for anything else. */
@@ -21,7 +23,7 @@ function seconds(text: string | null): number | undefined {
 }
 
 interface Provider {
-  name: string;
+  name: (typeof EMBED_PROVIDERS)[number];
   match: RegExp;
   embed: (id: string, url: URL) => string;
 }
@@ -56,7 +58,7 @@ const PROVIDERS: readonly Provider[] = [
 ];
 
 /** The providers' names, for telling the author what can be embedded. */
-export const PROVIDER_NAMES = PROVIDERS.map((provider) => provider.name);
+export const PROVIDER_NAMES: readonly string[] = EMBED_PROVIDERS;
 
 /** The embed for a pasted address or embed code, or undefined when no listed provider matches. */
 export function embedFor(pasted: string): Embed | undefined {

@@ -366,11 +366,11 @@ export function startShell(
         changed();
       },
       saved: (id) => progress.response(id),
-      completed(block) {
-        if (progress.isDone(block.id)) return;
-        progress.completeBlock(page, block);
+      itemDone(block, item, isDone) {
+        progress.itemDone(page, block, item, isDone);
         changed();
       },
+      isDone: (id) => progress.isDone(id),
       watch(update) {
         updates.push(update);
         update();

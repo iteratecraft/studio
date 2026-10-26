@@ -173,77 +173,84 @@ async function toggle(page: Page, control: Locator): Promise<void> {
 const media = (course: Course, key: string | undefined) =>
   course.media.find((entry) => entry.key === key) as MediaEntry;
 
-test.describe("images and galleries", () => {
-  test("[rise:3C] blocks-editor W15, L17, 2.10, 2.17, UI-ACCESSIBILITY-R34, BLK-04: by keyboard alone, an image block takes an image from the open dialog, scaled down in the app, with alt text or the decorative mark and a caption, one undo step each", async ({
+test.describe("pictures in the image and gallery blocks (BLK-04)", () => {
+  test("[rise:3C] blocks-editor W15, L17, 2.10, 2.17, UI-ACCESSIBILITY-R34, BLK-04, BLK-05: by keyboard alone, an image block takes a picture from the open dialog, scaled down in the app, with alt text or the decorative mark, then replaced or removed, one undo step each", async ({
     page,
   }) => {
     await openRiver(page);
     await addBlock(page, "Centred image");
     const block = row(page, /^Centred image/);
-    const choose = block.getByRole("button", { name: "Choose an image" });
-    await expect(choose).toBeFocused();
+    const slot = block.getByRole("group", { name: "Picture" });
+    const choose = slot.getByRole("button", { name: "Choose an image" });
+    await choose.focus();
     await putImage(page, "photos/heron.png", 2400, 1200);
     await page.keyboard.press("Enter");
-    await expect(block.getByText("File: heron.png")).toBeVisible();
-    await expect(block.locator(".be-block-preview img")).toHaveAttribute("width", "1920");
-    // No alt text yet: a warning until the author writes it or marks the image decorative.
-    await expect(block.getByText("Describe this image, or mark it decorative.")).toBeVisible();
-    await block.getByRole("textbox", { name: "Alternative text" }).focus();
+    await expect(slot.getByText("Picture: heron.png")).toBeVisible();
+    await expect(block.locator(".be-block-preview img.image")).toHaveAttribute("width", "1920");
+    // No alt text yet: a warning until the author writes it or marks the picture decorative.
+    const warning = slot.locator(".be-warning");
+    await expect(warning).toBeVisible();
+    const alt = slot.getByRole("textbox", { name: /^Alt text/ });
+    await alt.focus();
     await page.keyboard.type("A heron in the reeds");
     await page.keyboard.press("Enter");
-    await expect(block.getByText("Describe this image, or mark it decorative.")).toHaveCount(0);
-    await block.getByRole("textbox", { name: "Caption" }).focus();
-    await page.keyboard.type("Herons fish at dawn.");
-    await page.keyboard.press("Tab");
+    await expect(warning).toHaveCount(0);
     let course = await saved(page);
-    let [image] = lessonOf(course).blocks;
+    const [image] = lessonOf(course).blocks;
     expect(image).toMatchObject({
       category: "image",
       variant: "centered",
       media: [{ alt: "A heron in the reeds" }],
-      items: [{ kind: "content", text: "<p>Herons fish at dawn.</p>" }],
     });
     // Scaled in the app to 1920 px on its long side (2.17), stored under its content hash.
     const entry = media(course, image?.media?.[0]?.key);
     expect(entry).toMatchObject({ mimeType: "image/png", width: 1920, height: 960 });
     expect(entry.key).toMatch(/^[0-9a-f]{64}\.png$/);
 
-    // Decorative: an empty alt text, the field closed.
-    await block.getByRole("checkbox", { name: "Decorative image (no alternative text)" }).focus();
-    await page.keyboard.press("Space");
-    await expect(block.getByRole("textbox", { name: "Alternative text" })).toBeDisabled();
+    // Decorative: an empty alt text, the field gone; undo brings the alt text back.
+    await toggle(page, slot.getByRole("checkbox", { name: /^Decorative/ }));
+    await expect(alt).toHaveCount(0);
     course = await saved(page);
     expect(lessonOf(course).blocks[0]?.media).toEqual([{ key: entry.key, alt: "" }]);
-    // Undo takes the mark back, then the caption: one step each.
     await heading(page, "River walk").click();
     await page.keyboard.press("Control+Z");
-    await expect(block.getByRole("textbox", { name: "Alternative text" })).toHaveValue(
-      "A heron in the reeds",
-    );
+    await expect(alt).toHaveValue("A heron in the reeds");
+
+    // Replace (W15 step 3): the new picture has no alt text yet. Remove: the slot is empty again.
+    await putImage(page, "photos/reeds.png", 300, 200);
+    await slot.getByRole("button", { name: "Replace the image" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(slot.getByText("Picture: reeds.png")).toBeVisible();
+    await expect(warning).toBeVisible();
+    await slot.getByRole("button", { name: "Remove the picture" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(choose).toBeVisible();
+    course = await saved(page);
+    expect(lessonOf(course).blocks[0]?.media).toBeUndefined();
+    await heading(page, "River walk").click();
     await page.keyboard.press("Control+Z");
-    await expect(block.getByRole("textbox", { name: "Caption" })).toHaveText("");
+    await expect(slot.getByText("Picture: reeds.png")).toBeVisible();
 
     // The same file again is stored once: one media entry and one file in the project.
     await addBlock(page, "Full-width image");
+    const second = row(page, /^Full-width image/);
     await putImage(page, "photos/heron.png", 2400, 1200);
-    await page.keyboard.press("Enter");
-    await expect(row(page, /^Full-width image/).getByText("File: heron.png")).toBeVisible();
+    await second.getByRole("button", { name: "Choose an image" }).click();
+    await expect(second.getByText("Picture: heron.png")).toBeVisible();
     course = await saved(page);
-    [image] = lessonOf(course).blocks;
-    expect(lessonOf(course).blocks.map((one) => one.media?.[0]?.key)).toEqual([
-      entry.key,
-      entry.key,
-    ]);
+    expect(lessonOf(course).blocks[1]?.media?.[0]?.key).toBe(entry.key);
     expect(course.media.filter((one) => one.key === entry.key)).toHaveLength(1);
   });
 
-  test("[rise:3C] blocks-editor 2.11, UI-BLOCKS-EDITOR-R25, D-38: images dropped on a gallery each get alt text and a caption; a file that is not an image is refused; variants switch keeping the images", async ({
+  test("[rise:3C] blocks-editor 2.11, UI-BLOCKS-EDITOR-R25, BLK-04, BLK-05: pictures dropped on a gallery each become a picture of their own after the others; a file that is not an image is refused; variants switch keeping them", async ({
     page,
   }) => {
     await openRiver(page);
     await addBlock(page, "Grid of three columns");
-    const block = row(page, "Grid of three columns");
-    await drop(page, block.locator(".be-drop"), [
+    const block = row(page, /^Grid of three columns/);
+    // A new gallery has three pictures to fill; the drop zone above them adds more.
+    await expect(block.getByRole("group", { name: /^Picture \d$/ })).toHaveCount(3);
+    await drop(page, block.locator(".be-drop").first(), [
       { name: "reeds.png", type: "image/png", image: [300, 200] },
       { name: "notes.txt", type: "text/plain", text: "not a picture" },
       { name: "path.png", type: "image/png", image: [400, 300] },
@@ -255,26 +262,98 @@ test.describe("images and galleries", () => {
     );
     await expect(notice).toContainText("fake.png is not a readable image.");
     await notice.getByRole("button", { name: "OK" }).click();
-    await expect(block.getByRole("group", { name: /^Image \d$/ })).toHaveCount(2);
-    await expect(block.locator(".be-block-preview img")).toHaveCount(2);
-    const second = block.getByRole("group", { name: "Image 2" });
-    await second.getByRole("textbox", { name: "Alternative text" }).fill("The path");
-    await second.getByRole("textbox", { name: "Alternative text" }).press("Enter");
-    await second.getByRole("button", { name: "Move image 2 up" }).click();
+    await expect(block.getByRole("group", { name: /^Picture \d$/ })).toHaveCount(5);
+    const fifth = block.getByRole("group", { name: "Picture 5" });
+    await expect(fifth.getByText("Picture: path.png")).toBeVisible();
+    await fifth.getByRole("textbox", { name: /^Alt text/ }).fill("The path");
+    await fifth.getByRole("textbox", { name: /^Alt text/ }).press("Enter");
+    await block.getByRole("button", { name: "Move Picture 5 up" }).click();
     let course = await saved(page);
     const gallery = lessonOf(course).blocks[0] as Block;
-    expect(gallery.items?.map((item) => item.kind === "content" && item.media?.alt)).toEqual([
-      "The path",
-      undefined,
-    ]);
-    // Switching to a carousel keeps the images (W8, UI-BLOCKS-EDITOR-R25).
+    expect(
+      gallery.items?.map((item) => (item.kind === "content" && item.media ? item.media.alt : "-")),
+    ).toEqual(["-", "-", "-", "The path", undefined]);
+    // Switching to a carousel keeps the pictures (W8, UI-BLOCKS-EDITOR-R25).
     await block.getByRole("button", { name: /Block type/ }).click();
     await page.getByRole("option", { name: "Image carousel" }).click();
+    // A carousel shows every picture in turn; a grid of three only its first three.
+    await expect(
+      row(page, /^Image carousel/).locator(".be-block-preview img.image"),
+    ).toHaveCount(2);
     course = await saved(page);
     expect(lessonOf(course).blocks[0]).toMatchObject({
       variant: "carousel",
       items: gallery.items,
     });
+  });
+});
+
+test.describe("code snippets", () => {
+  test("[rise:3C] blocks-editor 2.5, 2.12, BLK-05: by keyboard, a code snippet takes its code as typed, its language and a caption, and its format options; the preview and an exported package show it read-only with a copy button", async ({
+    page,
+  }) => {
+    await openRiver(page);
+    await addBlock(page, "Code snippet");
+    const block = row(page, /^Code snippet/);
+    const code = block.getByRole("textbox", { name: "Code" });
+    // A new snippet holds sample code to replace.
+    await expect(code).toHaveValue('greeting = "Hello"\nprint(greeting)');
+    await code.focus();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type("for step in range(3):");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("    print(step)");
+    await page.keyboard.press("Tab");
+    await block.getByRole("textbox", { name: "Language" }).focus();
+    await page.keyboard.type("Python");
+    await page.keyboard.press("Enter");
+    await block.getByRole("textbox", { name: "Caption" }).focus();
+    await page.keyboard.type("Counts to three.");
+    await page.keyboard.press("Tab");
+    let course = await saved(page);
+    expect(lessonOf(course).blocks[0]).toMatchObject({
+      category: "multimedia",
+      variant: "code-snippet",
+      variantSettings: { code: "for step in range(3):\n    print(step)", language: "Python" },
+      items: [{ text: "<p>Counts to three.</p>" }],
+    });
+    // Format (2.5): word wrap and the snippet's colour, one undo step each.
+    await block.getByRole("button", { name: "Format", exact: true }).click();
+    const format = page.getByRole("dialog", { name: /Format/ });
+    await toggle(page, format.getByRole("switch", { name: "Wrap long lines" }));
+    await format.getByRole("textbox", { name: "Code colour" }).fill("#f4f1e8");
+    await format.getByRole("textbox", { name: "Code colour" }).press("Enter");
+    await page.keyboard.press("Escape");
+    course = await saved(page);
+    expect(lessonOf(course).blocks[0]?.variantSettings).toMatchObject({
+      wrap: true,
+      background: "#f4f1e8",
+    });
+    await heading(page, "River walk").click();
+    await page.keyboard.press("Control+Z");
+    course = await saved(page);
+    expect(lessonOf(course).blocks[0]?.variantSettings?.background).toBeUndefined();
+
+    // The preview draws it with the real player.
+    const preview = block.locator(".be-block-preview");
+    await expect(preview.locator("pre code")).toHaveText("for step in range(3):\n    print(step)", {
+      useInnerText: true,
+    });
+    // An exported package shows it read-only, with its language and a copy button, axe clean.
+    const { zip } = await webPackage(page);
+    const learner = await page.context().newPage();
+    await learner.goto(await unpacked(zip));
+    await learner
+      .getByRole("link", { name: /On the bank/ })
+      .first()
+      .click();
+    const shown = learner.getByRole("region", { name: "Python code" });
+    await expect(shown).toBeVisible();
+    await expect(shown).toHaveClass(/code-wrap/);
+    await expect(learner.getByRole("button", { name: "Copy code" })).toBeVisible();
+    await expect(learner.getByText("Counts to three.")).toBeVisible();
+    expect(await violations(learner)).toEqual([]);
+    await learner.close();
   });
 });
 
@@ -749,13 +828,13 @@ test.describe("cover and header images", () => {
     const cover = page.getByRole("group", { name: "Cover image" });
     await putImage(page, "photos/cover.png", 1200, 600);
     await cover.getByRole("button", { name: "Choose an image" }).click();
-    await cover.getByRole("textbox", { name: "Alternative text" }).fill("A path by the river");
-    await cover.getByRole("textbox", { name: "Alternative text" }).press("Enter");
+    await cover.getByRole("textbox", { name: /^Alt text/ }).fill("A path by the river");
+    await cover.getByRole("textbox", { name: /^Alt text/ }).press("Enter");
     await page.getByRole("button", { name: "Open On the bank" }).click();
     const header = page.getByRole("group", { name: "Header image" });
     await putImage(page, "photos/header.png", 1600, 400);
     await header.getByRole("button", { name: "Choose an image" }).click();
-    await header.getByText("Decorative image (no alternative text)").click();
+    await header.getByText(/^Decorative/).click();
     const course = await saved(page);
     expect(course.cover).toMatchObject({ alt: "A path by the river" });
     expect(lessonOf(course).headerImage).toMatchObject({ alt: "" });

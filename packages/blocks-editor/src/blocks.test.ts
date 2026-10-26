@@ -19,7 +19,7 @@ test("blocks-editor 3: the library lists every block type of the spec once, in i
   expect(BLOCK_TYPES).toHaveLength(65);
 });
 
-test("[rise:3C] blocks-editor W7, BLK-03: each type the player shows today makes a valid block with sample content", () => {
+test("[rise:3C] blocks-editor W7, BLK-03, BLK-04: each type the player shows today makes a valid block with sample content", () => {
   const available = BLOCK_TYPES.filter((type) => type.create);
   expect(available.map((type) => `${type.group}/${type.variant}`)).toEqual([
     "text/paragraph",
@@ -27,6 +27,22 @@ test("[rise:3C] blocks-editor W7, BLK-03: each type the player shows today makes
     "text/paragraph-with-subheading",
     "text/heading",
     "text/subheading",
+    "text/columns",
+    "text/table",
+    "statement/statement-a",
+    "statement/statement-b",
+    "statement/statement-c",
+    "statement/statement-d",
+    "statement/note",
+    "quote/quote-a",
+    "quote/quote-b",
+    "quote/quote-c",
+    "quote/quote-d",
+    "quote/on-image",
+    "quote/carousel",
+    "list/numbered",
+    "list/bulleted",
+    "list/checkbox",
     "image/centered",
     "image/full-width",
     "image/image-text",
@@ -40,11 +56,15 @@ test("[rise:3C] blocks-editor W7, BLK-03: each type the player shows today makes
     "multimedia/video",
     "multimedia/embed",
     "multimedia/attachment",
+    "multimedia/code-snippet",
     "knowledge-check/single-choice",
     "knowledge-check/multiple-response",
     "knowledge-check/fill-in",
     "knowledge-check/matching",
     "divider/continue",
+    "divider/line",
+    "divider/numbered",
+    "divider/spacer",
   ]);
   let course: Course = blankCourse("microlearning", "Blocks");
   const lesson = course.entries[0] as LessonEntry;

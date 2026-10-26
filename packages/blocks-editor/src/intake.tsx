@@ -11,16 +11,19 @@ import type { ConvertedMedia, FileRef, HostInterface, HostMedia } from "@course-
 import { type JobRunner, memoryJobFiles, memoryJobStore, openJobRunner } from "@course-suite/jobs";
 import {
   Button,
+  Checkbox,
+  cx,
   Dialog,
   DialogActions,
+  Icon,
   ProgressBar,
   type StringKey,
   useLocale,
   useStrings,
 } from "@course-suite/ui";
-import { createContext, type ReactNode, useContext, useRef, useState } from "react";
-import { idMaker } from "./blocks.js";
+import { createContext, type DragEvent, type ReactNode, useContext, useRef, useState } from "react";
 import { ChoiceDialog, useDialogs } from "./dialogs.js";
+import { idMaker } from "./ids.js";
 import {
   EXTENSIONS,
   extensionOf,
@@ -431,4 +434,77 @@ function renamed(name: string, extension: string): string {
   return extensionOf(name) === extension || (extension === "jpg" && extensionOf(name) === "jpeg")
     ? name
     : `${base}.${extension}`;
+}
+
+const hasFiles = (event: DragEvent) => event.dataTransfer.types.includes("Files");
+
+/**
+ * Where a file comes in (L17, W15): a button that opens the host's file dialog, and a drop zone
+ * for files dragged from the desktop. Images offer to keep the original quality (2.10, 2.17).
+ */
+export function MediaDrop({
+  kind,
+  label,
+  multiple = false,
+  isDisabled = false,
+  onAdded,
+}: {
+  kind: MediaKind;
+  label: string;
+  multiple?: boolean;
+  isDisabled?: boolean;
+  onAdded: (added: AddedMedia[]) => void;
+}) {
+  const t = useStrings();
+  const intake = useMediaIntake();
+  const [keep, setKeep] = useState(false);
+  const [over, setOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const take = async (from: MediaFrom) => {
+    setBusy(true);
+    try {
+      const added = await intake.add(kind, from, { keepOriginal: keep });
+      if (added.length > 0) onAdded(added);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // The list around a block reorders by dragging rows; a file dropped here is this zone's alone.
+  const own = (event: DragEvent) => {
+    if (!hasFiles(event) || isDisabled) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  };
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the button inside does the same by keyboard.
+    <div
+      className={cx("be-drop", over && "is-over")}
+      onDragEnter={(event) => own(event) && setOver(true)}
+      onDragOver={(event) => {
+        if (own(event)) event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        if (!own(event)) return;
+        setOver(false);
+        const files = [...event.dataTransfer.files];
+        void take(multiple ? files : files.slice(0, 1));
+      }}
+    >
+      <Button
+        onPress={() => void take(multiple ? "pick-many" : "pick")}
+        isDisabled={busy || isDisabled}
+      >
+        <Icon name="add" />
+        {label}
+      </Button>
+      <span className="be-note">{t(multiple ? "media.dropMany" : "media.dropOne")}</span>
+      {kind === "image" && (
+        <Checkbox isSelected={keep} onChange={setKeep}>
+          {t("media.keepOriginal")}
+        </Checkbox>
+      )}
+    </div>
+  );
 }

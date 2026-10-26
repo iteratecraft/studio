@@ -50,6 +50,7 @@ import {
   withItem,
 } from "./library.js";
 import { CourseSession, openCourseFile } from "./session.js";
+import { COURSE_TEMPLATES, courseFrom } from "./templates.js";
 
 export interface BlocksEditorAppProps {
   host: HostInterface;
@@ -278,7 +279,29 @@ function App({ host }: { host: HostInterface }) {
     return start(file, opened.project, false);
   };
 
-  const createCourse = async (kind: Course["kind"]) => {
+  const createCourse = async (choice: Course["kind"] | "template") => {
+    // From a placeholder template (W3, H15, D-38): pick one, then name it as a blank course.
+    let template: (typeof COURSE_TEMPLATES)[number] | undefined;
+    if (choice === "template") {
+      const id = await ask<string | null>((answer) => (
+        <PickerDialog
+          title={t("templates.courseTitle")}
+          label={t("templates.list")}
+          help={t("templates.help")}
+          items={COURSE_TEMPLATES.map((other) => ({
+            id: other.id,
+            title: t(other.title),
+            description: `${t(`course.kind.${other.kind}`)}. ${t(other.description)}`,
+          }))}
+          submit={t("templates.use")}
+          empty={{ title: t("templates.list"), body: t("templates.help") }}
+          answer={answer}
+        />
+      ));
+      template = COURSE_TEMPLATES.find((other) => other.id === id);
+      if (!template) return;
+    }
+    const kind = template?.kind ?? (choice as Course["kind"]);
     const title = await askTitle(
       t(kind === "course" ? "newCourse.title" : "newMicrolearning.title"),
       t("action.create"),
@@ -290,7 +313,9 @@ function App({ host }: { host: HostInterface }) {
       filters,
     });
     if (!file) return;
-    const project = createProject(blankCourse(kind, title));
+    const project = createProject(
+      template ? courseFrom(template, title, t) : blankCourse(kind, title),
+    );
     await saveProject(host.files.projectFiles(file), file.name, project);
     await start(file, project, false);
   };

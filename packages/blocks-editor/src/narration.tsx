@@ -14,8 +14,7 @@ import {
 } from "@course-suite/ui";
 import { useReturnFocus, withSettings } from "./block-settings.js";
 import { RichDraftField } from "./fields.js";
-import { useMediaIntake } from "./intake.js";
-import { MediaDrop } from "./media-fields.js";
+import { MediaDrop, useMediaIntake } from "./intake.js";
 
 /** Whether a block can carry narration (2.4: not heading and subheading blocks). */
 export const narratable = (block: Block) =>

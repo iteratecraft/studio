@@ -1,8 +1,8 @@
 // The media blocks in the published player (M2-13, BLK-05; rise.md §3 C, §3 D, §3 G), opened from
 // disk: forward seeking turned off holds audio and video back by any kind of seek and finishes the
-// block at its end; the carousel by buttons and arrow keys, counted done once every image was
-// seen; image zoom; caption tracks per language; the embed that loads nothing until asked; the
-// file to download; narration; the lesson header image.
+// block at its end; caption tracks per language; the embed that loads nothing until asked; the
+// file to download; the code snippet; narration; the lesson header image. Images and galleries are
+// BLK-04's (static.e2e.ts).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Block, Course } from "@course-suite/format";
@@ -166,42 +166,8 @@ test.describe("audio and video", () => {
   });
 });
 
-test.describe("images and galleries", () => {
-  test("[rise:3C] UI-BLOCKS-R52, accessibility.md D4, BLK-04: the carousel moves by buttons and arrow keys, announces its position, and is done once every image was seen", async ({
-    write,
-    open,
-    page,
-  }) => {
-    const subject = mediaCourse();
-    const pictures = subject.entries[0] as Extract<Course["entries"][number], { kind: "lesson" }>;
-    const carousel = pictures.blocks.find((block) => block.id === "blkcarouse") as Block;
-    await write({
-      course: {
-        ...subject,
-        entries: [
-          lesson("lessonslid", "Slides", carousel, continueBlock("cgateslide", "block-above")),
-        ],
-      },
-    });
-    await open("#/lessons/lessonslid");
-    const position = page.locator(".carousel-position");
-    await expect(position).toHaveText("Image 1 of 3");
-    await expect(position).toHaveAttribute("aria-live", "polite");
-    await expect(page.getByRole("group", { name: "Image 1 of 3" })).toBeVisible();
-    const gate = page.locator(".continue");
-    await expect(gate).toHaveAttribute("aria-disabled", "true");
-    await page.getByRole("button", { name: "Next image" }).click();
-    await expect(position).toHaveText("Image 2 of 3");
-    await page.keyboard.press("ArrowRight");
-    await expect(position).toHaveText("Image 3 of 3");
-    await expect(gate).not.toHaveAttribute("aria-disabled");
-    await page.keyboard.press("ArrowRight");
-    await expect(position).toHaveText("Image 1 of 3");
-    await page.keyboard.press("ArrowLeft");
-    await expect(position).toHaveText("Image 3 of 3");
-  });
-
-  test("[rise:3C] blocks-interactions section 4, UI-ACCESSIBILITY-R34: an image opens large by keyboard and Escape closes it, focus going back; decorative images have empty alt text", async ({
+test.describe("pictures from the media library", () => {
+  test("[rise:3B] [rise:3C] UI-ACCESSIBILITY-R34: the lesson header image and the course's pictures keep their alt text, empty when decorative", async ({
     write,
     open,
     page,
@@ -209,20 +175,59 @@ test.describe("images and galleries", () => {
     await write({ course: mediaCourse() });
     await open("#/lessons/lessonpics");
     await expect(page.locator(".lesson-header-image")).toHaveAttribute("alt", "");
-    await expect(page.locator(".figure-full-width img")).toHaveAttribute("alt", "");
-    const zoom = page.getByRole("button", {
-      name: "A grey heron standing in shallow water Enlarge image",
+    await expect(
+      page.getByRole("img", { name: "A grey heron standing in shallow water" }),
+    ).toBeVisible();
+    await expect(page.locator("[data-block=blkfullwid] img.image")).toHaveAttribute("alt", "");
+    await expectAccessible(page, "pictures");
+  });
+});
+
+test.describe("code snippets", () => {
+  test("[rise:3C] blocks-editor 2.5, 2.12, BLK-05: a code snippet shows the code as written with its language, scrolls by keyboard and copies", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await write({ course: mediaCourse() });
+    await open("#/lessons/lessonlink");
+    const block = page.locator("[data-block=blkcode001]");
+    const code = block.getByRole("region", { name: "JavaScript code" });
+    await code.focus();
+    await expect(code).toBeFocused();
+    await expect(block.locator("pre code")).toHaveText(
+      'const pace = "slow";\nconsole.log("The river is " + pace + " today.");',
+      { useInnerText: true },
+    );
+    await expect(block.locator(".code-language")).toHaveText("JavaScript");
+    await expect(block.locator("pre")).toHaveClass(/code-wrap/);
+    await expect(block.locator("figcaption")).toHaveText("Log the river's pace.");
+    await expectAccessible(page, "code snippet");
+    // Copied where the page may use the clipboard; selected for the keyboard where it may not.
+    await page.evaluate(() => {
+      const page = window as { copied?: string; denied?: boolean };
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: async (text: string) => {
+            if (page.denied) throw new Error("not allowed");
+            page.copied = text;
+          },
+        },
+      });
     });
-    await zoom.focus();
-    await page.keyboard.press("Enter");
-    const dialog = page.getByRole("dialog", { name: "A grey heron standing in shallow water" });
-    await expect(dialog).toBeVisible();
-    await expectAccessible(page, "enlarged image");
-    await page.keyboard.press("Escape");
-    await expect(dialog).toHaveCount(0);
-    await expect(zoom).toBeFocused();
-    // Zoom off: a plain image.
-    await expect(page.locator(".image-text button.zoom")).toHaveCount(0);
+    await block.getByRole("button", { name: "Copy code" }).click();
+    await expect(block.getByRole("status")).toHaveText("Code copied");
+    expect(await page.evaluate(() => (window as { copied?: string }).copied)).toContain(
+      'const pace = "slow";',
+    );
+    await page.evaluate(() => {
+      (window as { denied?: boolean }).denied = true;
+    });
+    await block.getByRole("button", { name: "Copy code" }).click();
+    await expect(block.getByRole("status")).toHaveText(
+      "The code is selected: copy it with your keyboard",
+    );
+    expect(await page.evaluate(() => getSelection()?.toString())).toContain("console.log");
   });
 });
 

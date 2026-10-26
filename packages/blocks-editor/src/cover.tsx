@@ -2,75 +2,26 @@
 // image, T4, T6, H8): the course cover on the overview, a lesson's header image on the lesson, each
 // with alt text or the decorative mark; and the small copy of the cover that a dashboard card shows,
 // kept in the app data folder so the dashboard never reads course files.
-import type { Command, Editor } from "@course-suite/doc-ops";
-import type { Course, LessonEntry, MediaRef } from "@course-suite/format";
+import type { Editor } from "@course-suite/doc-ops";
+import type { Course, LessonEntry } from "@course-suite/format";
 import type { HostInterface } from "@course-suite/host";
-import { Button, useStrings } from "@course-suite/ui";
+import { useStrings } from "@course-suite/ui";
 import { imageType, prepareImage } from "./media.js";
-import { AltFields, MediaDrop } from "./media-fields.js";
-
-/** An image the course or a lesson uses as a whole: choose, alt text, remove. */
-function ImageSetting({
-  editor,
-  label,
-  remove,
-  image,
-  set,
-}: {
-  editor: Editor;
-  label: string;
-  /** The remove button's text. */
-  remove: string;
-  image: MediaRef | undefined;
-  set: (next: MediaRef | undefined) => Command;
-}) {
-  const t = useStrings();
-  return (
-    // biome-ignore lint/a11y/useSemanticElements: a fieldset would add its own frame and legend layout.
-    <div className="be-image-setting" role="group" aria-label={label}>
-      <span className="cs-Label" aria-hidden="true">
-        {label}
-      </span>
-      <MediaDrop
-        kind="image"
-        label={t(image ? "media.replaceImage" : "media.chooseImage")}
-        onAdded={([added]) =>
-          added && editor.dispatch([...added.commands, set({ key: added.key })])
-        }
-      />
-      {image && (
-        <>
-          <AltFields
-            media={image}
-            editor={editor}
-            set={(alt) => {
-              const { alt: _, ...rest } = image;
-              return set(alt === undefined ? rest : { ...rest, alt });
-            }}
-          />
-          <Button variant="quiet" onPress={() => editor.dispatch(set(undefined))}>
-            {remove}
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
+import { ImageSlot } from "./static-blocks.js";
 
 /** The course cover (2.2, T4): shown on the cover page and on the dashboard card. */
 export function CoverImageField({ editor }: { editor: Editor }) {
   const t = useStrings();
   return (
-    <ImageSetting
+    <ImageSlot
       editor={editor}
       label={t("media.cover")}
-      remove={t("media.removeCover")}
       image={editor.document.cover}
-      set={(cover) =>
-        cover
-          ? { type: "updateCourse", set: { cover } }
-          : { type: "updateCourse", unset: ["cover"] }
-      }
+      command={(cover) => ({ type: "updateCourse", set: { cover } })}
+      remove={{
+        label: t("media.removeCover"),
+        command: { type: "updateCourse", unset: ["cover"] },
+      }}
     />
   );
 }
@@ -79,16 +30,15 @@ export function CoverImageField({ editor }: { editor: Editor }) {
 export function HeaderImageField({ editor, lesson }: { editor: Editor; lesson: LessonEntry }) {
   const t = useStrings();
   return (
-    <ImageSetting
+    <ImageSlot
       editor={editor}
       label={t("media.header")}
-      remove={t("media.removeHeader")}
       image={lesson.headerImage}
-      set={(headerImage) =>
-        headerImage
-          ? { type: "updateEntry", id: lesson.id, set: { headerImage } }
-          : { type: "updateEntry", id: lesson.id, unset: ["headerImage"] }
-      }
+      command={(headerImage) => ({ type: "updateEntry", id: lesson.id, set: { headerImage } })}
+      remove={{
+        label: t("media.removeHeader"),
+        command: { type: "updateEntry", id: lesson.id, unset: ["headerImage"] },
+      }}
     />
   );
 }

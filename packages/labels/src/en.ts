@@ -106,6 +106,11 @@ export const english = {
     "embed.preview": "The content from {provider} loads here in the published course.",
     "embed.title": "Content from {provider}",
     "attachment.download": "Download {name}",
+    "code.label": "Code",
+    "code.named": "{language} code",
+    "code.copy": "Copy code",
+    "code.copied": "Code copied",
+    "code.selected": "The code is selected: copy it with your keyboard",
 
     "status.loading": "Loading",
     "error.loadFailed": "Part of this course could not load: {part}",
@@ -130,5 +135,14 @@ export const english = {
     "sr.answerIncorrect": "Your answer is incorrect",
     "sr.timeUp": "Time is up. Your answers were submitted.",
     "sr.newTab": "opens in a new tab",
+
+    "quote.previous": "Previous quote",
+    "quote.next": "Next quote",
+    "quote.position": "Quote {current} of {total}",
+    "sr.quotes": "Quotes",
+    "sr.images": "Images",
+    "sr.carousel": "carousel",
+    "sr.slide": "slide",
+    "sr.table": "Table",
   },
 } as const;

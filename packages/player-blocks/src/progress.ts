@@ -54,6 +54,7 @@ const REQUIRABLE = new Set([
   "interactive/flashcard-stack",
   "list/checkbox",
   "gallery/carousel",
+  "quote/carousel",
 ]);
 
 /**
@@ -64,6 +65,13 @@ const lockedMedia = (block: Block) =>
   block.category === "multimedia" &&
   (block.variant === "audio" || block.variant === "video") &&
   block.variantSettings?.forwardSeeking === false;
+
+/**
+ * Blocks finished item by item: a checklist when every box is ticked, a carousel when every slide
+ * has been shown (UI-BLOCKS-R51, R52). Their items' ids are kept with the done ids.
+ */
+const BY_ITEM = new Set(["list/checkbox", "gallery/carousel", "quote/carousel"]);
+const byItem = (block: Block) => BY_ITEM.has(`${block.category}/${block.variant}`);
 
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (block: Block) =>
@@ -101,12 +109,17 @@ export interface Progress {
   view(page: Page): void;
   /** A continue block was pressed. */
   pressContinue(lesson: LessonEntry, block: Block): void;
+  /**
+   * An item of a block finished item by item (BY_ITEM) was done (a box ticked, a slide shown) or
+   * undone (a box cleared). The block is done once every item is, and stays done; from then on
+   * only the block's id is kept. Given the block's own id, a block finished by one action is done
+   * (audio or video with forward seeking off, played to the end).
+   */
+  itemDone(lesson: LessonEntry, block: Block, item: string, isDone?: boolean): void;
   /** A knowledge check was answered; a required one is done only when the answer is right. */
   answerCheck(lesson: LessonEntry, block: Block, response: Response, correct: boolean): void;
   /** Whether a continue block's requirement is met (UI-BLOCKS-R44). */
   continueReady(lesson: LessonEntry, block: Block): boolean;
-  /** A block that needs an action is done: a carousel seen through, a locked video played. */
-  completeBlock(lesson: LessonEntry, block: Block): void;
   /** The saved response to a question: knowledge checks and the quiz attempt in progress. */
   response(questionId: string): Response | undefined;
   isDone(id: string): boolean;
@@ -280,15 +293,28 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
       view(lesson);
     },
 
-    answerCheck(lesson, block, response, correct) {
-      if (block.question) answers.set(block.question.id, response);
-      if (correct || !requiresCorrect(block)) done.add(block.id);
+    itemDone(lesson, block, item, isDone = true) {
+      if (item === block.id && lockedMedia(block) && isDone && !done.has(block.id)) {
+        done.add(block.id);
+        view(lesson);
+        return;
+      }
+      const items = block.items ?? [];
+      // A finished block keeps no item state: its id alone says every item is done, which keeps
+      // the saved state small (standards.md §4.2).
+      if (!byItem(block) || done.has(block.id) || !items.some((other) => other.id === item)) return;
+      if (isDone) done.add(item);
+      else done.delete(item);
+      if (items.every((other) => done.has(other.id))) {
+        done.add(block.id);
+        for (const other of items) done.delete(other.id);
+      }
       view(lesson);
     },
 
-    completeBlock(lesson, block) {
-      if (!needsAction(block) || done.has(block.id)) return;
-      done.add(block.id);
+    answerCheck(lesson, block, response, correct) {
+      if (block.question) answers.set(block.question.id, response);
+      if (correct || !requiresCorrect(block)) done.add(block.id);
       view(lesson);
     },
 
@@ -424,8 +450,23 @@ export function largestResume(course: Course): ResumeState {
   return {
     done: [
       ...pages.map((page) => page.id),
-      // Every block finished by an action is saved as done once it is; no other block is.
-      ...blocks.filter(needsAction).map((block) => block.id),
+      // Continue blocks are pressed, knowledge checks answered, checklists ticked and carousels
+      // seen to the end, with their items, and locked audio and video played through; no other
+      // block is saved as done.
+      ...blocks
+        .filter(
+          (block) =>
+            isContinue(block) ||
+            block.category === "knowledge-check" ||
+            byItem(block) ||
+            lockedMedia(block),
+        )
+        .flatMap((block) => {
+          // A block finished item by item saves all its items but one while in progress, then
+          // only its own id.
+          const items = byItem(block) ? (block.items ?? []).slice(1) : [];
+          return items.length > 1 ? items.map((item) => item.id) : [block.id];
+        }),
     ],
     visited: Object.fromEntries(
       lessons.map((lesson) => [lesson.id, lesson.blocks.map((block) => block.id)]),

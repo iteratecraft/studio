@@ -3,20 +3,30 @@
 // show today has `create` (a new block with sample content, W7) and usually `Fields` (its content,
 // edited in place); the others are listed as not available yet. A later block epic adds its type
 // here and touches no other editor file.
-import { type Command, contentIds, type Editor } from "@course-suite/doc-ops";
-import type { Block, ContentItem, Course, Question } from "@course-suite/format";
-import { newContentId } from "@course-suite/format";
+import type { Command, Editor } from "@course-suite/doc-ops";
+import type { Block, ContentItem, Question } from "@course-suite/format";
 import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import type { ComponentType } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
+import { idMaker } from "./ids.js";
 import {
   AttachmentFields,
   AudioFields,
+  CodeSnippetFields,
+  CodeSnippetFormat,
   EmbedFields,
-  GalleryFields,
-  ImageFields,
   VideoFields,
 } from "./media-fields.js";
+import {
+  DIVIDER_TYPES,
+  GALLERY_TYPES,
+  IMAGE_TYPES,
+  LIST_TYPES,
+  MORE_TEXT_TYPES,
+  QUOTE_TYPES,
+  STATEMENT_TYPES,
+  TEXT_FORMAT,
+} from "./static-blocks.js";
 
 /** Library groups in the library's order. Most are format categories; AI and templates are not. */
 export const GROUPS = [
@@ -71,6 +81,8 @@ export interface BlockType {
   create?: (id: () => string, t: Translate) => Block;
   /** Edits the block's content in place; none: the block has nothing to type. */
   Fields?: ComponentType<FieldsProps>;
+  /** Its own format options, shown in the format menu after the common ones (L10). */
+  Format?: ComponentType<FieldsProps>;
   /** Other variants it can switch to, keeping its content (W8, UI-BLOCKS-EDITOR-R25). */
   switchable?: boolean;
   /** Its items show as cards, which may stay white on a block colour (2.4 "keep cards white"). */
@@ -292,56 +304,39 @@ const answer = (id: () => string, t: Translate, key: StringKey, correct: boolean
 });
 
 /**
- * Image, gallery and multimedia blocks (M2-13; blocks-editor.md 2.10 to 2.12). A new one waits for
- * its file: the format ships no stock pictures (2.10's stock placeholder), and the player shows
- * nothing for a block without one. Image variants switch among themselves keeping the image and
- * text, and so do galleries (UI-BLOCKS-EDITOR-R25).
+ * Multimedia blocks (M2-13; blocks-editor.md 2.12). A new one waits for its file, which the player
+ * needs before it shows anything.
  */
-const MEDIA_TYPES: BlockType[] = [
-  ...(["centered", "full-width", "image-text", "text-on-image", "banner"] as const).map(
-    (variant): BlockType => ({
-      group: "image",
-      variant,
-      label: `variant.image.${variant}`,
-      create: (id, t) => ({
-        id: id(),
-        category: "image",
-        variant,
-        ...((variant === "image-text" || variant === "text-on-image") && {
-          items: [{ id: id(), kind: "content", text: paragraph(t) }],
-        }),
-      }),
-      Fields: ImageFields,
-      switchable: true,
-    }),
-  ),
-  ...(["carousel", "grid-2", "grid-3", "grid-4"] as const).map(
-    (variant): BlockType => ({
-      group: "gallery",
-      variant,
-      label: `variant.gallery.${variant}`,
-      create: (id) => ({ id: id(), category: "gallery", variant }),
-      Fields: GalleryFields,
-      switchable: true,
-    }),
-  ),
-  ...(
-    [
-      ["audio", AudioFields],
-      ["video", VideoFields],
-      ["embed", EmbedFields],
-      ["attachment", AttachmentFields],
-    ] as const
-  ).map(
-    ([variant, Fields]): BlockType => ({
-      group: "multimedia",
-      variant,
-      label: `variant.multimedia.${variant}`,
-      create: (id) => ({ id: id(), category: "multimedia", variant }),
-      Fields,
-    }),
-  ),
-];
+const MULTIMEDIA_TYPES: readonly BlockType[] = (
+  [
+    ["audio", AudioFields],
+    ["video", VideoFields],
+    ["embed", EmbedFields],
+    ["attachment", AttachmentFields],
+  ] as const
+).map(
+  ([variant, Fields]): BlockType => ({
+    group: "multimedia",
+    variant,
+    label: `variant.multimedia.${variant}`,
+    create: (id) => ({ id: id(), category: "multimedia", variant }),
+    Fields,
+  }),
+);
+
+const CODE_SNIPPET: BlockType = {
+  group: "multimedia",
+  variant: "code-snippet",
+  label: "variant.multimedia.code-snippet",
+  create: (id, t) => ({
+    id: id(),
+    category: "multimedia",
+    variant: "code-snippet",
+    variantSettings: { code: t("sample.code") },
+  }),
+  Fields: CodeSnippetFields,
+  Format: CodeSnippetFormat,
+};
 
 const later = (group: Group, variants: string[]): BlockType[] =>
   variants.map((variant) => ({
@@ -359,6 +354,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     label: "variant.text.paragraph",
     create: textBlock("paragraph", undefined, true),
     Fields: textFields(undefined, true),
+    Format: TEXT_FORMAT,
     switchable: true,
   },
   {
@@ -367,6 +363,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     label: "variant.text.paragraph-with-heading",
     create: textBlock("paragraph-with-heading", "sample.heading", true),
     Fields: textFields("field.heading", true),
+    Format: TEXT_FORMAT,
     switchable: true,
   },
   {
@@ -375,6 +372,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     label: "variant.text.paragraph-with-subheading",
     create: textBlock("paragraph-with-subheading", "sample.subheading", true),
     Fields: textFields("field.subheading", true),
+    Format: TEXT_FORMAT,
     switchable: true,
   },
   {
@@ -383,6 +381,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     label: "variant.text.heading",
     create: textBlock("heading", "sample.heading", false),
     Fields: textFields("field.heading", false),
+    Format: TEXT_FORMAT,
     switchable: true,
   },
   {
@@ -391,15 +390,18 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     label: "variant.text.subheading",
     create: textBlock("subheading", "sample.subheading", false),
     Fields: textFields("field.subheading", false),
+    Format: TEXT_FORMAT,
     switchable: true,
   },
-  ...later("text", ["columns", "table"]),
-  ...later("statement", ["a", "b", "c", "d", "note"]),
-  ...later("quote", ["a", "b", "c", "d", "on-image", "carousel"]),
-  ...later("list", ["numbered", "bulleted", "checkbox"]),
-  // Media blocks (M2-13, media-fields.tsx).
-  ...MEDIA_TYPES,
-  ...later("multimedia", ["code-snippet"]),
+  ...MORE_TEXT_TYPES,
+  ...STATEMENT_TYPES,
+  ...QUOTE_TYPES,
+  ...LIST_TYPES,
+  ...IMAGE_TYPES,
+  ...GALLERY_TYPES,
+  // Multimedia blocks (M2-13, media-fields.tsx).
+  ...MULTIMEDIA_TYPES,
+  CODE_SNIPPET,
   ...later("interactive", [
     "accordion",
     "tabs",
@@ -490,7 +492,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     create: (id) => ({ id: id(), category: "divider", variant: "continue" }),
     Fields: ContinueFields,
   },
-  ...later("divider", ["line", "numbered", "spacer"]),
+  ...DIVIDER_TYPES,
   ...later("templates", ["saved"]),
   ...later("code", ["code"]),
   ...later("custom", ["custom"]),
@@ -522,12 +524,4 @@ export function blockName(block: Block, t: Translate): string {
   return text ? t("blocks.name", { type, text }) : type;
 }
 
-/** Makes new content ids, unused in `course` and by each other. */
-export function idMaker(course: Course): () => string {
-  const taken = contentIds(course);
-  return () => {
-    const id = newContentId(taken);
-    taken.add(id);
-    return id;
-  };
-}
+export { idMaker } from "./ids.js";

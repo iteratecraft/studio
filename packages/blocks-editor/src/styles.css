@@ -568,6 +568,74 @@ body,
   overflow-wrap: anywhere;
 }
 
+/* Text and static blocks (M2-12): items, pictures and tables in a block's fields. */
+.be-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  padding: var(--cs-space-3);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.be-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-1);
+}
+
+.be-item-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.be-image-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-image-slot > .cs-Field {
+  align-self: stretch;
+}
+
+.be-warning {
+  margin: 0;
+  color: var(--cs-danger);
+  font-size: var(--cs-text-sm);
+  font-weight: 600;
+}
+
+.be-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  min-width: 0;
+}
+
+.be-table-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+  overflow-x: auto;
+}
+
+.be-table-row {
+  display: flex;
+  gap: var(--cs-space-1);
+}
+
+.be-table-row > .cs-Field {
+  flex: 1 0 8rem;
+}
+
+.be-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-space-2);
+}
+
 /* Media intake and media blocks (M2-13). */
 .be-drop {
   display: flex;
@@ -584,16 +652,6 @@ body,
   background: var(--cs-accent-soft);
 }
 
-.be-warning {
-  display: flex;
-  gap: var(--cs-space-1);
-  align-items: center;
-  margin: 0;
-  color: var(--cs-danger);
-  font-size: var(--cs-text-sm);
-}
-
-.be-alt,
 .be-captions,
 .be-image-setting,
 .be-caption-editor {
@@ -663,4 +721,9 @@ body,
   height: 100%;
   object-fit: cover;
   border-radius: inherit;
+}
+
+.be-code textarea {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  white-space: pre;
 }

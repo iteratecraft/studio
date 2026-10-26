@@ -11,6 +11,7 @@ import {
   mediaCourse,
   minimalCourse,
   sampleCourse,
+  staticBlocksCourse,
 } from "@course-suite/format/test/courses";
 import type { Locator, Page } from "@playwright/test";
 import { expectAccessible, violations } from "./axe.ts";
@@ -117,6 +118,7 @@ const fixtures: [string, () => Course][] = [
   ["every block", () => everyBlockCourse()],
   ["must pass", mustPass],
   ["media", mediaCourse],
+  ["text and static blocks", staticBlocksCourse],
 ];
 
 test.describe("WCAG 2.2 A and AA on every page", () => {
@@ -158,7 +160,7 @@ test("the checks catch a violation: an image that lost its alt text", async ({
   await write();
   await open("#/lessons/lessonwhat");
   await page.locator("img.image").evaluate((image) => image.removeAttribute("alt"));
-  expect(await violations(page)).toEqual(["image-alt (Images must have alternative text): img"]);
+  expect(await violations(page)).toEqual(["image-alt (Images must have alternative text): .image"]);
 });
 
 test("[rise:R20] the error screen when the course data is missing", async ({

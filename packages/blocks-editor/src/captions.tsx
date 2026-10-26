@@ -23,11 +23,11 @@ import {
   useStrings,
 } from "@course-suite/ui";
 import { type KeyboardEvent, useContext, useEffect, useRef, useState } from "react";
-import { type FieldsProps, idMaker } from "./blocks.js";
+import type { FieldsProps } from "./blocks.js";
 import { languageCode } from "./course.js";
 import { DraftSession } from "./fields.js";
-import { useMediaIntake } from "./intake.js";
-import { MediaDrop } from "./media-fields.js";
+import { idMaker } from "./ids.js";
+import { MediaDrop, useMediaIntake } from "./intake.js";
 
 /** A language's name in the editor's language, with its code. */
 function languageName(code: string, locale: string): string {
