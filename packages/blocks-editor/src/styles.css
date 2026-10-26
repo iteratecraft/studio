@@ -236,7 +236,7 @@ body,
   font-weight: var(--cs-weight-strong);
 }
 
-/* Course editor: the overview (C2), whose outline area M2-09 fills. */
+/* Course editor: the overview (C2) with the outline (C4), or one lesson (L1). */
 .be-overview {
   display: flex;
   flex: 1;
@@ -255,6 +255,97 @@ body,
 .be-course-title .cs-Input {
   font-size: var(--cs-text-xl);
   font-weight: var(--cs-weight-strong);
+}
+
+.be-course-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+}
+
+.be-section-title {
+  margin: 0;
+  font-size: var(--cs-text-lg);
+}
+
+.be-outline,
+.be-lesson {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+}
+
+.be-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--cs-space-1);
+  min-width: 0;
+  padding: var(--cs-space-1) 0;
+}
+
+/* Lessons under a section header sit in from it. */
+.be-row[data-in-section] {
+  padding-inline-start: var(--cs-space-6);
+}
+
+.be-row[data-kind="section"] .cs-Input {
+  font-weight: var(--cs-weight-strong);
+}
+
+.be-row-icon {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: var(--cs-control-height);
+  color: var(--cs-text-muted);
+}
+
+.be-row-title {
+  flex: 1;
+}
+
+.be-row-meta {
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-xs);
+  white-space: nowrap;
+}
+
+.be-new-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: var(--cs-space-2);
+}
+
+.be-new-title {
+  flex: 1 1 16rem;
+}
+
+/* The Add button lines up with the field, under its label. */
+.be-new-entry > .cs-Button {
+  margin-top: calc(var(--cs-text-sm) * 1.5 + var(--cs-space-1));
+}
+
+.be-lesson-switcher {
+  align-self: start;
+}
+
+.be-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.be-block {
+  padding: var(--cs-space-3);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-surface);
+  font-size: var(--cs-text-sm);
 }
 
 /* Dialogs */

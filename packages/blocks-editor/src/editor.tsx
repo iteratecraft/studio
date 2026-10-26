@@ -1,19 +1,20 @@
 // The course editor's frame (blocks-editor.md C1, C2): the top bar with the way back, the course
 // title, the save state, undo and redo, save and the entry points of later waves; under it the
-// course overview, whose outline area M2-09 fills.
-import type { Command } from "@course-suite/doc-ops";
+// course overview (title, author, description and the outline), or one open lesson.
+import type { Entry } from "@course-suite/format";
 import {
   Button,
-  EmptyState,
   IconButton,
-  TextField,
-  type TextFieldProps,
+  type ToastQueue,
   Toolbar,
   ToolbarSeparator,
   useStrings,
 } from "@course-suite/ui";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { DEFAULT_LANGUAGE, languageCode, shownTitle, TITLE_MAX } from "./course.js";
+import { DescriptionField, DraftField, DraftSession } from "./fields.js";
+import { LessonContent, LessonView } from "./lesson.js";
+import { Outline } from "./outline.js";
 import type { CourseSession } from "./session.js";
 
 /** Re-renders on every edit and save-state change of the session. */
@@ -27,29 +28,55 @@ const isTextEntry = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || target.matches("input, textarea, select"));
 
-export function EditorFrame({
-  session,
-  onSave,
-  onSaveAs,
-  onClose,
-}: {
+/** The overview, coming back from entry `from`; or the lesson or quiz with id `id`. */
+type View = { kind: "overview"; from?: string } | { kind: "entry"; id: string };
+
+export interface EditorFrameProps {
   session: CourseSession;
+  toasts: ToastQueue;
   onSave: () => void;
   onSaveAs: () => void;
   onClose: () => void;
-}) {
+  /** Copy to another course (blocks-editor.md W5, C8). */
+  onCopyEntry: (entry: Entry) => void;
+}
+
+export function EditorFrame({
+  session,
+  toasts,
+  onSave,
+  onSaveAs,
+  onClose,
+  onCopyEntry,
+}: EditorFrameProps) {
   const t = useStrings();
   useSession(session);
   const { editor } = session;
-  const title = shownTitle(editor.document.title, t("course.untitled"));
+  const course = editor.document;
+  const title = shownTitle(course.title, t("course.untitled"));
   const state = session.state;
+  const [view, setView] = useState<View>({ kind: "overview" });
+  // UI-BLOCKS-EDITOR-R15: undo history belongs to one screen and goes when the author leaves it.
+  const go = (next: View) => {
+    session.commitDrafts();
+    editor.clearHistory();
+    setView(next);
+  };
+  // A lesson that an undo removed closes, back to the overview.
+  const open =
+    view.kind === "entry"
+      ? course.entries.find(
+          (entry): entry is Exclude<Entry, { kind: "section" }> =>
+            entry.id === view.id && entry.kind !== "section",
+        )
+      : undefined;
   // A new screen: focus starts at its heading, for keyboard and screen reader users.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
-
   // Keyboard (blocks-editor.md 5.1): Ctrl/Cmd+Z undoes, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo,
-  // Ctrl/Cmd+S saves the file, Ctrl/Cmd+Shift+S saves it as a new file. In a text field the
-  // field's own undo applies.
+  // Ctrl/Cmd+S saves the file with what the fields hold, Ctrl/Cmd+Shift+S saves it as a new file. In
+  // a text field the field's own undo applies. Heard on the way down, as list rows keep their
+  // controls' keys to themselves.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -64,8 +91,8 @@ export function EditorFrame({
         else editor.undo();
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [editor, onSave, onSaveAs]);
 
   const stateText = {
@@ -76,172 +103,129 @@ export function EditorFrame({
   }[state.kind];
 
   return (
-    <div className="be-editor">
-      <header className="be-bar">
-        <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
-        <h1 ref={heading} tabIndex={-1} className="be-bar-title">
-          {title}
-        </h1>
-        <span role="status" className="be-save-state" data-state={state.kind}>
-          {stateText}
-        </span>
-        <Toolbar aria-label={t("editor.tools")} className="be-tools">
-          <IconButton
-            icon="undo"
-            label={t("editor.undo")}
-            isDisabled={!editor.canUndo}
-            onPress={() => editor.undo()}
-          />
-          <IconButton
-            icon="redo"
-            label={t("editor.redo")}
-            isDisabled={!editor.canRedo}
-            onPress={() => editor.redo()}
-          />
-          <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
-          <Button variant="quiet" onPress={onSaveAs}>
-            {t("editor.saveAs")}
-          </Button>
-          <ToolbarSeparator />
-          {/* Theme arrives with M2-17, preview with M2-11, publish with M2-18. */}
-          <Button variant="quiet" isDisabled>
-            {t("editor.theme")}
-          </Button>
-          <Button isDisabled>{t("editor.preview")}</Button>
-          <Button variant="primary" isDisabled>
-            {t("editor.publish")}
-          </Button>
-        </Toolbar>
-      </header>
-      <main className="be-overview">
-        <DocumentField
-          session={session}
-          label={t("editor.courseTitle")}
-          className="be-course-title"
-          maxLength={TITLE_MAX}
-          value={editor.document.title}
-          command={(title) => ({ type: "updateCourse", set: { title } })}
-        />
-        <DocumentField
-          session={session}
-          label={t("editor.sourceLanguage")}
-          description={t("editor.sourceLanguageHelp")}
-          errorMessage={t("editor.sourceLanguageInvalid")}
-          className="be-language"
-          value={editor.document.sourceLanguage ?? DEFAULT_LANGUAGE}
-          command={(text) => {
-            const sourceLanguage = languageCode(text);
-            return sourceLanguage === undefined
-              ? undefined
-              : { type: "updateCourse", set: { sourceLanguage } };
-          }}
-        />
-        <EmptyState icon="file" title={t("editor.outline")}>
-          {t("editor.outlinePending")}
-        </EmptyState>
-      </main>
-    </div>
+    <DraftSession.Provider value={session}>
+      <div className="be-editor">
+        <header className="be-bar">
+          <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
+          <h1 ref={heading} tabIndex={-1} className="be-bar-title">
+            {title}
+          </h1>
+          <span role="status" className="be-save-state" data-state={state.kind}>
+            {stateText}
+          </span>
+          <Toolbar aria-label={t("editor.tools")} className="be-tools">
+            <IconButton
+              icon="undo"
+              label={t("editor.undo")}
+              isDisabled={!editor.canUndo}
+              onPress={() => editor.undo()}
+            />
+            <IconButton
+              icon="redo"
+              label={t("editor.redo")}
+              isDisabled={!editor.canRedo}
+              onPress={() => editor.redo()}
+            />
+            <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
+            <Button variant="quiet" onPress={onSaveAs}>
+              {t("editor.saveAs")}
+            </Button>
+            <ToolbarSeparator />
+            {/* Theme arrives with M2-17, preview with M2-11, publish with M2-18. */}
+            <Button variant="quiet" isDisabled>
+              {t("editor.theme")}
+            </Button>
+            <Button isDisabled>{t("editor.preview")}</Button>
+            <Button variant="primary" isDisabled>
+              {t("editor.publish")}
+            </Button>
+          </Toolbar>
+        </header>
+        <main className="be-overview">
+          {open ? (
+            <LessonView
+              key={open.id}
+              session={session}
+              entry={open}
+              onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+            />
+          ) : (
+            <>
+              <CourseFields session={session} />
+              {course.kind === "microlearning" ? (
+                // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
+                // outline.
+                course.entries[0] && <LessonContent entry={course.entries[0]} />
+              ) : (
+                <Outline
+                  session={session}
+                  toasts={toasts}
+                  focusEntry={view.kind === "overview" ? view.from : undefined}
+                  onOpen={(id) => go({ kind: "entry", id })}
+                  onCopy={onCopyEntry}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </DraftSession.Provider>
   );
 }
 
-/** A pause in typing this long puts the field's text into the document. */
-export const TYPING_PAUSE_MS = 500;
-/** While typing goes on without a pause, the text still reaches the document this often. */
-export const TYPING_MAX_WAIT_MS = 2000;
-
 /**
- * A text field of the course document that saves while typing (UI-BLOCKS-EDITOR-R13): its text goes
- * into the document after a pause in typing, at least every 2 s while typing goes on, on Enter, on
- * leaving the field and whenever the session saves, leaves or closes. One editing of the field is
- * one undo step; Escape takes that step back. `command` turns the text into the edit, or gives
- * undefined while the text is not valid, which then stays out of the document.
+ * The course fields of the overview (C2, blocks-editor.md 2.2): the title (UI-BLOCKS-EDITOR-R13:
+ * up to 100 characters), the source language code (BLK-01), the author shown to learners (empty
+ * hides it, C3, W6) and the description shown on the cover. They save while typing (fields.tsx).
  */
-function DocumentField({
-  session,
-  value: stored,
-  command,
-  ...field
-}: {
-  session: CourseSession;
-  value: string;
-  command: (text: string) => Command | undefined;
-} & Pick<TextFieldProps, "label" | "description" | "errorMessage" | "maxLength" | "className">) {
+function CourseFields({ session }: { session: CourseSession }) {
+  const t = useStrings();
   const { editor } = session;
-  const [value, setValue] = useState(stored);
-  const typed = useRef(value);
-  const edit = useRef<{
-    timer: ReturnType<typeof setTimeout> | undefined;
-    since: number | undefined;
-    open: boolean;
-  }>({ timer: undefined, since: undefined, open: false });
-  // The document changed by other means (undo, redo): show it, unless the author is typing here.
-  const editing = useRef(false);
-  useEffect(() => {
-    if (editing.current) return;
-    typed.current = stored;
-    setValue(stored);
-  }, [stored]);
-
-  const commit = () => {
-    const state = edit.current;
-    clearTimeout(state.timer);
-    state.timer = undefined;
-    state.since = undefined;
-    if (!editing.current) return;
-    const next = command(typed.current);
-    if (!next || typed.current === stored) return;
-    if (state.open) {
-      editor.dispatch(next);
-      return;
-    }
-    editor.beginGroup();
-    const result = editor.dispatch(next);
-    if (result.ok && result.ops.length > 0) state.open = true;
-    else editor.endGroup();
-  };
-  const end = () => {
-    commit();
-    if (edit.current.open) editor.endGroup();
-    edit.current.open = false;
-    editing.current = false;
-  };
-  const latest = useRef(commit);
-  latest.current = commit;
-  useEffect(() => session.holdDraft(() => latest.current()), [session]);
-  const endOnUnmount = useRef(end);
-  endOnUnmount.current = end;
-  useEffect(() => () => endOnUnmount.current(), []);
-
-  const invalid = command(value) === undefined;
+  const { title, authors = [], description = "" } = editor.document;
+  const [first, ...others] = authors;
   return (
-    <TextField
-      {...field}
-      value={value}
-      isInvalid={invalid}
-      onChange={(text) => {
-        editing.current = true;
-        typed.current = text;
-        setValue(text);
-        const state = edit.current;
-        clearTimeout(state.timer);
-        state.since ??= Date.now();
-        const wait = Math.min(TYPING_PAUSE_MS, state.since + TYPING_MAX_WAIT_MS - Date.now());
-        state.timer = setTimeout(() => latest.current(), Math.max(0, wait));
-      }}
-      onBlur={end}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") end();
-        else if (event.key === "Escape") {
-          // Back to the text before this editing: what it put in the document is one step.
-          clearTimeout(edit.current.timer);
-          editing.current = false;
-          if (edit.current.open) {
-            edit.current.open = false;
-            editor.endGroup();
-            editor.undo();
-          } else setValue(stored);
-        } else event.continuePropagation();
-      }}
-    />
+    <div className="be-course-fields">
+      <DraftField
+        label={t("editor.courseTitle")}
+        className="be-course-title"
+        value={title}
+        maxLength={TITLE_MAX}
+        command={(text) => ({ type: "updateCourse", set: { title: text } })}
+      />
+      <DraftField
+        label={t("editor.sourceLanguage")}
+        description={t("editor.sourceLanguageHelp")}
+        errorMessage={t("editor.sourceLanguageInvalid")}
+        className="be-language"
+        value={editor.document.sourceLanguage ?? DEFAULT_LANGUAGE}
+        command={(text) => {
+          const sourceLanguage = languageCode(text);
+          return sourceLanguage === undefined
+            ? undefined
+            : { type: "updateCourse", set: { sourceLanguage } };
+        }}
+      />
+      <DraftField
+        label={t("editor.author")}
+        description={t("editor.authorHelp")}
+        value={first?.name ?? ""}
+        command={(text) => {
+          const name = text.trim();
+          return name
+            ? { type: "updateCourse", set: { authors: [{ ...first, name }, ...others] } }
+            : { type: "updateCourse", unset: ["authors"] };
+        }}
+      />
+      <DescriptionField
+        label={t("editor.description")}
+        description={t("editor.descriptionHelp")}
+        value={description}
+        command={(html) =>
+          html
+            ? { type: "updateCourse", set: { description: html } }
+            : { type: "updateCourse", unset: ["description"] }
+        }
+      />
+    </div>
   );
 }

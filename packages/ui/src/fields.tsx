@@ -50,20 +50,25 @@ export interface TextFieldProps
   extends FieldTexts,
     Omit<AriaTextFieldProps, "className" | "style" | "children"> {
   placeholder?: string;
+  /** Keeps the label for screen readers only, where the place names the field (a list row). */
+  hideLabel?: boolean;
   className?: string;
 }
+
+const labelClass = (hidden?: boolean) => cx("cs-Label", hidden && "cs-visually-hidden");
 
 export function TextField({
   label,
   description,
   errorMessage,
   placeholder,
+  hideLabel,
   className,
   ...props
 }: TextFieldProps) {
   return (
     <AriaTextField {...props} className={cx("cs-Field", className)}>
-      <Label className="cs-Label">{label}</Label>
+      <Label className={labelClass(hideLabel)}>{label}</Label>
       <Input className="cs-Input" {...(placeholder !== undefined && { placeholder })} />
       <FieldFooter description={description} errorMessage={errorMessage} />
     </AriaTextField>
@@ -76,12 +81,13 @@ export function TextArea({
   description,
   errorMessage,
   placeholder,
+  hideLabel,
   className,
   ...props
 }: TextFieldProps) {
   return (
     <AriaTextField {...props} className={cx("cs-Field", className)}>
-      <Label className="cs-Label">{label}</Label>
+      <Label className={labelClass(hideLabel)}>{label}</Label>
       <AriaTextArea
         className="cs-Input cs-TextArea"
         {...(placeholder !== undefined && { placeholder })}

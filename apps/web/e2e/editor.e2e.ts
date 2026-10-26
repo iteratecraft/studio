@@ -1,51 +1,28 @@
 // The blocks editor's shell and dashboard in Chromium against the in-memory host (M2-08, BLK-01):
 // every journey by pointer and by keyboard, and axe on every screen in both themes. The tests
 // answer the file dialogs and read the in-memory disk through `window.editorTest` (src/editor.tsx).
-import { readZip, writeZip } from "@course-suite/zip";
+import { writeZip } from "@course-suite/zip";
 import { expect, type Page, test } from "@playwright/test";
 import { violations } from "./axe.ts";
+import {
+  back,
+  button,
+  bytesOf,
+  card,
+  courseIn,
+  create,
+  files,
+  heading,
+  idsIn,
+  launch,
+  retitle,
+  status,
+  unzip,
+} from "./helpers.ts";
 
-const heading = (page: Page, name: string) => page.getByRole("heading", { level: 1, name });
-const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
-const card = (page: Page, title: string) =>
-  page.getByRole("row").filter({ has: page.getByText(title, { exact: true }) });
-const status = (page: Page) => page.getByRole("status");
 /** A card's select box, as seen: the checkbox inside it is visually hidden. */
 const selectBox = (page: Page, title: string) =>
   card(page, title).locator("label", { has: page.getByRole("checkbox", { name: "Select" }) });
-
-async function launch(page: Page, query = ""): Promise<void> {
-  await page.goto(`/editor.html${query}`);
-  await expect(heading(page, "Your courses")).toBeVisible();
-}
-
-/** New → blank course or microlearning → title → the empty course opens in the editor. */
-async function create(page: Page, title: string, kind: "course" | "microlearning" = "course") {
-  await button(page, "New").click();
-  await page
-    .getByRole("menuitem", { name: kind === "course" ? "Blank course" : "Blank microlearning" })
-    .click();
-  const dialog = page.getByRole("dialog", {
-    name: kind === "course" ? "New course" : "New microlearning",
-  });
-  await dialog.getByRole("textbox", { name: "Title" }).fill(title);
-  await dialog.getByRole("button", { name: "Create" }).click();
-  await expect(heading(page, title)).toBeVisible();
-  await expect(status(page)).toHaveText("Saved");
-}
-
-async function back(page: Page): Promise<void> {
-  await button(page, "Back to your courses").click();
-  await expect(heading(page, "Your courses")).toBeVisible();
-}
-
-/** Types a new course title on the overview and keeps it (Enter): one undo step. */
-async function retitle(page: Page, title: string): Promise<void> {
-  const field = page.getByRole("textbox", { name: "Course title" });
-  await field.fill(title);
-  await field.press("Enter");
-  await expect(heading(page, title)).toBeVisible();
-}
 
 /** Puts `count` course files on the disk and in the course list, titled "Course 01" and on. */
 async function seed(page: Page, count: number): Promise<void> {
@@ -73,39 +50,6 @@ async function sortByTitle(page: Page): Promise<void> {
 
 const titlesFrom = (from: number, to: number) =>
   Array.from({ length: to - from + 1 }, (_, i) => `Course ${String(from + i).padStart(2, "0")}`);
-
-const files = (page: Page) =>
-  page.evaluate(() =>
-    [...window.editorTest.host.disk.keys()].filter((id) => !id.startsWith("appdata/")).sort(),
-  );
-
-async function bytesOf(page: Page, id: string): Promise<Uint8Array> {
-  const bytes = await page.evaluate(
-    (id) => Array.from(window.editorTest.host.disk.get(id) ?? []),
-    id,
-  );
-  return new Uint8Array(bytes);
-}
-
-/** The file's archive, which must read cleanly. */
-async function unzip(page: Page, id: string) {
-  const zip = await readZip(await bytesOf(page, id));
-  if (!zip.ok) throw new Error(`${id} is not a readable zip`);
-  return zip.value;
-}
-
-async function courseIn(page: Page, id: string) {
-  const zip = await unzip(page, id);
-  const text = new TextDecoder().decode(await zip.read("course.json"));
-  return JSON.parse(text) as { id: string; title: string; kind: string; entries: { id: string }[] };
-}
-
-/** Every `"id"` value in the file's course document. */
-async function idsIn(page: Page, file: string): Promise<string[]> {
-  const zip = await unzip(page, file);
-  const text = new TextDecoder().decode(await zip.read("course.json"));
-  return [...text.matchAll(/"id": "([^"]+)"/g)].map((m) => m[1] as string);
-}
 
 test.describe("dashboard and course files", () => {
   test("BLK-01, blocks-editor H6: first launch shows an empty dashboard with the app name and version", async ({

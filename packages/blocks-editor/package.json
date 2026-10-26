@@ -28,6 +28,9 @@
     "react": "catalog:"
   },
   "devDependencies": {
+    "@course-suite/exporters": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*",
+    "@course-suite/zip": "workspace:*",
     "@types/react": "catalog:",
     "vitest": "catalog:"
   }

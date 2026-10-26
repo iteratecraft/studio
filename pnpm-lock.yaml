@@ -121,6 +121,12 @@ importers:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@course-suite/format':
+        specifier: workspace:*
+        version: link:../../packages/format
+      '@course-suite/project':
+        specifier: workspace:*
+        version: link:../../packages/project
       '@course-suite/zip':
         specifier: workspace:*
         version: link:../../packages/zip
@@ -164,6 +170,15 @@ importers:
         specifier: 'catalog:'
         version: 19.3.0
     devDependencies:
+      '@course-suite/exporters':
+        specifier: workspace:*
+        version: link:../exporters
+      '@course-suite/player-blocks':
+        specifier: workspace:*
+        version: link:../player-blocks
+      '@course-suite/zip':
+        specifier: workspace:*
+        version: link:../zip
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0

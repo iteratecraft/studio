@@ -18,6 +18,8 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@course-suite/format": "workspace:*",
+    "@course-suite/project": "workspace:*",
     "@course-suite/zip": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
