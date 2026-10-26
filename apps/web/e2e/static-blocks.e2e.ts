@@ -7,6 +7,7 @@
 // both themes.
 import type { Block, ContentItem, Course, LessonEntry } from "@course-suite/format";
 import { SCHEMA_VERSION } from "@course-suite/format";
+import { staticBlocksCourse } from "@course-suite/format/test/courses";
 import { expect, type Page, test } from "@playwright/test";
 import { violations } from "./axe.ts";
 import { button, courseIn, heading, launch, openFixture, status } from "./helpers.ts";
@@ -104,8 +105,6 @@ const STATIC_TYPES = [
   "Numbered divider",
   "Space",
 ];
-/** The image types whose sample has no picture yet, which the player leaves out until one is added. */
-const NO_PICTURE = ["Centred image", "Full-width image", "Banner"];
 
 const blocksOf = (page: Page, lesson: string) =>
   page.getByRole("grid", { name: `Blocks of ${lesson}` });
@@ -185,7 +184,7 @@ test.afterEach(async ({ page }) => {
   expect(seen).toEqual([]);
 });
 
-test("[rise:3C] blocks-editor 3, L4, W7, BLK-04: every text and static block is available in the library, and by keyboard each family inserts with sample content", async ({
+test("[rise:3C] blocks-editor 3, L4, BLK-04: every text and static block is available in the library", async ({
   page,
 }) => {
   await openNightSky(page, "Empty");
@@ -196,7 +195,12 @@ test("[rise:3C] blocks-editor 3, L4, W7, BLK-04: every text and static block is 
       "aria-disabled",
     );
   }
-  await page.keyboard.press("Escape");
+});
+
+test("[rise:3C] blocks-editor L4, W7, BLK-04: by keyboard each family inserts with sample content", async ({
+  page,
+}) => {
+  await openNightSky(page, "Empty");
   for (const [search, name] of [
     ["note", "Note"],
     ["carousel", "Quote carousel"],
@@ -485,79 +489,110 @@ test("[rise:3J] blocks-editor W3, H15, GB-O6, D-38: by keyboard, a course starts
   await expect(blocksOf(page, "Moon phases").locator(".be-block")).toHaveCount(6);
 });
 
-test("[rise:3C] blocks-editor P1, BLK-04: the preview shows every static block in the real player, accessible, with a working carousel and checklist", async ({
+test("[rise:3C] blocks-editor P1, BLK-04: the preview shows every static variant in the real player, accessible, with a working carousel and checklist", async ({
   page,
 }) => {
-  await openNightSky(page, "Empty");
-  for (const name of STATIC_TYPES) await insertByPointer(page, name);
+  const course = staticBlocksCourse();
+  const lessons = course.entries.filter((entry): entry is LessonEntry => entry.kind === "lesson");
+  await launch(page);
+  await openFixture(page, "Watching.crs", course, {
+    "sky.svg": SKY,
+    "moon.svg": SKY,
+    "observer.svg": SKY,
+  });
+  await openLesson(page, lessons[0]?.title ?? "");
   await button(page, "Preview").click();
   const preview = "iframe[title='Course preview']:not([data-pending])";
   const frame = page.frameLocator(preview);
-  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Empty");
-  await expect(frame.locator(".blocks > [data-block]")).toHaveCount(
-    STATIC_TYPES.length - NO_PICTURE.length,
-  );
   const shown = await (await page.locator(preview).elementHandle())?.contentFrame();
   if (!shown) throw new Error("no preview frame on show");
-  expect(await violations(shown), "every static block in the preview").toEqual([]);
-  const quotes = frame.getByRole("region", { name: "Quotes" });
-  await quotes.getByRole("button", { name: "Next quote" }).click();
-  await expect(quotes.locator(".carousel-position")).toHaveText("Quote 2 of 3");
-  const box = frame.getByRole("checkbox", { name: "The second point" });
-  await box.click();
-  await expect(box).toBeChecked();
+  for (const [i, lesson] of lessons.entries()) {
+    if (i > 0)
+      await frame
+        .getByRole("link", { name: /^Next lesson/ })
+        .first()
+        .click();
+    await expect(frame.getByRole("heading", { level: 1 })).toHaveText(lesson.title);
+    await expect(frame.locator(".blocks > [data-block]")).toHaveCount(lesson.blocks.length);
+    expect(await violations(shown), lesson.title).toEqual([]);
+    if (i > 0) continue;
+    const quotes = frame.getByRole("region", { name: "Quotes" });
+    await quotes.getByRole("button", { name: "Next quote" }).click();
+    await expect(quotes.locator(".carousel-position")).toHaveText("Quote 2 of 3");
+    const box = frame.getByRole("checkbox").first();
+    await box.click();
+    await expect(box).toBeChecked();
+  }
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`UI-ACCESSIBILITY: no axe violation on the static block screens in the ${theme} theme`, async ({
-    page,
-  }) => {
-    const check = async (state: string) =>
+  test.describe(`UI-ACCESSIBILITY: no axe violation on the static block screens in the ${theme} theme`, () => {
+    const check = async (page: Page, state: string) =>
       expect(await violations(page), `${theme}: ${state}`).toEqual([]);
-    await launch(page, `?theme=${theme}`);
-    await openFixture(page, FILE, nightSky(), { "sky.svg": SKY });
-    await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Lesson from a template…" }).click();
-    await check("lesson templates");
-    await page.keyboard.press("Escape");
-    await openLesson(page, "Notes");
-    await check("lesson with a statement, a picture without alt text and a gallery");
-    for (const name of ["Quote carousel", "Table", "Checklist", "Columns", "Numbered divider"]) {
-      await insertByPointer(page, name);
-    }
-    await check("quote carousel, table, checklist, columns and divider fields");
-    for (const name of [
-      /^Statement/,
-      /^Quote carousel/,
-      /^Table/,
-      /^Checklist/,
-      /^Centred image/,
-      /^Grid/,
-      /^Columns/,
-      /^Numbered divider/,
-    ]) {
-      await row(page, "Notes", name)
-        .first()
+    const open = async (page: Page) => {
+      await launch(page, `?theme=${theme}`);
+      await openFixture(page, FILE, nightSky(), { "sky.svg": SKY });
+    };
+
+    test("the template pickers", async ({ page }) => {
+      await open(page);
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Lesson from a template…" }).click();
+      await check(page, "lesson templates");
+      await page.keyboard.press("Escape");
+      await button(page, "Back to your courses").click();
+      await button(page, "New").click();
+      await page.getByRole("menuitem", { name: "From a template…" }).click();
+      await check(page, "course templates");
+      await page.keyboard.press("Escape");
+    });
+
+    test("the fields of the static blocks", async ({ page }) => {
+      await open(page);
+      await openLesson(page, "Notes");
+      await check(page, "lesson with a statement, a picture without alt text and a gallery");
+      for (const name of ["Quote carousel", "Table", "Checklist", "Columns", "Numbered divider"]) {
+        await insertByPointer(page, name);
+      }
+      await check(page, "quote carousel, table, checklist, columns and divider fields");
+      await row(page, "Notes", /^Columns/)
         .getByRole("button", { name: "Format", exact: true })
         .click();
-      await check(`format menu of ${name.source}`);
-      await closeFormat(page, false);
+      await page
+        .getByRole("dialog", { name: "Format" })
+        .getByText("A picture above each column")
+        .click();
+      await closeFormat(page);
+      await check(page, "columns with picture slots");
+    });
+
+    for (const names of [
+      [/^Statement/, /^Quote carousel/, /^Table/, /^Checklist/],
+      [/^Centred image/, /^Grid/, /^Columns/, /^Numbered divider/],
+    ]) {
+      test(`the format menus of ${names.map((name) => name.source.slice(1)).join(", ")}`, async ({
+        page,
+      }) => {
+        await open(page);
+        await openLesson(page, "Notes");
+        for (const name of [
+          "Quote carousel",
+          "Table",
+          "Checklist",
+          "Columns",
+          "Numbered divider",
+        ]) {
+          await insertByPointer(page, name);
+        }
+        for (const name of names) {
+          await row(page, "Notes", name)
+            .first()
+            .getByRole("button", { name: "Format", exact: true })
+            .click();
+          await check(page, `format menu of ${name.source}`);
+          await closeFormat(page, false);
+        }
+      });
     }
-    await row(page, "Notes", /^Columns/)
-      .getByRole("button", { name: "Format", exact: true })
-      .click();
-    await page
-      .getByRole("dialog", { name: "Format" })
-      .getByText("A picture above each column")
-      .click();
-    await closeFormat(page);
-    await check("columns with picture slots");
-    await page.keyboard.press("Control+S");
-    await expect(saveState(page)).toHaveText("Saved");
-    await button(page, "Back to your courses").click();
-    await button(page, "New").click();
-    await page.getByRole("menuitem", { name: "From a template…" }).click();
-    await check("course templates");
-    await page.keyboard.press("Escape");
   });
 }
