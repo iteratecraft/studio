@@ -182,11 +182,11 @@ test.describe("block library", () => {
     await expect(search).toBeFocused();
     // Every type is listed; those the player cannot show yet are there but unavailable.
     const types = library.getByRole("listbox", { name: "Block library" });
-    await expect(types.getByRole("option", { name: /^Columns/ })).toHaveAttribute(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(types.getByRole("option", { name: /^Columns/ })).toContainText(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toContainText(
       "Not available yet",
     );
     await expect(types.getByRole("option", { name: "Single choice" })).not.toHaveAttribute(

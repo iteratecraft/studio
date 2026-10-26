@@ -3,7 +3,13 @@
 // menu (padding, content width, the entrance animation, and in a microlearning the step it shows
 // in). Each change is one doc-ops command list, so one undo step; the block's preview shows it.
 import type { Command, Editor } from "@course-suite/doc-ops";
-import { accentReadable, type Block, type BlockSettings, SURFACE } from "@course-suite/format";
+import {
+  accentReadable,
+  type Block,
+  type BlockSettings,
+  FULL_BLEED,
+  SURFACE,
+} from "@course-suite/format";
 import {
   Button,
   DialogTrigger,
@@ -277,8 +283,9 @@ export function FormatMenu({
       }
     />
   );
-  // Full-width images span the page whatever the width (UI-BLOCKS-EDITOR-R27).
-  const fullImage = block.category === "image" && block.variant === "full-width";
+  // Full-bleed variants span the page whatever the width (UI-BLOCKS-EDITOR-R27).
+  const fullImage = FULL_BLEED.has(`${block.category}/${block.variant}`);
+  const Own = typeOf(block)?.Format;
   // rise.md 3D: the entrance animation is on by default for blocks other than text.
   const animates = settings.entranceAnimation ?? block.category !== "text";
   const trigger = useReturnFocus();
@@ -368,6 +375,7 @@ export function FormatMenu({
               {t("format.connectHelp")}
             </p>
           )}
+          {Own && <Own block={block} editor={editor} />}
         </div>
       </Popover>
     </DialogTrigger>

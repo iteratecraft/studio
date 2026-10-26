@@ -39,7 +39,14 @@ export function BlockPreview({
       const { draw } = await playerView();
       // The block's media files as in-memory addresses, which the editor's policy allows.
       const files = new Map<string, string>();
-      for (const ref of block.media ?? []) {
+      // The block's own pictures and its items' (gallery images, quote photos, column pictures).
+      const refs = [
+        ...(block.media ?? []),
+        ...(block.items ?? []).flatMap((item) =>
+          item.kind === "content" && item.media ? [item.media] : [],
+        ),
+      ];
+      for (const ref of refs) {
         const entry = index.find((media) => media.key === ref.key);
         const key = entry && (entry.variantKey ?? entry.key);
         if (!key || files.has(key)) continue;
