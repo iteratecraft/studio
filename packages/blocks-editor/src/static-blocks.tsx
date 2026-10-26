@@ -10,6 +10,11 @@ import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type Block,
   type ContentItem,
+  deepestHeadingLevel,
+  defaultHeadingLevel,
+  isLessonLink,
+  type LessonEntry,
+  LINK_PATTERN,
   type MediaRef,
   settingsTable,
   variantSettings,
@@ -27,9 +32,9 @@ import {
   type Translate,
   useStrings,
 } from "@course-suite/ui";
-import { type ComponentType, type ReactNode, useEffect, useId, useState } from "react";
+import { type ComponentType, type ReactNode, useContext, useEffect, useId, useState } from "react";
 import type { BlockType, FieldsProps } from "./blocks.js";
-import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
+import { DraftField, inlineHtml, LinkTargets, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
 
 const COLOR = /^#[0-9a-f]{6}$/;
@@ -239,22 +244,73 @@ const LEVELS = [2, 3, 4, 5, 6].map(
 );
 
 /**
+ * Where a text block's heading stands in its lesson's outline (BLK-04 "the page heading outline
+ * stays valid"): the level it asks for and the deepest one it can have there without skipping a
+ * level (@course-suite/format deepestHeadingLevel).
+ */
+function headingPlace(block: Block, editor: Editor): { asked: number; deepest: number } {
+  const lesson = editor.document.entries.find(
+    (entry): entry is LessonEntry =>
+      entry.kind === "lesson" && entry.blocks.some((other) => other.id === block.id),
+  );
+  const blocks = lesson?.blocks ?? [block];
+  const { headingLevel } = variantSettings<{ headingLevel?: number }>(block);
+  return {
+    asked: headingLevel ?? defaultHeadingLevel(block) ?? 2,
+    deepest: deepestHeadingLevel(
+      blocks,
+      blocks.findIndex((other) => other.id === block.id),
+    ),
+  };
+}
+
+/**
+ * What a heading that skips a level says (accessibility.md W18), or undefined: a heading moved
+ * or a block deleted can leave it too deep, and so can a subheading's level 3 straight under the
+ * lesson title.
+ */
+export function useHeadingWarning(block: Block, editor: Editor): string | undefined {
+  const t = useStrings();
+  const { asked, deepest } = headingPlace(block, editor);
+  return asked > deepest ? t("blockFormat.levelSkips", { asked, deepest }) : undefined;
+}
+
+/**
+ * A warning shown with the field it is about. With an `id`, the field names it in its
+ * aria-describedby; without, the field says the same in its own description, so screen readers
+ * skip this copy.
+ */
+export function Warning({ children, id }: { children: string | undefined; id?: string }) {
+  return children ? (
+    <p className="be-warning" {...(id ? { id } : { "aria-hidden": true })}>
+      {children}
+    </p>
+  ) : null;
+}
+
+/**
  * Text blocks (2.5, rise.md 3C): the heading level for accessibility (2 to 6, so the lesson title
- * stays the only level 1), the columns the body text flows in, and the space after the heading.
+ * stays the only level 1, and never more than one below the heading above), the columns the body
+ * text flows in, and the space after the heading.
  */
 function TextFormat({ block, editor }: FieldsProps) {
   const t = useStrings();
   const heading = block.variant !== "paragraph";
   const body = block.variant.startsWith("paragraph");
-  const fallback = block.variant.endsWith("subheading") ? 3 : 2;
-  const settings = variantSettings<{ headingLevel?: number }>(block);
+  const fallback = defaultHeadingLevel(block) ?? 2;
+  const { asked, deepest } = headingPlace(block, editor);
+  const warning = useHeadingWarning(block, editor);
   return (
     <>
       {heading && (
         <Select
           label={t("blockFormat.headingLevel")}
-          description={t("blockFormat.headingLevelHelp")}
-          selectedKey={String(settings.headingLevel ?? fallback)}
+          description={warning ?? t("blockFormat.headingLevelHelp")}
+          // Levels that would skip one are not offered; the level already chosen stays shown.
+          disabledKeys={LEVELS.filter(([level]) => level > deepest && level !== asked).map(
+            ([level]) => String(level),
+          )}
+          selectedKey={String(asked)}
           onSelectionChange={(key) => {
             const level = Number(key);
             editor.dispatch(
@@ -269,6 +325,7 @@ function TextFormat({ block, editor }: FieldsProps) {
           ))}
         </Select>
       )}
+      {heading && <Warning>{warning}</Warning>}
       <Controls
         block={block}
         editor={editor}
@@ -895,19 +952,25 @@ function ColumnsFields({ block, editor }: FieldsProps) {
   );
 }
 
-/** A table as rows of cell texts, and whether its first row is a header. */
+/**
+ * A table as rows of cells, each cell's rich text as it is (2.5 "rich table"), and whether its
+ * first row is a header.
+ */
 interface Grid {
   header: boolean;
   rows: string[][];
 }
 
-/** The table in a block's rich text, read by the browser into an inert template. */
+/**
+ * The table in a block's rich text, read by the browser into an inert template. Each cell keeps
+ * its formatting and links, so editing one cell leaves the others as they were.
+ */
 export function readTable(html: string): Grid {
   const template = document.createElement("template");
   template.innerHTML = html;
   const table = template.content.querySelector("table");
   const rows = [...(table?.rows ?? [])].map((row) =>
-    [...row.cells].map((cell) => textOf(cell.innerHTML)),
+    [...row.cells].map((cell) => cell.innerHTML.trim()),
   );
   const width = Math.max(1, ...rows.map((row) => row.length));
   return {
@@ -919,10 +982,13 @@ export function readTable(html: string): Grid {
   };
 }
 
-/** The rich text of a table: a header row in `thead` with `th` cells, the others in `tbody`. */
+/**
+ * The rich text of a table: a header row in `thead` with `th` cells, the others in `tbody`. Cells
+ * hold rich text, normalised by the field that edits them (cellHtml).
+ */
 export function writeTable({ header, rows }: Grid): string {
   const row = (cells: string[], tag: "th" | "td") =>
-    `<tr>${cells.map((cell) => `<${tag}>${inlineHtml(cell)}</${tag}>`).join("")}</tr>`;
+    `<tr>${cells.map((cell) => `<${tag}>${cell}</${tag}>`).join("")}</tr>`;
   const [first = [], ...rest] = rows;
   const head = header ? `<thead>${row(first, "th")}</thead>` : "";
   const body = (header ? rest : rows).map((cells) => row(cells, "td")).join("");
@@ -930,8 +996,21 @@ export function writeTable({ header, rows }: Grid): string {
 }
 
 /**
- * A table (2.5): a text field per cell, a header row or none, and rows and columns added or
- * removed at the end; each change one undo step.
+ * A cell's rich text as the table keeps it: a cell of one paragraph holds just that paragraph's
+ * content, as tables are usually written.
+ */
+export function cellHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const nodes = template.content.childNodes;
+  const only = nodes[0];
+  return nodes.length === 1 && only instanceof HTMLParagraphElement ? only.innerHTML : html;
+}
+
+/**
+ * A table (2.5): a rich text field per cell (bold, italics, links and the rest of the text tools),
+ * a header row or none, and rows and columns added or removed at the end; each change one undo
+ * step.
  */
 function TableFields({ block, editor }: FieldsProps) {
   const t = useStrings();
@@ -950,7 +1029,7 @@ function TableFields({ block, editor }: FieldsProps) {
         {grid.rows.map((cells, r) => (
           <div key={`row-${r}`} className="be-table-row">
             {cells.map((cell, c) => (
-              <DraftField
+              <RichDraftField
                 key={`cell-${r}-${c}`}
                 label={t(r === 0 && grid.header ? "table.headerCell" : "table.cell", {
                   row: r + 1,
@@ -958,11 +1037,11 @@ function TableFields({ block, editor }: FieldsProps) {
                 })}
                 hideLabel
                 value={cell}
-                command={(text) =>
+                command={(html) =>
                   save({
                     ...grid,
                     rows: grid.rows.map((other, i) =>
-                      i === r ? other.map((old, j) => (j === c ? text : old)) : other,
+                      i === r ? other.map((old, j) => (j === c ? cellHtml(html) : old)) : other,
                     ),
                   })
                 }
@@ -995,13 +1074,60 @@ function TableFields({ block, editor }: FieldsProps) {
   );
 }
 
-/** Images: the picture and, but for a banner, its caption or text. */
+const LINK = new RegExp(LINK_PATTERN, "u");
+
+/**
+ * Where a picture links to (2.10, L18, W15 step 3): a web address typed in, or a lesson of the
+ * course chosen from the list; empty for none. A linked picture opens its link instead of
+ * enlarging.
+ */
+function ImageLink({ block, editor }: FieldsProps) {
+  const t = useStrings();
+  const lessons = useContext(LinkTargets);
+  const { link = "" } = variantSettings<{ link?: string }>(block);
+  const set = (href: string) => withVariantSettings(block, { link: href || undefined });
+  return (
+    <>
+      <DraftField
+        label={t("image.link")}
+        description={t("image.linkHelp")}
+        errorMessage={t("image.linkError")}
+        value={link}
+        command={(text) => {
+          const href = text.trim();
+          return href === "" || LINK.test(href) ? set(href) : undefined;
+        }}
+      />
+      {lessons.length > 0 && (
+        <Select
+          label={t("image.linkLesson")}
+          selectedKey={isLessonLink(link) ? link : "none"}
+          onSelectionChange={(key) => editor.dispatch(set(key === "none" ? "" : String(key)))}
+        >
+          {[
+            <ListBoxItem key="none" id="none">
+              {t("image.noLesson")}
+            </ListBoxItem>,
+            ...lessons.map((lesson) => (
+              <ListBoxItem key={lesson.href} id={lesson.href}>
+                {lesson.title}
+              </ListBoxItem>
+            )),
+          ]}
+        </Select>
+      )}
+    </>
+  );
+}
+
+/** Images: the picture and its link and, but for a banner, its caption or text. */
 function ImageFields({ block, editor }: FieldsProps) {
   const t = useStrings();
   const caption = block.variant === "centered" || block.variant === "full-width";
   return (
     <>
       <BlockImage block={block} editor={editor} label="image.image" />
+      {block.variant !== "text-on-image" && <ImageLink block={block} editor={editor} />}
       {block.variant !== "banner" && (
         <ItemText
           block={block}
@@ -1069,10 +1195,10 @@ const sampleTable = (t: Translate) =>
   writeTable({
     header: true,
     rows: [
-      [t("sample.tableHead1"), t("sample.tableHead2")],
-      [t("sample.tableCell1"), t("sample.tableCell2")],
-      [t("sample.tableCell3"), t("sample.tableCell4")],
-    ],
+      ["sample.tableHead1", "sample.tableHead2"],
+      ["sample.tableCell1", "sample.tableCell2"],
+      ["sample.tableCell3", "sample.tableCell4"],
+    ].map((row) => row.map((key) => inlineHtml(t(key as StringKey)))),
   });
 
 /** Columns and tables: after the five text blocks. */

@@ -62,13 +62,19 @@ function clean(parent: ParentNode, labels: Labels): void {
       const keep = RICH_TEXT_ATTRIBUTES.has(name) || (name === "href" && isSafeLink(value));
       if (!keep) node.removeAttribute(name);
     }
-    const href = node.localName === "a" ? node.getAttribute("href") : null;
-    if (href !== null && !isLessonLink(href)) {
-      // Inside an LMS frame a link must not replace the course, so it opens a new tab and says so.
-      // A link to a lesson or a block of this course opens it in place.
-      node.setAttribute("target", "_blank");
-      node.setAttribute("rel", "noopener noreferrer");
-      node.append(h("span", { class: "visually-hidden" }, ` (${labels["sr.newTab"]})`));
-    }
+    if (node instanceof HTMLAnchorElement && node.hasAttribute("href")) linkOut(node, labels);
   }
+}
+
+/**
+ * A link of the course: inside an LMS frame a link must not replace the course, so a link that
+ * leaves the course opens a new tab and says so. A link to a lesson or a block of this course
+ * opens it in place.
+ */
+export function linkOut(link: HTMLAnchorElement, labels: Labels): HTMLAnchorElement {
+  if (isLessonLink(link.getAttribute("href") ?? "")) return link;
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
+  link.append(h("span", { class: "visually-hidden" }, ` (${labels["sr.newTab"]})`));
+  return link;
 }

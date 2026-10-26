@@ -560,7 +560,7 @@ export function staticBlocksCourse(): Course {
             [
               text(
                 "sttablitm1",
-                "<table><thead><tr><th>Object</th><th>Best month</th></tr></thead><tbody><tr><td>Orion</td><td>January</td></tr><tr><td>Lyra</td><td>August</td></tr></tbody></table>",
+                '<table><thead><tr><th>Object</th><th>Best month</th></tr></thead><tbody><tr><td><strong>Orion</strong></td><td>January</td></tr><tr><td>Lyra</td><td><a href="#/lessons/stlesspics">August</a></td></tr></tbody></table>',
               ),
             ],
             { variantSettings: { cellPadding: "large" }, settings: { accentColor: "#1f5fbf" } },
@@ -660,7 +660,11 @@ export function staticBlocksCourse(): Course {
               variantSettings: { cornerRadius: 12 },
             },
           ),
-          block("stimgfullw", "image", "full-width", [], { media: [{ key: "sky.svg", alt: "" }] }),
+          // Decorative and linked to the first lesson, so the link is named by that lesson.
+          block("stimgfullw", "image", "full-width", [], {
+            media: [{ key: "sky.svg", alt: "" }],
+            variantSettings: { link: "#/lessons/stlessread" },
+          }),
           block(
             "stimgtext1",
             "image",

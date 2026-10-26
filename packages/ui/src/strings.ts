@@ -518,6 +518,8 @@ export const english = {
   "blockFormat.imageSize": "Picture size",
   "blockFormat.restart": "Start counting again",
   "blockFormat.restartAt": "Number shown",
+  "blockFormat.levelSkips":
+    "Level {asked} skips a level after the heading above it. Choose a level from 2 to {deepest}.",
   "image.add": "Add picture",
   "image.addLater":
     "Adding pictures comes with the media library. Pictures already in the course show here.",
@@ -530,6 +532,12 @@ export const english = {
   "image.photo": "Photo",
   "image.background": "Background picture",
   "image.noteIcon": "Icon",
+  "image.link": "Link",
+  "image.linkHelp":
+    "Where the picture goes when pressed: a web address starting with https://, or a lesson chosen below. A linked picture does not enlarge.",
+  "image.linkError": "Type a web address starting with https:// or http://, or choose a lesson.",
+  "image.linkLesson": "Link to a lesson",
+  "image.noLesson": "No lesson",
   "items.up": "Move {name} up",
   "items.down": "Move {name} down",
   "items.remove": "Remove {name}",

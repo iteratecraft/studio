@@ -191,4 +191,8 @@ test("[rise:3C] blocks-editor 2.10, blocks-interactions 4: zoom on click enlarge
   // An image without zoom has no button.
   await expect(page.locator("[data-block='stimgbannr'] .zoom-open")).toHaveCount(1);
   await expect(page.locator("[data-block='stimgfullw'] img.image")).toHaveAttribute("alt", "");
+  // A decorative picture that links to a lesson: the link is named by that lesson.
+  await expect(
+    page.locator("[data-block='stimgfullw']").getByRole("link", { name: "Reading blocks" }),
+  ).toHaveAttribute("href", "#/lessons/stlessread");
 });

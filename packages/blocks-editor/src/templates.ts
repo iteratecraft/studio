@@ -72,7 +72,7 @@ const LESSONS = {
             rows: [
               [t("template.tableTerm"), t("template.tableMeaning")],
               [t("template.tableTermText"), t("template.tableMeaningText")],
-            ],
+            ].map((row) => row.map(inlineHtml)),
           }),
         },
       ]),

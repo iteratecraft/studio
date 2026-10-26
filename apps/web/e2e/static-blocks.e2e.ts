@@ -289,6 +289,8 @@ test("[rise:3C] blocks-editor L10, 2.5, 2.7, 2.9, 2.14, BLK-04: by keyboard, the
   page,
 }) => {
   await openNightSky(page, "Empty");
+  // A level 2 heading first, so level 3 does not skip one.
+  await insertByKeyboard(page, "heading", "Heading");
   await page
     .getByRole("toolbar", { name: "Add a block at the end" })
     .getByRole("button", { name: "Paragraph with heading" })
@@ -309,7 +311,7 @@ test("[rise:3C] blocks-editor L10, 2.5, 2.7, 2.9, 2.14, BLK-04: by keyboard, the
   // The chosen level is the element learners get (BLK-04).
   await expect(text.locator(".be-block-preview h3.block-heading")).toHaveText("A clear heading");
   let blocks = lessonIn(await saved(page), "lessempty1").blocks;
-  expect(blocks[0]?.variantSettings).toEqual({ headingLevel: 3 });
+  expect(blocks[1]?.variantSettings).toEqual({ headingLevel: 3 });
 
   await insertByKeyboard(page, "note", "Note");
   const note = row(page, "Empty", /^Note/);
@@ -356,6 +358,7 @@ test("[rise:3C] blocks-editor L10, 2.5, 2.7, 2.9, 2.14, BLK-04: by keyboard, the
   await closeFormat(page);
   blocks = lessonIn(await saved(page), "lessempty1").blocks;
   expect(blocks.map((block) => block.variantSettings)).toEqual([
+    undefined,
     { headingLevel: 3 },
     { noteColor: "#1b2a49" },
     { start: 4 },
@@ -525,6 +528,164 @@ test("[rise:3C] blocks-editor P1, BLK-04: the preview shows every static variant
   }
 });
 
+const RICH_TABLE =
+  '<table><thead><tr><th><strong>Star</strong></th><th>Season</th></tr></thead><tbody><tr><td><em>Vega</em></td><td><a href="https://example.org/vega">Summer</a></td></tr></tbody></table>';
+
+/** The night sky course with a table whose cells hold bold, italics and a link. */
+function withRichTable(): Course {
+  const course = nightSky();
+  lessonIn(course, "lessnotes1").blocks.push({
+    id: "blktable01",
+    category: "text",
+    variant: "table",
+    items: [{ id: "itmtable01", kind: "content", text: RICH_TABLE }],
+  });
+  return course;
+}
+
+test("[rise:3C] blocks-editor 2.5, W14, BLK-04: table cells are rich text: editing one cell keeps every other cell's formatting and links, and a cell is made bold by keyboard", async ({
+  page,
+}) => {
+  await launch(page);
+  await openFixture(page, FILE, withRichTable(), { "sky.svg": SKY });
+  await openLesson(page, "Notes");
+  const table = row(page, "Notes", /^Table/);
+  // By pointer: a new text for one cell.
+  await table.getByRole("textbox", { name: "Header, column 2" }).click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Best season");
+  // By keyboard: the next cell, all of it bold.
+  await page.keyboard.press("Tab");
+  await expect(table.getByRole("textbox", { name: "Row 2, column 1" })).toBeFocused();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Control+B");
+  await page.keyboard.press("Tab");
+  const cells = lessonIn(await saved(page), "lessnotes1").blocks[3]?.items?.[0] as ContentItem;
+  const text = cells.text;
+  // The cells nobody touched are as they were, link and all.
+  expect(text).toMatch(
+    /^<table><thead><tr><th><strong>Star<\/strong><\/th><th>Best season<\/th><\/tr><\/thead><tbody><tr><td>(<strong><em>Vega<\/em><\/strong>|<em><strong>Vega<\/strong><\/em>)<\/td><td><a href="https:\/\/example.org\/vega">Summer<\/a><\/td><\/tr><\/tbody><\/table>$/,
+  );
+  // The block as learners see it keeps the formatting.
+  await expect(table.locator(".be-block-preview th strong")).toHaveText("Star");
+  await expect(table.locator(".be-block-preview td a")).toContainText("Summer");
+  // Each cell edited is one undo step: undo takes back the bold only.
+  await heading(page, "Night sky").click();
+  await page.keyboard.press("Control+Z");
+  await expect(table.locator(".be-block-preview td strong")).toHaveCount(0);
+  await expect(table.locator(".be-block-preview th").nth(1)).toHaveText("Best season");
+});
+
+test("[rise:3C] accessibility W18, blocks-editor 2.5, BLK-04: a heading cannot take a level that skips one, and one left too deep by a deleted heading is flagged until it gets a level that fits", async ({
+  page,
+}) => {
+  await openNightSky(page, "Empty");
+  await insertByKeyboard(page, "heading", "Heading");
+  await insertByKeyboard(page, "subheading", "Subheading");
+  await insertByKeyboard(page, "paragraph with heading", "Paragraph with heading");
+  const text = row(page, "Empty", /^Paragraph with heading/);
+  // By keyboard: under a level 3 subheading, levels 2 to 4 are offered, 5 and 6 are not.
+  await text.getByRole("button", { name: "Format", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const format = page.getByRole("dialog", { name: "Format" });
+  const level = format.getByRole("button", { name: /Heading level/ });
+  await level.focus();
+  await page.keyboard.press("Enter");
+  for (const [name, disabled] of [
+    ["Level 2", false],
+    ["Level 4", false],
+    ["Level 5", true],
+    ["Level 6", true],
+  ] as const) {
+    const option = page.getByRole("option", { name });
+    if (disabled) await expect(option, name).toHaveAttribute("aria-disabled", "true");
+    else await expect(option, name).not.toHaveAttribute("aria-disabled");
+  }
+  await page.getByRole("option", { name: "Level 4" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(level).toContainText("Level 4");
+  await expect(level).toBeFocused();
+  await closeFormat(page);
+  await expect(text.locator(".be-block-preview h4.block-heading")).toHaveText("A clear heading");
+  await expect(text.locator(".be-warning")).toHaveCount(0);
+
+  // By pointer: deleting the subheading leaves level 4 straight under level 2.
+  await row(page, "Empty", /^Subheading/)
+    .getByRole("button", { name: "Delete" })
+    .click();
+  const warning = "Level 4 skips a level after the heading above it. Choose a level from 2 to 3.";
+  await expect(text.locator(".be-warning")).toHaveText(warning);
+  await expect(text.getByRole("textbox", { name: "Heading" })).toHaveAccessibleDescription(warning);
+  await text.getByRole("button", { name: "Format", exact: true }).click();
+  await expect(level).toHaveAccessibleDescription(warning);
+  await level.click();
+  await page.getByRole("option", { name: "Level 3" }).click();
+  await expect(level).toBeFocused();
+  await expect(level).toHaveAccessibleDescription(/^For screen readers/);
+  await closeFormat(page, false);
+  await expect(text.locator(".be-warning")).toHaveCount(0);
+  const blocks = lessonIn(await saved(page), "lessempty1").blocks;
+  expect(blocks.map((block) => block.variantSettings)).toEqual([undefined, { headingLevel: 3 }]);
+  // The outline learners get never skips a level.
+  await button(page, "Preview").click();
+  const frame = page.frameLocator("iframe[title='Course preview']:not([data-pending])");
+  await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Empty");
+  await expect(frame.locator(".blocks .block-heading")).toHaveCount(2);
+  const levels = await frame
+    .locator(".blocks .block-heading")
+    .evaluateAll((headings) => headings.map((h) => h.tagName));
+  expect(levels).toEqual(["H2", "H3"]);
+});
+
+test("[rise:3C] blocks-editor 2.10, L18, W15, BLK-04: a picture links to a web page typed in or to a lesson chosen from the list, by keyboard and by pointer", async ({
+  page,
+}) => {
+  await openNightSky(page);
+  const image = row(page, "Notes", /^Centred image/);
+  const link = image.getByRole("textbox", { name: "Link", exact: true });
+  // By keyboard, from the block's row: an address that is not a web page is refused.
+  await image.focus();
+  for (
+    let i = 0;
+    i < 20 && !(await link.evaluate((field) => field === document.activeElement));
+    i++
+  ) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(link).toBeFocused();
+  await page.keyboard.type("ftp://example.org/sky");
+  await expect(link).toHaveAttribute("aria-invalid", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("https://example.org/sky");
+  await page.keyboard.press("Enter");
+  await expect(link).not.toHaveAttribute("aria-invalid");
+  await expect(image.locator(".be-block-preview a.image-link")).toHaveAttribute(
+    "href",
+    "https://example.org/sky",
+  );
+  let block = lessonIn(await saved(page), "lessnotes1").blocks[1];
+  expect(block?.variantSettings).toEqual({ link: "https://example.org/sky" });
+
+  const lesson = image.getByRole("button", { name: /Link to a lesson/ });
+  await page.keyboard.press("Tab");
+  await expect(lesson).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.getByRole("option", { name: "Empty" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(lesson).toContainText("Empty");
+  await expect(link).toHaveValue("#/lessons/lessempty1");
+  block = lessonIn(await saved(page), "lessnotes1").blocks[1];
+  expect(block?.variantSettings).toEqual({ link: "#/lessons/lessempty1" });
+
+  // By pointer: no lesson takes the link away, and the picture enlarges again.
+  await lesson.click();
+  await page.getByRole("option", { name: "No lesson" }).click();
+  await expect(link).toHaveValue("");
+  await expect(image.locator(".be-block-preview .zoom-open")).toHaveCount(1);
+  block = lessonIn(await saved(page), "lessnotes1").blocks[1];
+  expect(block?.variantSettings).toBeUndefined();
+});
+
 for (const theme of ["light", "dark"] as const) {
   test.describe(`UI-ACCESSIBILITY: no axe violation on the static block screens in the ${theme} theme`, () => {
     const check = async (page: Page, state: string) =>
@@ -564,6 +725,42 @@ for (const theme of ["light", "dark"] as const) {
         .click();
       await closeFormat(page);
       await check(page, "columns with picture slots");
+    });
+
+    test("a rich table cell with its tools, a picture's link and a heading that skips a level", async ({
+      page,
+    }) => {
+      await launch(page, `?theme=${theme}`);
+      await openFixture(page, FILE, withRichTable(), { "sky.svg": SKY });
+      await openLesson(page, "Notes");
+      await row(page, "Notes", /^Table/)
+        .getByRole("textbox", { name: "Row 2, column 2" })
+        .click();
+      await expect(page.getByRole("toolbar", { name: "Text formatting" })).toBeVisible();
+      await check(page, "a table cell in use, with its text tools");
+      await row(page, "Notes", /^Centred image/)
+        .getByRole("button", { name: /Link to a lesson/ })
+        .click();
+      await check(page, "the lessons a picture links to");
+      await page.keyboard.press("Escape");
+      await insertByPointer(page, "Subheading");
+      await insertByPointer(page, "Paragraph with heading");
+      const text = row(page, "Notes", /^Paragraph with heading/);
+      await text.getByRole("button", { name: "Format", exact: true }).click();
+      const level = page
+        .getByRole("dialog", { name: "Format" })
+        .getByRole("button", { name: /Heading level/ });
+      await level.click();
+      await page.getByRole("option", { name: "Level 3" }).click();
+      await expect(level).toBeFocused();
+      await closeFormat(page, false);
+      await row(page, "Notes", /^Subheading/)
+        .getByRole("button", { name: "Delete" })
+        .click();
+      await expect(text.locator(".be-warning")).toBeVisible();
+      await check(page, "a heading that skips a level");
+      await text.getByRole("button", { name: "Format", exact: true }).click();
+      await check(page, "the format menu of a heading that skips a level");
     });
 
     for (const names of [
