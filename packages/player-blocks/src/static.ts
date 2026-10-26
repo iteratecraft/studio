@@ -69,7 +69,8 @@ function zoomable(image: HTMLImageElement, labels: Labels, zoom: boolean): HTMLE
   const dialog = h(
     "dialog",
     { class: "zoom-dialog", "aria-label": image.alt || labels["image.enlarge"] },
-    h("img", { class: "zoom-image", src: image.src, alt: image.alt }),
+    // The address as written, not as resolved, so the page reads the same wherever it is opened.
+    h("img", { class: "zoom-image", src: image.getAttribute("src") ?? "", alt: image.alt }),
     close,
   );
   const open = h(
