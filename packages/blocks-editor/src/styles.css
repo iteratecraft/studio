@@ -547,27 +547,6 @@ body,
   min-height: 0;
 }
 
-/* Dialogs */
-.be-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cs-space-4);
-}
-
-.be-dialog-body {
-  font-size: var(--cs-text-sm);
-}
-
-.be-dialog-body p {
-  margin: 0 0 var(--cs-space-2);
-}
-
-.be-dialog-body ul {
-  margin: var(--cs-space-2) 0 0;
-  padding-inline-start: var(--cs-space-6);
-  overflow-wrap: anywhere;
-}
-
 /* Theme panel (T1 to T10, M2-17): the sections beside the course in the real player. */
 .be-editor:has(> .be-theme) {
   height: 100%;
@@ -805,4 +784,25 @@ body,
   margin: 0;
   color: var(--cs-danger);
   font-size: var(--cs-text-sm);
+}
+
+/* Dialogs */
+.be-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
+}
+
+.be-dialog-body {
+  font-size: var(--cs-text-sm);
+}
+
+.be-dialog-body p {
+  margin: 0 0 var(--cs-space-2);
+}
+
+.be-dialog-body ul {
+  margin: var(--cs-space-2) 0 0;
+  padding-inline-start: var(--cs-space-6);
+  overflow-wrap: anywhere;
 }

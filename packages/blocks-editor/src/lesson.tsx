@@ -87,16 +87,7 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
           value={entry.description ?? ""}
           command={(html) => (html ? update({ description: html }) : unset("description"))}
         />
-        <DraftField
-          label={t("lesson.author")}
-          description={t("lesson.authorHelp")}
-          value={entry.author?.name ?? ""}
-          command={(text) => {
-            const name = text.trim();
-            return name ? update({ author: { ...entry.author, name } }) : unset("author");
-          }}
-        />
-        {/* W6: hide the author on this lesson only. */}
+        {/* W6: hide the author on this lesson only; the field below names another. */}
         {entry.kind === "lesson" && (
           <Switch
             isSelected={entry.authorHidden === true}
@@ -111,6 +102,15 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
             {t("lesson.hideAuthor")}
           </Switch>
         )}
+        <DraftField
+          label={t("lesson.author")}
+          description={t("lesson.authorHelp")}
+          value={entry.author?.name ?? ""}
+          command={(text) => {
+            const name = text.trim();
+            return name ? update({ author: { ...entry.author, name } }) : unset("author");
+          }}
+        />
       </div>
       <LessonContent
         session={session}
