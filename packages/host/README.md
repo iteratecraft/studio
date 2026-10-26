@@ -18,6 +18,7 @@ Apache-2.0, layer `engine`. No dependencies; it runs in a browser, a Web Worker 
 | `files.read(file)` | Reads a picked file or a data file; `HostError("not-found")` when it does not exist |
 | `files.modified(file)` | When a picked file or a data file last changed (milliseconds), or `undefined` when it does not exist; the file is not read |
 | `files.write(file, data)` | Replaces a picked file or a data file atomically: old bytes or new bytes, never a mix |
+| `files.remove(file)` | Deletes a data file (M2-17: a font the author removed from their font library); a picked file is refused |
 | `files.projectFiles(file)` | The project container's files for a picked project file (below) |
 | `storage` | Small string values kept between sessions (settings, recent files); never projects or media |
 | `onCloseRequested(allow)` | Asks `allow` before the app window closes, so the editor can offer to save; the window closes only when it resolves to true |

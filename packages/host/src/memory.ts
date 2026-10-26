@@ -88,6 +88,13 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
         const id = granted(file);
         return disk.has(id) ? (changed.get(id) ?? started) : undefined;
       },
+      remove: async (file) => {
+        if (!file.id.startsWith(DATA_PREFIX)) {
+          throw new HostError("not-allowed", `Not an app data file: ${file.id}`);
+        }
+        disk.delete(file.id);
+        changed.delete(file.id);
+      },
       // A map entry is replaced in one step, which is what atomic means here.
       write: async (file, data) => {
         put(granted(file), data);

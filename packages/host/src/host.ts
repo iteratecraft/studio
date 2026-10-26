@@ -67,6 +67,12 @@ export interface HostFiles {
    */
   modified(file: FileRef): Promise<number | undefined>;
   /**
+   * Deletes a file in the app data folder, such as a font the author removed from their library;
+   * nothing happens when it does not exist. A file the user picked is never deleted: refused with
+   * `HostError("not-allowed")`.
+   */
+  remove(file: FileRef): Promise<void>;
+  /**
    * The files of a project the user picked, for the project container (`ProjectFiles` of
    * @course-suite/project): the picked file, by its `name`, and everything in its autosave folder
    * `.<name>.autosave` next to it (`autosaveFolderOf`, D-4). Nothing else in that folder is

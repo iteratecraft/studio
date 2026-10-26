@@ -137,6 +137,22 @@ describe("memory host", () => {
     expect(await host.files.modified(await host.files.dataFile("none.json"))).toBeUndefined();
   });
 
+  test("removes app data files, never a file the user picked", async () => {
+    const host = createMemoryHost({
+      files: [["docs/a.crs", bytes("a")]],
+      onPickOpen: () => ["docs/a.crs"],
+    });
+    const font = await host.files.dataFile("fonts/abc/regular.woff2");
+    await host.files.write(font, bytes("wOF2"));
+    await host.files.remove(font);
+    await expect(host.files.read(font)).rejects.toMatchObject({ code: "not-found" });
+    await host.files.remove(font); // already gone: nothing happens
+    const [picked] = await host.files.pickOpen();
+    if (!picked) throw new Error("not picked");
+    await expect(host.files.remove(picked)).rejects.toMatchObject({ code: "not-allowed" });
+    expect(host.disk.has("docs/a.crs")).toBe(true);
+  });
+
   test("closing the window asks the last close listener set, and closes without one", async () => {
     const host = createMemoryHost();
     expect(await host.requestClose()).toBe(true);
