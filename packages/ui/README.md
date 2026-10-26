@@ -23,7 +23,8 @@ const toasts = new ToastQueue();
 Components: `Button`, `IconButton`, `ToggleButtonGroup` with `ToggleButton`, `Toolbar`, `Tooltip`,
 `TextField`, `TextArea`, `SearchField`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`,
 `Popover`, `ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`; `layout="grid"` for
-cards), `Tree`, `Splitter`, `EmptyState`, `ProgressBar` and `Icon`.
+cards), `Tree`, `Splitter`, `Pagination` (range, previous, page jump, next), `EmptyState`,
+`ProgressBar` and `Icon`.
 
 ## Tokens and themes
 
