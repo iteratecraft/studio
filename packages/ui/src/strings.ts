@@ -360,6 +360,11 @@ export const english = {
   "richtext.numbers": "Numbered list",
   "richtext.link": "Link",
   "richtext.clear": "Clear formatting",
+  // A control's name with the keys that do the same, in its tooltip: "Bold (Ctrl+B)".
+  "keys.shortcut": "{action} ({keys})",
+  "keys.ctrl": "Ctrl",
+  "keys.cmd": "Cmd",
+  "keys.shift": "Shift",
   "link.title": "Link",
   "link.address": "Web or email address",
   "link.help": "Starts with https://, http:// or mailto:, or is a link copied from a block.",

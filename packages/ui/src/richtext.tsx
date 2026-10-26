@@ -16,7 +16,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, cx, IconButton, ToggleButton, Toolbar, ToolbarSeparator } from "./buttons.js";
+import {
+  Button,
+  cx,
+  IconButton,
+  type Shortcut,
+  ToggleButton,
+  Toolbar,
+  ToolbarSeparator,
+} from "./buttons.js";
 import { cleanRichText } from "./clean.js";
 import { ListBox, ListBoxItem } from "./collections.js";
 import { SearchField, TextField } from "./fields.js";
@@ -25,12 +33,14 @@ import { Dialog, DialogActions, Menu, MenuItem, MenuTrigger } from "./overlays.j
 import { useStrings } from "./provider.js";
 import type { StringKey } from "./strings.js";
 
-/** Text marks: the browser's command, its state query, the icon and the name. */
-const MARKS: [command: string, icon: IconName, label: StringKey][] = [
-  ["bold", "bold", "richtext.bold"],
-  ["italic", "italic", "richtext.italic"],
-  ["underline", "underline", "richtext.underline"],
-  ["strikeThrough", "strike", "richtext.strike"],
+/** Text marks: the browser's command and state query, the icon, the name and the keys. */
+const MARKS: [command: string, icon: IconName, label: StringKey, shortcut?: Shortcut][] = [
+  // The browser applies these three itself.
+  ["bold", "bold", "richtext.bold", { key: "B" }],
+  ["italic", "italic", "richtext.italic", { key: "I" }],
+  ["underline", "underline", "richtext.underline", { key: "U" }],
+  // Ctrl/Cmd+S saves the course, also in text (lead decision), so strikethrough has Shift+X.
+  ["strikeThrough", "strike", "richtext.strike", { key: "X", shift: true }],
   ["subscript", "subscript", "richtext.subscript"],
   ["superscript", "superscript", "richtext.superscript"],
 ];
@@ -56,7 +66,7 @@ export interface RichTextFieldProps {
   onChange: (html: string) => void;
   /** Focus left the field, its tools and their menus and dialogs. */
   onLeave?: () => void;
-  /** Keys typed in the text, after the field's own shortcuts (Alt+F10, Ctrl/Cmd+K). */
+  /** Keys typed in the text, after the field's own shortcuts (Alt+F10, Ctrl/Cmd+K, Shift+X). */
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   /** Lessons a link may go to, found by title in the link dialog (L13, W14 step 3). */
   lessons?: readonly LinkTarget[];
@@ -131,8 +141,8 @@ function afterPress(then: () => void): void {
 
 /**
  * Formatted text edited in place, with a formatting toolbar that shows while the field is in use:
- * Shift+Tab or Alt+F10 reach it from the text, Escape goes back. Ctrl/Cmd+B, I and U format and
- * Ctrl/Cmd+K adds a link.
+ * Shift+Tab or Alt+F10 reach it from the text, Escape goes back. Ctrl/Cmd+B, I and U format,
+ * Ctrl/Cmd+Shift+X strikes through and Ctrl/Cmd+K adds a link.
  */
 export function RichTextField({
   label,
@@ -262,6 +272,11 @@ export function RichTextField({
     } else if (mod && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();
       openLink();
+    } else if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "x") {
+      event.preventDefault();
+      // The selection as it is now, as for a link.
+      refresh();
+      run("strikeThrough");
     } else {
       // Escape usually puts back an earlier value, which the field must then take.
       if (event.key === "Escape") sent.current = [];
@@ -329,11 +344,12 @@ export function RichTextField({
               </Menu>
             </MenuTrigger>
             <ToolbarSeparator />
-            {MARKS.map(([command, icon, name]) => (
+            {MARKS.map(([command, icon, name, shortcut]) => (
               <ToggleButton
                 key={command}
                 icon={icon}
                 label={t(name)}
+                {...(shortcut && { shortcut })}
                 isSelected={state.marks.has(command)}
                 onChange={() => run(command)}
               />
@@ -352,6 +368,7 @@ export function RichTextField({
             <ToggleButton
               icon="link"
               label={t("richtext.link")}
+              shortcut={{ key: "K" }}
               isSelected={state.marks.has("link")}
               onChange={openLink}
             />

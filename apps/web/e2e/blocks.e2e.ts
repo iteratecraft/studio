@@ -899,6 +899,41 @@ test.describe("block content", () => {
     await expect(saveState(page)).toHaveText("Saved");
   });
 
+  test("blocks-editor 5, 2.6: in formatted text Ctrl/Cmd+Shift+X strikes through and its tool names those keys; Ctrl/Cmd+S saves the course (lead decision)", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    const paragraph = blocksOf(page, "Planning").getByRole("row").nth(1);
+    const text = paragraph.getByRole("textbox", { name: "Text" });
+    const tools = paragraph.getByRole("toolbar", { name: "Text formatting" });
+    const strike = tools.getByRole("button", { name: "Strikethrough" });
+    await text.click();
+    await expect(tools).toBeVisible();
+    await page.keyboard.press("Control+Home");
+    for (let i = 0; i < "Most vegetables need ".length; i += 1) {
+      await page.keyboard.press("ArrowRight");
+    }
+    for (let i = 0; i < "six hours".length; i += 1) await page.keyboard.press("Shift+ArrowRight");
+    await page.keyboard.press("Control+Shift+X");
+    await expect(strike).toHaveAttribute("aria-pressed", "true");
+    await expect(text).toBeFocused();
+    // Ctrl+S in the text saves the course, with the text as it is, and formats nothing.
+    const html = contentOf(lessonIn(await saved(page), "lessplan01").blocks[1])?.text;
+    expect(html).toBe("<p>Most vegetables need <s>six hours</s> of sun.</p>");
+    await expect(text).toBeFocused();
+    await expect(strike).toHaveAttribute("aria-pressed", "true");
+    // The tool names its keys to screen readers, and in its tooltip on keyboard focus.
+    await expect(strike).toHaveAccessibleDescription("Ctrl+Shift+X");
+    await page.keyboard.press("Alt+F10");
+    for (let i = 0; i < 4; i += 1) await page.keyboard.press("ArrowRight");
+    await expect(strike).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveText("Strikethrough (Ctrl+Shift+X)");
+    // Pressing it again from the tools takes the strike off.
+    await page.keyboard.press("Enter");
+    await expect(text).toBeFocused();
+    await expect(strike).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("[rise:3C] blocks-editor W8, UI-BLOCKS-EDITOR-R25: a text block switches to a sibling type keeping its content, and what the new type has no place for comes back", async ({
     page,
   }) => {

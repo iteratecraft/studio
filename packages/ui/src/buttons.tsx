@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import {
   Button as AriaButton,
   type ButtonProps as AriaButtonProps,
@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from "react-aria-components";
 import { Icon, type IconName } from "./icons.js";
+import { useStrings } from "./provider.js";
 
 export { TooltipTrigger };
 
@@ -99,25 +100,49 @@ export function ToggleButtonGroup({ className, ...props }: ToggleButtonGroupProp
   return <AriaToggleButtonGroup {...props} className={cx("cs-ToggleButtonGroup", className)} />;
 }
 
+/** A key pressed with the command key (Ctrl, or Cmd on Apple devices), and Shift if `shift`. */
+export interface Shortcut {
+  key: string;
+  shift?: boolean;
+}
+
 export interface ToggleButtonProps
   extends Omit<AriaToggleButtonProps, "className" | "style" | "children"> {
   icon: IconName;
   /** The accessible name, also shown as a tooltip on hover and keyboard focus. */
   label: string;
+  /** Keys that do the same, named in the tooltip and in the accessible description. */
+  shortcut?: Shortcut;
 }
 
 /** An icon button that stays pressed, inside a ToggleButtonGroup. */
-export function ToggleButton({ icon, label, ...props }: ToggleButtonProps) {
+export function ToggleButton({ icon, label, shortcut, ...props }: ToggleButtonProps) {
+  const t = useStrings();
+  const keysId = useId();
+  const apple = /Mac|iPhone|iPad/.test(navigator.platform);
+  const keys =
+    shortcut &&
+    [
+      t(apple ? "keys.cmd" : "keys.ctrl"),
+      ...(shortcut.shift ? [t("keys.shift")] : []),
+      shortcut.key,
+    ].join("+");
   return (
     <TooltipTrigger delay={600}>
       <AriaToggleButton
         {...props}
         aria-label={label}
+        {...(keys && { "aria-describedby": keysId })}
         className="cs-Button cs-Button--quiet cs-IconButton cs-ToggleButton"
       >
         <Icon name={icon} />
       </AriaToggleButton>
-      <Tooltip>{label}</Tooltip>
+      {keys && (
+        <span id={keysId} hidden>
+          {keys}
+        </span>
+      )}
+      <Tooltip>{keys ? t("keys.shortcut", { action: label, keys }) : label}</Tooltip>
     </TooltipTrigger>
   );
 }

@@ -37,8 +37,9 @@ itself, so app-wide shortcuts listen on `window` in the capture phase.
 `RichTextField` (M2-10) edits formatted text in place with the browser's own editing
 (contenteditable, no library): paragraphs, headings 2 to 5, bold, italic, underline,
 strikethrough, subscript, superscript, bulleted and numbered lists and web or mail links, with its
-tools above it while in use (Alt+F10 reaches them, Escape goes back; Ctrl/Cmd+B, I, U and K). It
-gives out the browser's HTML; the caller normalises it. `SliderField` sets a number by slider or by
+tools above it while in use (Alt+F10 reaches them, Escape goes back; Ctrl/Cmd+B, I, U and K, and
+Ctrl/Cmd+Shift+X for strikethrough, since Ctrl/Cmd+S saves; lead decision). A tool with keys names
+them in its tooltip and accessible description (`ToggleButton`'s `shortcut`). It gives out the browser's HTML; the caller normalises it. `SliderField` sets a number by slider or by
 typing it in the box beside it.
 
 `PreviewPane` (M2-11, UI-BLOCKS-EDITOR P1) shows a course in the real player from
