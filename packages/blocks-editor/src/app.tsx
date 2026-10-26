@@ -34,9 +34,8 @@ import {
   saveLibrary,
   VIEW_KEY,
   withItem,
-  without,
 } from "./library.js";
-import { CourseSession, newestOf, openCourseFile } from "./session.js";
+import { CourseSession, openCourseFile } from "./session.js";
 
 export interface BlocksEditorAppProps {
   host: HostInterface;
@@ -149,10 +148,7 @@ function App({ host }: { host: HostInterface }) {
       </ChoiceDialog>
     ));
   const failure = (error: unknown) =>
-    notify(
-      t("save.failed", { message: error instanceof Error ? error.message : String(error) }),
-      null,
-    );
+    notify(t("error.title"), error instanceof Error ? error.message : String(error));
   const askTitle = (title: string, submit: string, initial?: string) =>
     ask<string | null>((answer) => (
       <TitleDialog
@@ -241,20 +237,41 @@ function App({ host }: { host: HostInterface }) {
     await start(file, project, false);
   };
 
-  /** The newest work of a listed course, or a notice why it cannot be had. */
-  const newest = async (item: LibraryItem) => {
+  /**
+   * The work of a listed course to change from the dashboard, or undefined when there is none or
+   * the author cancels. When a crash left autosaved work newer than the file, the author chooses,
+   * as on opening; renaming saves the file, which drops the autosaves, and the question says so.
+   */
+  const workOf = async (item: LibraryItem, change: "rename" | "duplicate") => {
     const opened = await openCourseFile(host, item.file);
-    const project = newestOf(opened);
-    if (!project) {
+    if (opened.kind === "missing" || (opened.kind === "damaged" && !opened.recovered)) {
       markMissing(item.file, opened.kind === "missing");
       const reason = opened.kind === "missing" ? "openError.missing" : "openError.damaged";
       await notify(t("openError.title"), t(reason, { name: item.file.name }));
+      return undefined;
     }
-    return project;
+    const saved = opened.kind === "ok" ? opened.project : undefined;
+    if (!opened.recovered) return saved;
+    const choice = await ask<"recovered" | "saved" | "cancel">((answer) => (
+      <ChoiceDialog
+        title={t("recover.title")}
+        dismissed="cancel"
+        answer={answer}
+        choices={[
+          { value: "cancel" as const, label: t("action.cancel"), variant: "quiet" as const },
+          ...(saved ? [{ value: "saved" as const, label: t("recover.useSaved") }] : []),
+          { value: "recovered", label: t("recover.useRecovered"), variant: "primary" },
+        ]}
+      >
+        {t(change === "rename" ? "recover.rename" : "recover.duplicate", { name: item.file.name })}
+      </ChoiceDialog>
+    ));
+    if (choice === "recovered") return opened.recovered;
+    return choice === "saved" ? saved : undefined;
   };
 
   const duplicate = async (item: LibraryItem) => {
-    const source = await newest(item);
+    const source = await workOf(item, "duplicate");
     if (!source) return;
     const title = shownTitle(source.course.title, t("course.untitled"));
     const name = await askTitle(
@@ -280,7 +297,7 @@ function App({ host }: { host: HostInterface }) {
   };
 
   const rename = async (item: LibraryItem) => {
-    const project = await newest(item);
+    const project = await workOf(item, "rename");
     if (!project) return;
     const title = await askTitle(t("rename.title"), t("action.rename"), project.course.title);
     if (!title || title === project.course.title) return;
@@ -291,16 +308,21 @@ function App({ host }: { host: HostInterface }) {
     await remember(item.file, project.course);
   };
 
-  const setDeleted = (item: LibraryItem, deleted: number | undefined) =>
-    updateLibrary((items) =>
+  const setDeleted = (chosen: readonly LibraryItem[], deleted: number | undefined) => {
+    const ids = new Set(chosen.map((item) => item.file.id));
+    return updateLibrary((items) =>
       items.map((other) => {
-        if (other.file.id !== item.file.id) return other;
+        if (!ids.has(other.file.id)) return other;
         const { deleted: _, ...kept } = other;
         return deleted === undefined ? kept : { ...kept, deleted };
       }),
     );
+  };
 
-  const onAction = (action: ItemAction, item: LibraryItem) => {
+  /** An action on one course, or on the selected courses (blocks-editor H10). */
+  const onAction = (action: ItemAction, chosen: readonly LibraryItem[]) => {
+    const [item] = chosen;
+    if (!item) return;
     const run = async () => {
       switch (action) {
         case "open":
@@ -310,22 +332,30 @@ function App({ host }: { host: HostInterface }) {
         case "rename":
           return rename(item);
         case "delete": {
-          await setDeleted(item, Date.now());
-          const title = shownTitle(item.title, t("course.untitled"));
+          await setDeleted(chosen, Date.now());
+          const title =
+            chosen.length === 1
+              ? t("dashboard.deletedToast", { title: shownTitle(item.title, t("course.untitled")) })
+              : t("dashboard.deletedManyToast", { count: chosen.length });
           toasts.add(
             {
-              title: t("dashboard.deletedToast", { title }),
-              action: { label: t("action.undo"), onAction: () => void setDeleted(item, undefined) },
+              title,
+              action: {
+                label: t("action.undo"),
+                onAction: () => void setDeleted(chosen, undefined),
+              },
             },
             { timeout: 8000 },
           );
           return;
         }
         case "restore":
-          return setDeleted(item, undefined);
-        case "remove":
-          markMissing(item.file, false);
-          return updateLibrary((items) => without(items, item.file));
+          return setDeleted(chosen, undefined);
+        case "remove": {
+          const ids = new Set(chosen.map((one) => one.file.id));
+          setMissing((old) => new Set([...old].filter((id) => !ids.has(id))));
+          return updateLibrary((items) => items.filter((one) => !ids.has(one.file.id)));
+        }
       }
     };
     run().catch(failure);
@@ -363,12 +393,32 @@ function App({ host }: { host: HostInterface }) {
     }
   };
 
+  /** Saves the open course as a new file and goes on editing that one (BLK-01 save as). */
+  const saveAs = async () => {
+    if (!session) return;
+    session.commitDrafts();
+    const file = await host.files.pickSave({
+      title: t("saveAs.title"),
+      suggestedName: fileNameFor(session.editor.document.title, t("course.kind.course")),
+      filters,
+    });
+    if (!file) return;
+    try {
+      await session.saveAs(file);
+      await remember(file, session.editor.document);
+    } catch {
+      // The failure shows in the save state; the course stays on its old file.
+    }
+  };
+
   /**
    * Leaves the open course, asking first when it has unsaved changes (Save, Don't save, Cancel);
    * resolves to whether it was left.
    */
   const closeCourse = async (): Promise<boolean> => {
     if (!session) return true;
+    // Text typed in a field and not yet in the document is part of what may be lost.
+    session.commitDrafts();
     if (session.dirty) {
       const title = shownTitle(session.editor.document.title, t("course.untitled"));
       const answer = await ask<Answer>((answer) => (
@@ -414,9 +464,10 @@ function App({ host }: { host: HostInterface }) {
     <>
       {session ? (
         <EditorFrame
-          key={session.file.id}
+          key={session.id}
           session={session}
           onSave={() => void save()}
+          onSaveAs={() => void saveAs().catch(failure)}
           onClose={() => void closeCourse()}
         />
       ) : (

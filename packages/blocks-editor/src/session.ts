@@ -18,6 +18,8 @@ import {
  */
 export const AUTOSAVE_DELAY_MS = 3000;
 
+let sessions = 0;
+
 export type SaveState =
   | { kind: "saved" }
   | { kind: "unsaved" }
@@ -26,8 +28,14 @@ export type SaveState =
 
 export class CourseSession {
   readonly editor: Editor;
-  readonly #files: HostFolder;
+  /** Tells sessions apart, for React keys: the file can change (save as). */
+  readonly id = ++sessions;
+  #file: FileRef;
+  #files: HostFolder;
+  readonly #host: HostInterface;
   readonly #project: Project;
+  /** Fields holding typed text not yet in the document, each with its way to put it there. */
+  readonly #drafts = new Set<() => void>();
   /** The document as the project file holds it; undefined when the file is behind. */
   #saved: Course | undefined;
   /** The document last written, to the file or an autosave. */
@@ -43,12 +51,9 @@ export class CourseSession {
   readonly #stop: () => void;
 
   /** `dirty`: the project is not what the file holds, such as recovered autosaved work. */
-  constructor(
-    host: HostInterface,
-    readonly file: FileRef,
-    project: Project,
-    dirty = false,
-  ) {
+  constructor(host: HostInterface, file: FileRef, project: Project, dirty = false) {
+    this.#host = host;
+    this.#file = file;
     this.#files = host.files.projectFiles(file);
     this.#project = project;
     this.editor = createEditor(project.course);
@@ -62,6 +67,25 @@ export class CourseSession {
       }, AUTOSAVE_DELAY_MS);
       this.#emit();
     });
+  }
+
+  /** The course file. */
+  get file(): FileRef {
+    return this.#file;
+  }
+
+  /**
+   * Registers a field whose typed text may not be in the document yet; `commit` puts it there.
+   * Returns a function that unregisters it.
+   */
+  holdDraft(commit: () => void): () => void {
+    this.#drafts.add(commit);
+    return () => this.#drafts.delete(commit);
+  }
+
+  /** Puts what every field holds into the document: before saving, leaving or closing. */
+  commitDrafts(): void {
+    for (const commit of [...this.#drafts]) commit();
   }
 
   get dirty(): boolean {
@@ -86,13 +110,14 @@ export class CourseSession {
       const document = this.editor.document;
       if (document === this.#written) return;
       this.#project.course = document;
-      await autosaveProject(this.#files, this.file.name, this.#project);
+      await autosaveProject(this.#files, this.#file.name, this.#project);
       this.#written = document;
     });
   }
 
   /** Saves the latest document to the course file; rejects, keeping the old file, on failure. */
   save(): Promise<void> {
+    this.commitDrafts();
     this.#cancelAutosave();
     this.#saving = true;
     this.#emit();
@@ -100,9 +125,37 @@ export class CourseSession {
       const document = this.editor.document;
       this.#project.course = document;
       try {
-        await saveProject(this.#files, this.file.name, this.#project);
+        await saveProject(this.#files, this.#file.name, this.#project);
         this.#saved = document;
         this.#written = document;
+      } finally {
+        this.#saving = false;
+      }
+    });
+  }
+
+  /**
+   * Saves the latest document, with its media and snapshots, as a new course file and goes on
+   * editing that file (BLK-01 save as). The old file keeps what it last saved; its autosaves go,
+   * since the work they hold now lives in the new file. Rejects, still on the old file, on failure.
+   */
+  saveAs(file: FileRef): Promise<void> {
+    this.commitDrafts();
+    this.#cancelAutosave();
+    this.#saving = true;
+    this.#emit();
+    return this.#write(async () => {
+      const document = this.editor.document;
+      this.#project.course = document;
+      const files = this.#host.files.projectFiles(file);
+      try {
+        await saveProject(files, file.name, this.#project);
+        const old = { files: this.#files, name: this.#file.name };
+        this.#file = file;
+        this.#files = files;
+        this.#saved = document;
+        this.#written = document;
+        await discardAutosaves(old.files, old.name).catch(() => {});
       } finally {
         this.#saving = false;
       }
@@ -112,7 +165,7 @@ export class CourseSession {
   /** Throws away the unsaved changes: the autosaves go, so the next open offers no recovery. */
   discard(): Promise<void> {
     this.#cancelAutosave();
-    return this.#write(() => discardAutosaves(this.#files, this.file.name));
+    return this.#write(() => discardAutosaves(this.#files, this.#file.name));
   }
 
   /** Stops autosaving and listening; an autosave already running still finishes. */
@@ -171,14 +224,4 @@ export async function openCourseFile(host: HostInterface, file: FileRef): Promis
     if (error instanceof HostError && error.code !== "unsupported") return { kind: "missing" };
     throw error;
   }
-}
-
-/**
- * The newest work in an opened course file, for changes made from the dashboard (rename,
- * duplicate): its autosaved work after a crash, which holds everything the file does and more,
- * else the file itself; undefined when neither opens.
- */
-export function newestOf(opened: Opened): Project | undefined {
-  if (opened.kind === "missing") return undefined;
-  return opened.recovered ?? (opened.kind === "ok" ? opened.project : undefined);
 }

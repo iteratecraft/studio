@@ -1,9 +1,11 @@
-// The dashboard a person sees on launch (blocks-editor.md H6 to H13, W24; BLK-01): their courses
-// as cards, with new, open, search, sort, type filter and grid or list view, and a Deleted list.
+// The dashboard a person sees on launch (blocks-editor.md H6 to H14, W24; BLK-01): their courses
+// as cards, 16 to a page, with new, open, search, sort, type filter, grid or list view, selection
+// of several cards for one action, and a Deleted list.
 
 import type { Course } from "@course-suite/format";
 import {
   Button,
+  Checkbox,
   EmptyState,
   GridList,
   GridListItem,
@@ -13,14 +15,17 @@ import {
   Menu,
   MenuItem,
   MenuTrigger,
+  Pagination,
   SearchField,
   Select,
+  type Selection,
   Tab,
   TabList,
   TabPanel,
   Tabs,
   ToggleButton,
   ToggleButtonGroup,
+  Toolbar,
   useLocale,
   useStrings,
 } from "@course-suite/ui";
@@ -40,6 +45,9 @@ const MENU_LABELS = {
 } as const;
 export type LayoutKey = "grid" | "list";
 
+/** UI-BLOCKS-EDITOR-R3, blocks-editor H14: a page of the dashboard holds 16 cards. */
+export const PAGE_SIZE = 16;
+
 export interface DashboardProps {
   appName: string;
   version: string;
@@ -52,7 +60,8 @@ export interface DashboardProps {
   onLayoutChange: (layout: LayoutKey) => void;
   onNew: (kind: Course["kind"]) => void;
   onOpen: () => void;
-  onAction: (action: ItemAction, item: LibraryItem) => void;
+  /** An action on one course, or on the courses selected together. */
+  onAction: (action: ItemAction, items: readonly LibraryItem[]) => void;
   onEmptyDeleted: () => void;
 }
 
@@ -152,6 +161,8 @@ export function Dashboard(props: DashboardProps) {
                   </ToggleButtonGroup>
                 </div>
                 <CourseList
+                  // A new search, filter or sort starts again at its first page, with nothing selected.
+                  key={`${query}\n${kind}\n${sort}`}
                   label={t("dashboard.courses")}
                   items={courses}
                   layout={props.layout}
@@ -226,67 +237,135 @@ function CourseList({
   const t = useStrings();
   const { locale } = useLocale();
   const date = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }), [locale]);
-  const byId = new Map(items.map((item) => [item.file.id, item]));
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Selection>(new Set());
+  const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const current = Math.min(page, pages);
+  const shown = items.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const byId = new Map(shown.map((item) => [item.file.id, item]));
+  // Ctrl/Cmd+A selects every card on the page (blocks-editor 5.1); only the page can be selected.
+  const chosen = selected === "all" ? shown : shown.filter((item) => selected.has(item.file.id));
+  const act = (action: MenuAction) => {
+    onAction(action, chosen);
+    setSelected(new Set());
+  };
   return (
-    <GridList
-      aria-label={label}
-      items={items.map((item) => ({ ...item, id: item.file.id }))}
-      layout={layout === "grid" ? "grid" : "stack"}
-      // Tab reaches each card's actions button; arrows move between cards.
-      keyboardNavigationBehavior="tab"
-      renderEmptyState={() => empty}
-      onAction={(key) => {
-        const item = byId.get(String(key));
-        if (item && !inDeleted && !missing.has(item.file.id)) onAction("open", item);
-      }}
-      className={`be-courses be-courses--${layout}`}
-    >
-      {(item) => {
-        const title = shownTitle(item.title, t("course.untitled"));
-        const lost = missing.has(item.file.id);
-        const actions: MenuAction[] = inDeleted
-          ? ["restore", "remove"]
-          : lost
-            ? ["remove"]
-            : ["duplicate", "rename", "delete"];
-        return (
-          <GridListItem id={item.id} textValue={title}>
-            <div className="be-card">
-              <div className="be-cover" data-kind={item.kind} aria-hidden="true">
-                <Icon name="file" size={28} />
-              </div>
-              <div className="be-card-text">
-                <span className="be-card-title">{title}</span>
-                <span className="be-card-meta">
-                  {t(item.kind === "course" ? "course.kind.course" : "course.kind.microlearning")}
-                  {" · "}
-                  {t("course.lessons", { count: item.lessons })}
-                </span>
-                <span className="be-card-meta">
-                  {lost ? (
-                    <span className="be-missing">
-                      <Icon name="warning" size={14} />
-                      {t("course.missing")}
+    <>
+      {chosen.length > 0 && (
+        <Toolbar aria-label={t("dashboard.selection")} className="be-selection">
+          <span className="be-selection-count">{t("list.selected", { count: chosen.length })}</span>
+          {inDeleted ? (
+            <>
+              <Button onPress={() => act("restore")}>{t("action.restore")}</Button>
+              <Button onPress={() => act("remove")}>{t("action.remove")}</Button>
+            </>
+          ) : (
+            <Button variant="danger" onPress={() => act("delete")}>
+              {t("action.delete")}
+            </Button>
+          )}
+          <Button variant="quiet" onPress={() => setSelected(new Set())}>
+            {t("action.clearSelection")}
+          </Button>
+        </Toolbar>
+      )}
+      {/* Ctrl/Cmd+A from anywhere in the list, its select boxes included (blocks-editor 5.1). */}
+      <div
+        className="be-courses-wrap"
+        onKeyDownCapture={(event) => {
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            event.key.toLowerCase() === "a" &&
+            shown.length > 0
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            setSelected("all");
+          }
+        }}
+      >
+        <GridList
+          aria-label={label}
+          items={shown.map((item) => ({ ...item, id: item.file.id }))}
+          layout={layout === "grid" ? "grid" : "stack"}
+          // Tab reaches each card's actions button; arrows move between cards; Space selects one.
+          keyboardNavigationBehavior="tab"
+          selectionMode="multiple"
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          renderEmptyState={() => empty}
+          onAction={(key) => {
+            const item = byId.get(String(key));
+            if (item && !inDeleted && !missing.has(item.file.id)) onAction("open", [item]);
+          }}
+          className={`be-courses be-courses--${layout}${chosen.length > 0 ? " be-courses--selecting" : ""}`}
+        >
+          {(item) => {
+            const title = shownTitle(item.title, t("course.untitled"));
+            const lost = missing.has(item.file.id);
+            const actions: MenuAction[] = inDeleted
+              ? ["restore", "remove"]
+              : lost
+                ? ["remove"]
+                : ["duplicate", "rename", "delete"];
+            return (
+              <GridListItem id={item.id} textValue={title}>
+                <div className="be-card">
+                  {/* Space on the card selects it too, so the box needs no stop of its own. */}
+                  <Checkbox slot="selection" excludeFromTabOrder />
+                  <div className="be-cover" data-kind={item.kind} aria-hidden="true">
+                    <Icon name="file" size={28} />
+                  </div>
+                  <div className="be-card-text">
+                    <span className="be-card-title">{title}</span>
+                    <span className="be-card-meta">
+                      {t(
+                        item.kind === "course" ? "course.kind.course" : "course.kind.microlearning",
+                      )}
+                      {" · "}
+                      {t("course.lessons", { count: item.lessons })}
                     </span>
-                  ) : (
-                    t("course.modified", { date: date.format(item.updated) })
-                  )}
-                </span>
-              </div>
-              <MenuTrigger>
-                <IconButton icon="more" label={t("course.actions", { title })} />
-                <Menu onAction={(key) => onAction(key as ItemAction, item)}>
-                  {actions.map((action) => (
-                    <MenuItem key={action} id={action} isDanger={action === "delete"}>
-                      {t(MENU_LABELS[action])}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </MenuTrigger>
-            </div>
-          </GridListItem>
-        );
-      }}
-    </GridList>
+                    <span className="be-card-meta">
+                      {lost ? (
+                        <span className="be-missing">
+                          <Icon name="warning" size={14} />
+                          {t("course.missing")}
+                        </span>
+                      ) : (
+                        t("course.modified", { date: date.format(item.updated) })
+                      )}
+                    </span>
+                  </div>
+                  <MenuTrigger>
+                    <IconButton icon="more" label={t("course.actions", { title })} />
+                    <Menu onAction={(key) => onAction(key as ItemAction, [item])}>
+                      {actions.map((action) => (
+                        <MenuItem key={action} id={action} isDanger={action === "delete"}>
+                          {t(MENU_LABELS[action])}
+                        </MenuItem>
+                      ))}
+                    </Menu>
+                  </MenuTrigger>
+                </div>
+              </GridListItem>
+            );
+          }}
+        </GridList>
+      </div>
+      {pages > 1 && (
+        <Pagination
+          label={label}
+          total={items.length}
+          pageSize={PAGE_SIZE}
+          page={current}
+          // UI-BLOCKS-EDITOR-R3: changing page clears the selection.
+          onPageChange={(to) => {
+            setPage(to);
+            setSelected(new Set());
+          }}
+        />
+      )}
+    </>
   );
 }

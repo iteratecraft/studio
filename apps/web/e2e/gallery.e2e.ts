@@ -20,6 +20,7 @@ const COMPONENT_SECTIONS = [
   "Reorderable list",
   "Tree",
   "Splitter",
+  "Pagination",
   "Empty state",
   "Progress bar",
   "Icons",
@@ -91,8 +92,7 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
 
 test("shows every component of the kit", async ({ page }) => {
   await openGallery(page);
-  const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
-  expect(headings).toEqual(COMPONENT_SECTIONS);
+  await expect(page.getByRole("heading", { level: 2 })).toHaveText(COMPONENT_SECTIONS);
 });
 
 for (const theme of ["light", "dark"] as const) {

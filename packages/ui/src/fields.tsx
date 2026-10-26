@@ -92,7 +92,9 @@ export function TextArea({
 }
 
 export interface CheckboxProps extends Omit<AriaCheckboxProps, "className" | "style" | "children"> {
-  children: ReactNode;
+  /** The label; leave it out only where the checkbox is named for you, as `slot="selection"` in a
+   * GridListItem is ("Select" and the row's name). */
+  children?: ReactNode;
 }
 
 export function Checkbox({ children, ...props }: CheckboxProps) {

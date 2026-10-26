@@ -16,6 +16,7 @@ import {
   DropIndicator,
   type Key,
   type ListData,
+  type Selection,
   TreeItemContent,
   useDragAndDrop,
   useListData,
@@ -23,7 +24,7 @@ import {
 import { cx } from "./buttons.js";
 import { Icon } from "./icons.js";
 
-export type { Key, ListData };
+export type { Key, ListData, Selection };
 export { useListData };
 
 export interface ListBoxProps<T extends object>
