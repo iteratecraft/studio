@@ -28,5 +28,26 @@ export {
   RICH_TEXT_DROPPED,
   RICH_TEXT_ELEMENTS,
 } from "./richtext.js";
+export type { BuiltinFontId, FontRole, ThemeColors } from "./theme.js";
+export {
+  BUILTIN_FONTS,
+  contrastOf,
+  DEFAULT_OVERLAY,
+  DEFAULT_THEME_COLOR,
+  defaultFont,
+  FONT_PAIRINGS,
+  fontKey,
+  fontsOf,
+  LAYOUT_STYLES,
+  mix,
+  nearestReadable,
+  overlayColors,
+  overlayFloor,
+  PANEL,
+  THEME_COLORS,
+  textColor,
+  themeColors,
+  withLayoutStyle,
+} from "./theme.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";

@@ -67,6 +67,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/CustomBlockDocument" }
     },
+    "theme": { "$ref": "#/$defs/Theme" },
     "createdAt": { "$ref": "#/$defs/Timestamp" },
     "updatedAt": { "$ref": "#/$defs/Timestamp" },
     "ext": { "$ref": "#/$defs/Ext" }
@@ -638,6 +639,20 @@
           },
           "required": ["kind", "image"],
           "unevaluatedProperties": false
+        },
+        {
+          "description": "The course's theme colour (Theme).",
+          "type": "object",
+          "properties": { "kind": { "const": "theme" } },
+          "required": ["kind"],
+          "unevaluatedProperties": false
+        },
+        {
+          "description": "A light tint of the course's theme colour (Theme).",
+          "type": "object",
+          "properties": { "kind": { "const": "tint" } },
+          "required": ["kind"],
+          "unevaluatedProperties": false
         }
       ]
     },
@@ -921,6 +936,147 @@
       },
       "required": ["id"],
       "unevaluatedProperties": false
+    },
+    "Theme": {
+      "description": "The course's look (rise.md 3E, blocks-editor.md 2.18): one for every language of the course. Every setting is optional; the default is given with each.",
+      "type": "object",
+      "properties": {
+        "layout": {
+          "description": "Layout style: a preset of cover and lesson header layouts. Default classic.",
+          "enum": ["classic", "rounded", "bold"]
+        },
+        "cover": {
+          "description": "The cover page.",
+          "type": "object",
+          "properties": {
+            "layout": {
+              "description": "Image on the left or right of the title, the image behind it, or no image. Default split-left.",
+              "enum": ["split-left", "split-right", "full-image", "plain"]
+            },
+            "overlay": {
+              "description": "Over a cover image behind the title. Default dark at 50 %.",
+              "$ref": "#/$defs/Overlay"
+            },
+            "startButton": {
+              "description": "The start or resume button; without it learners start from the outline. Default true.",
+              "type": "boolean"
+            },
+            "author": { "description": "Authors on the cover. Default true.", "type": "boolean" },
+            "skip": {
+              "description": "Published courses open at the first lesson, or where the learner stopped, instead of the cover. Default false.",
+              "type": "boolean"
+            }
+          },
+          "unevaluatedProperties": false
+        },
+        "headers": {
+          "description": "Lesson headers (courses only).",
+          "type": "object",
+          "properties": {
+            "hidden": {
+              "description": "Hides the lesson count, title and author; the title stays for screen readers. Default false.",
+              "type": "boolean"
+            },
+            "layout": {
+              "description": "Header background. Default light.",
+              "enum": ["light", "gray", "theme", "tint", "dark", "black", "color"]
+            },
+            "color": { "description": "Background of the color layout.", "$ref": "#/$defs/Color" },
+            "contrast": {
+              "description": "Text on the color layout. Default auto.",
+              "enum": ["auto", "light", "dark"]
+            },
+            "height": {
+              "description": "Default medium.",
+              "enum": ["small", "medium", "large"]
+            },
+            "lessonCount": {
+              "description": "The lesson n of m label. Default true.",
+              "type": "boolean"
+            },
+            "author": {
+              "description": "The lesson's author, or the course's. Default true.",
+              "type": "boolean"
+            }
+          },
+          "unevaluatedProperties": false
+        },
+        "color": {
+          "description": "Theme colour, for everything set to theme or theme tint, links, buttons and marks. Default #ff631e.",
+          "$ref": "#/$defs/Color"
+        },
+        "contrast": {
+          "description": "Text on the theme colour: auto keeps 4.5:1 (rise.md rule 18), light and dark are fixed. Default auto.",
+          "enum": ["auto", "light", "dark"]
+        },
+        "fonts": {
+          "description": "Default: the first recommended pairing; the interface font follows the heading font.",
+          "type": "object",
+          "properties": {
+            "heading": { "$ref": "#/$defs/FontRef" },
+            "body": { "$ref": "#/$defs/FontRef" },
+            "ui": { "$ref": "#/$defs/FontRef" }
+          },
+          "unevaluatedProperties": false
+        },
+        "animations": {
+          "description": "Blocks whose entrance animation is on fade in as they scroll into view. Default true.",
+          "type": "boolean"
+        },
+        "corners": {
+          "description": "Block corners. Default rounded.",
+          "enum": ["rounded", "square"]
+        },
+        "buttons": {
+          "description": "Button corners. Default rounded.",
+          "enum": ["rounded", "square"]
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "color": { "enum": ["light", "dark", "theme"] },
+        "opacity": { "$ref": "#/$defs/Percent" }
+      },
+      "required": ["color", "opacity"],
+      "unevaluatedProperties": false
+    },
+    "FontRef": {
+      "description": "A bundled open-licence font, or a font of the author's own font library (another container), resolved by its id when the course is shown or published; a font the library no longer has shows as the default font.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "builtin" },
+            "id": {
+              "enum": [
+                "inter",
+                "montserrat",
+                "noto-sans",
+                "open-sans",
+                "work-sans",
+                "crimson-pro",
+                "literata",
+                "noto-serif"
+              ]
+            }
+          },
+          "required": ["kind", "id"],
+          "unevaluatedProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "custom" },
+            "id": { "$ref": "#/$defs/ExternalId" },
+            "name": { "description": "Its name when it was chosen.", "type": "string" }
+          },
+          "required": ["kind", "id", "name"],
+          "unevaluatedProperties": false
+        }
+      ]
     }
   }
 }

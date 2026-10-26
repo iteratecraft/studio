@@ -47,6 +47,22 @@ export function fullCourse(): Course {
       exitLink: true,
     },
     navigation: { restricted: false, learnerMarkDone: true },
+    theme: {
+      layout: "rounded",
+      cover: { layout: "split-right", overlay: { color: "dark", opacity: 60 }, author: true },
+      headers: { layout: "tint", height: "small", lessonCount: true, author: true },
+      color: "#285f9f",
+      contrast: "auto",
+      // A font of the author's library: the one the Node.js test font source holds
+      // (@course-suite/fonts/test/node-fonts).
+      fonts: {
+        heading: { kind: "custom", id: "testfont01", name: "Test Hand" },
+        body: { kind: "builtin", id: "literata" },
+      },
+      animations: true,
+      corners: "rounded",
+      buttons: "square",
+    },
     entries: [
       { id: "section001", kind: "section", title: "Getting started" },
       {
