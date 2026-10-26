@@ -25,9 +25,9 @@
         "script-src": "'self' blob: 'sha256-uPxSU/VO/1HWm6/T+D+HviZehnA75vmzgauNk/jh00E='",
         "style-src": "'self' blob:",
         "img-src": "'self' blob:",
-        "font-src": "'self'",
+        "font-src": "'self' blob:",
         "frame-src": "data:",
-        "connect-src": "ipc: http://ipc.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost",
         "base-uri": "'none'",
         "form-action": "'none'",
         "object-src": "'none'"
@@ -37,9 +37,9 @@
         "script-src": "'self' blob: 'sha256-uPxSU/VO/1HWm6/T+D+HviZehnA75vmzgauNk/jh00E='",
         "style-src": "'self' 'unsafe-inline' blob:",
         "img-src": "'self' blob:",
-        "font-src": "'self'",
+        "font-src": "'self' blob:",
         "frame-src": "data:",
-        "connect-src": "ipc: http://ipc.localhost ws://localhost:1420",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://localhost:1420",
         "base-uri": "'none'",
         "form-action": "'none'",
         "object-src": "'none'"

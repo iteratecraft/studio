@@ -596,8 +596,8 @@ test.describe("block settings and preview", () => {
     await paragraph.getByRole("button", { name: "Style" }).click();
     const style = page.getByRole("dialog", { name: "Style" });
     await style.getByRole("button", { name: /Background/ }).click();
-    // Theme colours and images arrive with themes and media.
-    await expect(page.getByRole("option", { name: /^Theme colour/ })).toHaveAttribute(
+    // Theme colours come with the course theme (M2-17), images with media.
+    await expect(page.getByRole("option", { name: /^Theme colour/ })).not.toHaveAttribute(
       "aria-disabled",
       "true",
     );

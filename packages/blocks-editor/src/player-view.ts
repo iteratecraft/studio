@@ -3,7 +3,7 @@
 // the player's reach the other. block-preview.tsx loads it with the first lesson opened.
 import type { Block, Course } from "@course-suite/format";
 import { resolveLabels } from "@course-suite/labels";
-import { renderBlock } from "@course-suite/player-blocks";
+import { renderBlock, setVariables, themeVariables } from "@course-suite/player-blocks";
 import css from "@course-suite/player-blocks/player.css?inline";
 
 // shortcut: learner text in previews is the built-in English set; use the course's label set once a
@@ -13,13 +13,15 @@ let sheet: CSSStyleSheet | undefined;
 
 /**
  * Draws `block` of `course` in `host`'s shadow root, with `media` giving the address of a media file
- * by its key; returns whether the player shows anything of the block.
+ * by its key, in the course theme's colours and in `families`, the fonts the editor registered for
+ * it (M2-17); returns whether the player shows anything of the block.
  */
 export function draw(
   host: HTMLElement,
   block: Block,
   course: Course,
   media: (key: string) => string,
+  families?: { heading: string; body: string; ui: string },
 ): boolean {
   if (!sheet) {
     sheet = new CSSStyleSheet();
@@ -27,6 +29,7 @@ export function draw(
     // A constructed sheet, not a <style> element, which the editor's policy refuses.
     sheet.replaceSync(css.replace(/(^|,\s*)(:root|body)(?=[\s,{])/gm, "$1:host"));
   }
+  setVariables(host, themeVariables(course.theme, families));
   const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   root.adoptedStyleSheets = [sheet];
   const element = renderBlock(block, { course, labels, mediaUrl: media });

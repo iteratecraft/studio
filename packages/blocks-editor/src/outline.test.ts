@@ -31,6 +31,8 @@ async function exported(course: Course): Promise<Course> {
     player: blocksPlayer(),
     exporter: webExporter(),
     media: () => new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'/>"),
+    // Stand-in font files: only their signature is checked.
+    fonts: () => ({ name: "Stand-in", regular: new TextEncoder().encode("wOF2 stand-in") }),
     packageVersion: 1,
   });
   if (!built.ok) throw new Error(JSON.stringify(built.problems));
