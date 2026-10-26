@@ -2,7 +2,7 @@
 // every journey by pointer and by keyboard, and axe on every screen in both themes. The tests
 // answer the file dialogs and read the in-memory disk through `window.editorTest` (src/editor.tsx).
 import { writeZip } from "@course-suite/zip";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { violations } from "./axe.ts";
 import {
   back,
@@ -19,6 +19,37 @@ import {
   status,
   unzip,
 } from "./helpers.ts";
+
+/** A card's select box, as seen: the checkbox inside it is visually hidden. */
+const selectBox = (page: Page, title: string) =>
+  card(page, title).locator("label", { has: page.getByRole("checkbox", { name: "Select" }) });
+
+/** Puts `count` course files on the disk and in the course list, titled "Course 01" and on. */
+async function seed(page: Page, count: number): Promise<void> {
+  await page.evaluate(async (count) => {
+    const { host } = window.editorTest;
+    const items = [];
+    for (let i = 1; i <= count; i += 1) {
+      const title = `Course ${String(i).padStart(2, "0")}`;
+      const file = await host.files.pickSave({ suggestedName: `${title}.crs` });
+      if (!file) throw new Error("the save dialog gave no file");
+      // The dashboard never reads the files: the list holds what the cards show.
+      host.disk.set(file.id, new Uint8Array([0]));
+      items.push({ file, title, kind: "course", lessons: i % 3, created: i, updated: i });
+    }
+    await host.storage.set("library", JSON.stringify(items));
+    window.editorTest.restart();
+  }, count);
+  await expect(page.getByRole("grid", { name: "Courses" })).toBeVisible();
+}
+
+async function sortByTitle(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /Sort by/ }).click();
+  await page.getByRole("option", { name: "Title A–Z" }).click();
+}
+
+const titlesFrom = (from: number, to: number) =>
+  Array.from({ length: to - from + 1 }, (_, i) => `Course ${String(from + i).padStart(2, "0")}`);
 
 test.describe("dashboard and course files", () => {
   test("BLK-01, blocks-editor H6: first launch shows an empty dashboard with the app name and version", async ({
@@ -219,6 +250,59 @@ test.describe("dashboard and course files", () => {
     await expect(heading(page, "Final title")).toBeVisible();
   });
 
+  test("BLK-01: rename of a course left with crash autosaves asks which work to use, as opening does", async ({
+    page,
+  }) => {
+    await launch(page);
+    await create(page, "Hoists");
+    await retitle(page, "Hoists, recovered");
+    await expect
+      .poll(() => files(page), { timeout: 10_000 })
+      .toEqual([".Hoists.crs.autosave/2.crs", "Hoists.crs"]);
+    await page.evaluate(() => window.editorTest.restart());
+    const actions = () =>
+      page
+        .getByRole("row")
+        .first()
+        .getByRole("button", { name: /Actions for/ });
+    const ask = page.getByRole("alertdialog", { name: "Recover unsaved changes?" });
+
+    // Cancel changes nothing: the next open still offers the recovery.
+    await actions().click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await expect(ask).toContainText("Renaming saves the file");
+    await ask.getByRole("button", { name: "Cancel" }).click();
+    expect(await files(page)).toEqual([".Hoists.crs.autosave/2.crs", "Hoists.crs"]);
+
+    // The saved file: the recovered work is dropped, as the question says.
+    await actions().click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await ask.getByRole("button", { name: "Use the saved file" }).click();
+    const dialog = page.getByRole("dialog", { name: "Rename course" });
+    await expect(dialog.getByRole("textbox", { name: "Title" })).toHaveValue("Hoists");
+    await dialog.getByRole("textbox", { name: "Title" }).fill("Hoists and slings");
+    await dialog.getByRole("button", { name: "Rename" }).click();
+    await expect(card(page, "Hoists and slings")).toBeVisible();
+    expect(await files(page)).toEqual(["Hoists.crs"]);
+    expect((await courseIn(page, "Hoists.crs")).title).toBe("Hoists and slings");
+
+    // The recovered work: renamed and saved into the file.
+    await card(page, "Hoists and slings").click();
+    await retitle(page, "Hoists, second crash");
+    await expect.poll(async () => (await files(page)).length, { timeout: 10_000 }).toBe(2);
+    await page.evaluate(() => window.editorTest.restart());
+    await actions().click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await ask.getByRole("button", { name: "Use the recovered changes" }).click();
+    await expect(dialog.getByRole("textbox", { name: "Title" })).toHaveValue(
+      "Hoists, second crash",
+    );
+    await dialog.getByRole("textbox", { name: "Title" }).fill("Hoists, final");
+    await dialog.getByRole("button", { name: "Rename" }).click();
+    await expect(card(page, "Hoists, final")).toBeVisible();
+    expect(await files(page)).toEqual(["Hoists.crs"]);
+  });
+
   test("UI-BLOCKS-EDITOR-R5, blocks-editor W24: delete moves a course to Deleted, with undo, restore and empty", async ({
     page,
   }) => {
@@ -266,22 +350,22 @@ test.describe("dashboard and course files", () => {
       await create(page, title, kind);
       await back(page);
     }
-    const titles = () => page.locator(".be-card-title").allTextContents();
+    const titles = page.locator(".be-card-title");
     // Last updated first, by default.
-    expect(await titles()).toEqual(["Charlie cranes", "Alpha ladders", "Bravo hazards"]);
+    await expect(titles).toHaveText(["Charlie cranes", "Alpha ladders", "Bravo hazards"]);
     await page.getByRole("searchbox", { name: "Search by title" }).fill("LADD");
-    expect(await titles()).toEqual(["Alpha ladders"]);
+    await expect(titles).toHaveText(["Alpha ladders"]);
     await page.getByRole("searchbox", { name: "Search by title" }).fill("zzz");
     await expect(page.getByRole("heading", { name: "No courses match" })).toBeVisible();
     await page.getByRole("button", { name: "Clear search" }).click();
     await page.getByRole("button", { name: /Type/ }).click();
     await page.getByRole("option", { name: "Course" }).click();
-    expect(await titles()).toEqual(["Charlie cranes", "Bravo hazards"]);
+    await expect(titles).toHaveText(["Charlie cranes", "Bravo hazards"]);
     await page.getByRole("button", { name: /Type/ }).click();
     await page.getByRole("option", { name: "All types" }).click();
     await page.getByRole("button", { name: /Sort by/ }).click();
     await page.getByRole("option", { name: "Title A–Z" }).click();
-    expect(await titles()).toEqual(["Alpha ladders", "Bravo hazards", "Charlie cranes"]);
+    await expect(titles).toHaveText(["Alpha ladders", "Bravo hazards", "Charlie cranes"]);
     await page.getByRole("radio", { name: "List" }).click();
     await expect(page.getByRole("grid", { name: "Courses" })).toHaveAttribute(
       "data-layout",
@@ -295,7 +379,109 @@ test.describe("dashboard and course files", () => {
       "data-layout",
       "stack",
     );
-    expect(await titles()).toEqual(["Alpha ladders", "Bravo hazards", "Charlie cranes"]);
+    await expect(titles).toHaveText(["Alpha ladders", "Bravo hazards", "Charlie cranes"]);
+  });
+
+  test("blocks-editor H14, UI-BLOCKS-EDITOR-R3: 16 cards to a page, with the range, previous, next and a page jump", async ({
+    page,
+  }) => {
+    await launch(page);
+    await seed(page, 20);
+    await sortByTitle(page);
+    const titles = page.locator(".be-card-title");
+    const bar = page.getByRole("navigation", { name: "Pages of Courses" });
+    await expect(titles).toHaveText(titlesFrom(1, 16));
+    await expect(bar).toContainText("1–16 of 20");
+    await bar.getByRole("button", { name: "Next page" }).click();
+    await expect(titles).toHaveText(titlesFrom(17, 20));
+    await expect(bar).toContainText("17–20 of 20");
+    await bar.getByRole("button", { name: /Page$/ }).click();
+    await page.getByRole("option", { name: "1 of 2" }).click();
+    await expect(titles).toHaveText(titlesFrom(1, 16));
+    // A search starts again at the first page; one page needs no bar.
+    await bar.getByRole("button", { name: "Next page" }).click();
+    await page.getByRole("searchbox", { name: "Search by title" }).fill("Course 1");
+    await expect(titles).toHaveText(titlesFrom(10, 19));
+    await expect(bar).toHaveCount(0);
+  });
+
+  test("blocks-editor H10, 5.1, UI-BLOCKS-EDITOR-R3: select cards by pointer or Ctrl+A, delete them together, and a new page clears the selection", async ({
+    page,
+  }) => {
+    await launch(page);
+    await seed(page, 20);
+    await sortByTitle(page);
+    const titles = page.locator(".be-card-title");
+    const selection = page.getByRole("toolbar", { name: "Selected courses" });
+    await selectBox(page, "Course 02").click();
+    await selectBox(page, "Course 04").click();
+    await expect(selection).toContainText("2 selected");
+    // While cards are selected, a click on a card selects it instead of opening it.
+    await card(page, "Course 05").click();
+    await expect(selection).toContainText("3 selected");
+    await selection.getByRole("button", { name: "Delete" }).click();
+    const toast = page.getByRole("alertdialog", { name: "Moved 3 courses to Deleted" });
+    await expect(toast).toBeVisible();
+    await expect(selection).toHaveCount(0);
+    await expect(titles.first()).toHaveText("Course 01");
+    await expect(titles.nth(1)).toHaveText("Course 03");
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(titles).toHaveText(titlesFrom(1, 16));
+
+    // Ctrl+A in the list selects the cards of this page only.
+    await selectBox(page, "Course 01").click();
+    await page.keyboard.press("Control+A");
+    await expect(selection).toContainText("16 selected");
+    await page
+      .getByRole("navigation", { name: "Pages of Courses" })
+      .getByRole("button", { name: "Next page" })
+      .click();
+    await expect(selection).toHaveCount(0);
+    await page
+      .getByRole("navigation", { name: "Pages of Courses" })
+      .getByRole("button", { name: "Previous page" })
+      .click();
+    await selectBox(page, "Course 01").click();
+    await page.keyboard.press("Control+A");
+    await selection.getByRole("button", { name: "Delete" }).click();
+    await expect(titles).toHaveText(titlesFrom(17, 20));
+
+    // In Deleted: select all, restore.
+    await page.getByRole("tab", { name: "Deleted" }).click();
+    const deleted = page.getByRole("grid", { name: "Deleted" });
+    await selectBox(page, "Course 03").click();
+    await page.keyboard.press("Control+A");
+    await expect(selection).toContainText("16 selected");
+    await selection.getByRole("button", { name: "Restore" }).click();
+    await expect(deleted.getByRole("heading", { name: "Nothing deleted" })).toBeVisible();
+    await page.getByRole("tab", { name: "Courses" }).click();
+    await expect(titles).toHaveText(titlesFrom(1, 16));
+  });
+
+  test("blocks-editor H10, 5.1 by keyboard alone: Space selects a card, Ctrl+A every card, then delete and clear", async ({
+    page,
+  }) => {
+    await launch(page);
+    await seed(page, 3);
+    await sortByTitle(page);
+    const selection = page.getByRole("toolbar", { name: "Selected courses" });
+    await card(page, "Course 01").focus();
+    await page.keyboard.press("Space");
+    await expect(selection).toContainText("1 selected");
+    await page.keyboard.press("ArrowRight");
+    await expect(card(page, "Course 02")).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(selection).toContainText("2 selected");
+    await page.keyboard.press("Control+A");
+    await expect(selection).toContainText("3 selected");
+    await selection.getByRole("button", { name: "Clear selection" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(selection).toHaveCount(0);
+    await card(page, "Course 03").focus();
+    await page.keyboard.press("Space");
+    await selection.getByRole("button", { name: "Delete" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".be-card-title")).toHaveText(["Course 01", "Course 02"]);
   });
 
   test("keyboard only: a card's actions, rename, open the course and go back", async ({ page }) => {
@@ -436,6 +622,146 @@ test.describe("course editor", () => {
     expect(await page.evaluate(() => window.editorTest.host.requestClose())).toBe(true);
   });
 
+  test("UI-BLOCKS-EDITOR-R13: closing the window or going back keeps text still being typed in a field", async ({
+    page,
+  }) => {
+    await launch(page);
+    await create(page, "Ear defenders");
+    const field = page.getByRole("textbox", { name: "Course title" });
+    await field.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" at work");
+    // No pause, no Enter, focus still in the field: the window's close button.
+    const closing = page.evaluate(() => window.editorTest.host.requestClose());
+    const guard = page.getByRole("alertdialog", { name: "Save changes to Ear defenders at work?" });
+    await guard.getByRole("button", { name: "Save", exact: true }).click();
+    expect(await closing).toBe(true);
+    expect((await courseIn(page, "Ear defenders.crs")).title).toBe("Ear defenders at work");
+
+    // The way back by keyboard, straight after typing: the tools, then the back button.
+    await expect(heading(page, "Your courses")).toBeVisible();
+    await card(page, "Ear defenders at work").click();
+    await field.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.type(", revised");
+    await page.keyboard.press("Shift+Tab");
+    await expect(button(page, "Save as")).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(button(page, "Back to your courses")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page
+      .getByRole("alertdialog", { name: "Save changes to Ear defenders at work, revised?" })
+      .getByRole("button", { name: "Don't save" })
+      .click();
+    await expect(heading(page, "Your courses")).toBeVisible();
+    expect((await courseIn(page, "Ear defenders.crs")).title).toBe("Ear defenders at work");
+  });
+
+  test("UI-BLOCKS-EDITOR-R13, BLK-01: text reaches the autosave while still being typed, and one editing is one undo step", async ({
+    page,
+  }) => {
+    await launch(page);
+    await create(page, "Respirators");
+    const field = page.getByRole("textbox", { name: "Course title" });
+    await field.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" and masks", { delay: 50 });
+    // Focus stays in the field; the title and the save state follow the typing.
+    await expect(heading(page, "Respirators and masks")).toBeVisible();
+    await expect(status(page)).toHaveText("Unsaved changes");
+    await expect
+      .poll(() => files(page), { timeout: 10_000 })
+      .toEqual([".Respirators.crs.autosave/2.crs", "Respirators.crs"]);
+    expect((await courseIn(page, ".Respirators.crs.autosave/2.crs")).title).toBe(
+      "Respirators and masks",
+    );
+    await expect(field).toBeFocused();
+    await page.keyboard.type(", fitted");
+    await page.keyboard.press("Tab");
+    await expect(heading(page, "Respirators and masks, fitted")).toBeVisible();
+    // The whole editing, with its pauses, is one undo step.
+    await button(page, "Undo").click();
+    await expect(heading(page, "Respirators")).toBeVisible();
+    await expect(field).toHaveValue("Respirators");
+    await expect(button(page, "Undo")).toBeDisabled();
+    // Escape takes back the editing in progress.
+    await field.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" (draft)");
+    await expect(heading(page, "Respirators (draft)")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(field).toHaveValue("Respirators");
+    await expect(heading(page, "Respirators")).toBeVisible();
+  });
+
+  test("BLK-01 save as, by pointer and by Ctrl+Shift+S: the work goes on in the new file and the old file keeps its last save", async ({
+    page,
+  }) => {
+    await launch(page);
+    await create(page, "Lifting");
+    await retitle(page, "Lifting, second edition");
+    await page.evaluate(() => {
+      window.editorTest.save = "Lifting 2.crs";
+    });
+    await button(page, "Save as").click();
+    await expect(status(page)).toHaveText("Saved");
+    expect(await files(page)).toEqual(["Lifting 2.crs", "Lifting.crs"]);
+    expect((await courseIn(page, "Lifting.crs")).title).toBe("Lifting");
+    const copy = await courseIn(page, "Lifting 2.crs");
+    expect(copy.title).toBe("Lifting, second edition");
+    expect(copy.id).toBe((await courseIn(page, "Lifting.crs")).id);
+    // Later saves go to the new file.
+    await retitle(page, "Lifting, third edition");
+    await page.keyboard.press("Control+S");
+    await expect(status(page)).toHaveText("Saved");
+    expect((await courseIn(page, "Lifting 2.crs")).title).toBe("Lifting, third edition");
+    expect((await courseIn(page, "Lifting.crs")).title).toBe("Lifting");
+
+    // Keyboard, with text still being typed; cancelling the dialog changes nothing.
+    const field = page.getByRole("textbox", { name: "Course title" });
+    await field.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" (final)");
+    await page.evaluate(() => {
+      window.editorTest.save = null;
+    });
+    await page.keyboard.press("Control+Shift+S");
+    await expect(status(page)).toHaveText("Unsaved changes");
+    await page.evaluate(() => {
+      window.editorTest.save = "Lifting final.crs";
+    });
+    await page.keyboard.press("Control+Shift+S");
+    await expect(status(page)).toHaveText("Saved");
+    expect((await courseIn(page, "Lifting final.crs")).title).toBe(
+      "Lifting, third edition (final)",
+    );
+    await back(page);
+    for (const title of ["Lifting", "Lifting, third edition", "Lifting, third edition (final)"]) {
+      await expect(card(page, title)).toBeVisible();
+    }
+  });
+
+  test("rise.md 3L, BLK-01: the source language code is US English by default and takes another valid code", async ({
+    page,
+  }) => {
+    await launch(page);
+    await create(page, "Langues");
+    const field = page.getByRole("textbox", { name: "Source language" });
+    await expect(field).toHaveValue("en-US");
+    await field.fill("english");
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText("Enter a language code such as en-US or fr-CA.")).toBeVisible();
+    await field.press("Enter");
+    await expect(status(page)).toHaveText("Saved");
+    await field.fill("fr-ca");
+    await field.press("Enter");
+    await expect(field).toHaveValue("fr-CA");
+    await page.keyboard.press("Control+S");
+    await expect(status(page)).toHaveText("Saved");
+    const course = (await courseIn(page, "Langues.crs")) as unknown as { sourceLanguage: string };
+    expect(course.sourceLanguage).toBe("fr-CA");
+  });
+
   test("blocks-editor C1: settings entry points of later waves are shown but disabled", async ({
     page,
   }) => {
@@ -464,6 +790,9 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Create" }).click();
     await expect(heading(page, "Axe course")).toBeVisible();
     await check("editor");
+    await page.getByRole("textbox", { name: "Source language" }).fill("x");
+    await check("editor with an invalid language code");
+    await page.keyboard.press("Escape");
     await retitle(page, "Axe course, edited");
     await button(page, "Back to your courses").click();
     await check("unsaved changes dialog");
@@ -472,6 +801,11 @@ for (const theme of ["light", "dark"] as const) {
     await check("dashboard with a course, grid");
     await page.getByRole("radio", { name: "List" }).click();
     await check("dashboard with a course, list");
+    await selectBox(page, "Axe course, edited").click();
+    await check("dashboard with a selection, list");
+    await page.getByRole("radio", { name: "Grid" }).click();
+    await check("dashboard with a selection, grid");
+    await page.getByRole("button", { name: "Clear selection" }).click();
     await card(page, "Axe course, edited")
       .getByRole("button", { name: /Actions for/ })
       .click();
@@ -498,6 +832,12 @@ for (const theme of ["light", "dark"] as const) {
       .poll(() => files(page), { timeout: 10_000 })
       .toContain(".Axe course.crs.autosave/3.crs");
     await page.evaluate(() => window.editorTest.restart());
+    await card(page, "Axe course, edited")
+      .getByRole("button", { name: /Actions for/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await check("rename recovery dialog");
+    await page.getByRole("button", { name: "Cancel" }).click();
     await card(page, "Axe course, edited").click();
     await check("recovery dialog");
     await page.getByRole("button", { name: "Open the saved file" }).click();
@@ -508,5 +848,8 @@ for (const theme of ["light", "dark"] as const) {
     await card(page, "Axe course, edited").click();
     await page.getByText("Details").click();
     await check("open error dialog");
+    await page.getByRole("button", { name: "OK" }).click();
+    await seed(page, 20);
+    await check("dashboard with pages");
   });
 }

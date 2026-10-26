@@ -1,105 +1,125 @@
-// Text fields that edit the course (UI-BLOCKS-EDITOR-R13 "saves while typing", blocks-editor.md 2.2,
-// 2.3). What is typed reaches the course after a short pause in typing, so autosave keeps it, and
-// again on Enter, on leaving the field and before the course is saved, closed or left (keepDrafts).
-// Everything typed in one visit to a field is one undo step; Escape puts back the text the field had
-// when that visit began.
-import type { Editor } from "@course-suite/doc-ops";
+// Text fields that edit the course and save while typing (UI-BLOCKS-EDITOR-R13, blocks-editor.md
+// 2.2, 2.3). What is typed goes into the document after a pause in typing, at least every 2 s while
+// typing goes on, on Enter, on leaving the field and whenever the session saves, leaves or closes
+// (CourseSession.commitDrafts), so autosave keeps it. One editing of a field is one undo step;
+// Escape takes that step back.
+import type { Command } from "@course-suite/doc-ops";
 import { TextArea, TextField, type TextFieldProps, useStrings } from "@course-suite/ui";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import type { CourseSession } from "./session.js";
 
-/** How long typing pauses before a field hands what it holds to the course. */
-export const TYPING_PAUSE_MS = 800;
+/** A pause in typing this long puts the field's text into the document. */
+export const TYPING_PAUSE_MS = 500;
+/** While typing goes on without a pause, the text still reaches the document this often. */
+export const TYPING_MAX_WAIT_MS = 2000;
 
-/** The editor whose undo steps the fields join: one step for each visit to a field. */
-export const DraftEditor = createContext<Pick<Editor, "beginGroup" | "endGroup"> | undefined>(
-  undefined,
-);
-
-const drafts = new Set<() => void>();
-
-/**
- * Hands what every DraftField on the page holds to the course, before the course is saved, closed
- * or left.
- */
-export function keepDrafts(): void {
-  for (const keep of [...drafts]) keep();
-}
+/** The open course, whose document the fields edit and whose saves take what they hold. */
+export const DraftSession = createContext<CourseSession | undefined>(undefined);
 
 export interface DraftFieldProps
-  extends Omit<TextFieldProps, "value" | "defaultValue" | "onChange" | "onBlur" | "onKeyDown"> {
-  /** The value the course holds. */
+  extends Omit<
+    TextFieldProps,
+    "value" | "defaultValue" | "onChange" | "onBlur" | "onKeyDown" | "isInvalid"
+  > {
+  /** The text the document holds. */
   value: string;
-  /** Called with a changed value when the field hands it to the course. */
-  onCommit: (value: string) => void;
+  /**
+   * The edit that puts `text` into the document, or undefined while the text is not valid, which
+   * then stays out of the document and marks the field invalid.
+   */
+  command: (text: string) => Command | undefined;
   /** Several lines: Enter starts a new line. */
   multiline?: boolean;
 }
 
+/** A text field of the course document that saves while typing (see the top of this file). */
 export function DraftField({
-  value: kept,
-  onCommit,
+  value: stored,
+  command,
   multiline = false,
-  ...props
+  ...field
 }: DraftFieldProps) {
-  const group = useContext(DraftEditor);
-  const [value, setValue] = useState(kept);
-  // The value before this visit's first change, while the visit's undo step is open.
-  const visit = useRef<{ start: string }>(undefined);
-  // Shows what the course holds, as an undo or redo changes it and when a visit ends, but not
-  // during a visit: the course may hold the text tidied (trimmed, say), which must not move the
+  const session = useContext(DraftSession);
+  if (!session) throw new Error("DraftField needs a DraftSession");
+  const { editor } = session;
+  const [value, setValue] = useState(stored);
+  const typed = useRef(value);
+  const edit = useRef<{
+    timer: ReturnType<typeof setTimeout> | undefined;
+    since: number | undefined;
+    open: boolean;
+  }>({ timer: undefined, since: undefined, open: false });
+  // The document changed by other means (undo, redo): show it, unless the author is typing here.
+  // While typing, the document may hold the text tidied (trimmed, say), which must not move the
   // text under the author's cursor.
-  const [visits, setVisits] = useState(0);
+  const editing = useRef(false);
+  // Counts finished editings, so that the field then shows what the document holds.
+  const [ends, setEnds] = useState(0);
   useEffect(() => {
-    if (!visit.current) setValue(kept);
-  }, [kept, visits]);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  /** Hands `next` to the course if it changed; `last` ends the visit and its undo step. */
-  const keep = (next: string, last: boolean) => {
-    clearTimeout(timer.current);
-    if (next !== kept) {
-      if (!visit.current) {
-        visit.current = { start: kept };
-        group?.beginGroup();
-      }
-      onCommit(next);
+    if (editing.current) return;
+    typed.current = stored;
+    setValue(stored);
+  }, [stored, ends]);
+
+  const commit = () => {
+    const state = edit.current;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.since = undefined;
+    if (!editing.current) return;
+    const next = command(typed.current);
+    if (!next || typed.current === stored) return;
+    if (state.open) {
+      editor.dispatch(next);
+      return;
     }
-    if (last && visit.current) {
-      visit.current = undefined;
-      group?.endGroup();
-      setVisits((count) => count + 1);
-    }
+    editor.beginGroup();
+    const result = editor.dispatch(next);
+    if (result.ok && result.ops.length > 0) state.open = true;
+    else editor.endGroup();
   };
-  const latest = useRef({ end: () => {}, pause: () => {} });
-  latest.current = { end: () => keep(value, true), pause: () => keep(value, false) };
-  useEffect(() => {
-    const end = () => latest.current.end();
-    drafts.add(end);
-    return () => {
-      drafts.delete(end);
-      clearTimeout(timer.current);
-      if (visit.current) {
-        visit.current = undefined;
-        group?.endGroup();
-      }
-    };
-  }, [group]);
+  const end = () => {
+    commit();
+    if (edit.current.open) editor.endGroup();
+    edit.current.open = false;
+    if (editing.current) setEnds((count) => count + 1);
+    editing.current = false;
+  };
+  const latest = useRef(commit);
+  latest.current = commit;
+  useEffect(() => session.holdDraft(() => latest.current()), [session]);
+  const endOnUnmount = useRef(end);
+  endOnUnmount.current = end;
+  useEffect(() => () => endOnUnmount.current(), []);
+
   const Field = multiline ? TextArea : TextField;
   return (
     <Field
-      {...props}
+      {...field}
       value={value}
-      onChange={(next) => {
-        setValue(next);
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => latest.current.pause(), TYPING_PAUSE_MS);
+      isInvalid={command(value) === undefined}
+      onChange={(text) => {
+        editing.current = true;
+        typed.current = text;
+        setValue(text);
+        const state = edit.current;
+        clearTimeout(state.timer);
+        state.since ??= Date.now();
+        const wait = Math.min(TYPING_PAUSE_MS, state.since + TYPING_MAX_WAIT_MS - Date.now());
+        state.timer = setTimeout(() => latest.current(), Math.max(0, wait));
       }}
-      onBlur={() => keep(value, true)}
+      onBlur={end}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !multiline) keep(value, true);
+        if (event.key === "Enter" && !multiline) end();
         else if (event.key === "Escape") {
-          const start = visit.current?.start ?? kept;
-          setValue(start);
-          keep(start, true);
+          // Back to the text before this editing: what it put in the document is one step.
+          clearTimeout(edit.current.timer);
+          editing.current = false;
+          if (edit.current.open) {
+            edit.current.open = false;
+            editor.endGroup();
+            editor.undo();
+          } else setValue(stored);
         } else event.continuePropagation();
       }}
     />
@@ -141,8 +161,8 @@ export interface DescriptionFieldProps {
   description?: string;
   /** The rich text the course holds ("" for none). */
   value: string;
-  /** Called with the changed rich text, or undefined when the field was emptied. */
-  onCommit: (html: string | undefined) => void;
+  /** The edit that puts the rich text into the document, undefined when the field was emptied. */
+  command: (html: string | undefined) => Command;
 }
 
 /**
@@ -150,7 +170,7 @@ export interface DescriptionFieldProps {
  * description with other formatting (bold, lists, links) is shown read-only, so that editing it
  * never flattens it.
  */
-export function DescriptionField({ label, description, value, onCommit }: DescriptionFieldProps) {
+export function DescriptionField({ label, description, value, command }: DescriptionFieldProps) {
   const t = useStrings();
   if (value && !isPlain(value)) {
     return (
@@ -168,7 +188,7 @@ export function DescriptionField({ label, description, value, onCommit }: Descri
       {...(description !== undefined && { description })}
       multiline
       value={textOf(value)}
-      onCommit={(text) => onCommit(htmlOf(text) || undefined)}
+      command={(text) => command(htmlOf(text) || undefined)}
     />
   );
 }

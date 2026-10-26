@@ -1,10 +1,31 @@
 // New course documents and their file names (blocks-editor.md W1, W2; D-33).
 import type { Course } from "@course-suite/format";
-import { newContentId, newProjectId, SCHEMA_VERSION } from "@course-suite/format";
+import { courseSchema, newContentId, newProjectId, SCHEMA_VERSION } from "@course-suite/format";
 import { PROJECT_EXTENSION } from "@course-suite/project";
 
 /** UI-BLOCKS-EDITOR-R13: a course title holds up to 100 characters. */
 export const TITLE_MAX = 100;
+
+/** rise.md 3L: a course's source language is US English unless the author sets another. */
+export const DEFAULT_LANGUAGE = "en-US";
+
+/** The course format's own rule for a language tag. */
+const LANGUAGE = new RegExp(
+  (courseSchema.$defs as Record<string, { pattern: string }>).Language?.pattern ?? "$^",
+);
+
+/**
+ * The language code the author typed, in its canonical BCP 47 form (`fr-ca` gives `fr-CA`), or
+ * undefined when it is not one the course format takes (BLK-01 course details).
+ */
+export function languageCode(text: string): string | undefined {
+  try {
+    const [code] = Intl.getCanonicalLocales(text.trim());
+    return code !== undefined && LANGUAGE.test(code) ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * A blank course: an empty outline (W1). A blank microlearning: its one lesson, empty (W2,
@@ -16,7 +37,7 @@ export function blankCourse(kind: Course["kind"], title: string, now = new Date(
     id: newProjectId(),
     kind,
     title,
-    sourceLanguage: "en-US",
+    sourceLanguage: DEFAULT_LANGUAGE,
     entries:
       kind === "microlearning" ? [{ id: newContentId(), kind: "lesson", title, blocks: [] }] : [],
     media: [],

@@ -25,9 +25,9 @@ Components: `Button`, `IconButton`, `ToggleButtonGroup` with `ToggleButton`, `To
 names the field), `SearchField`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`,
 `Popover`, `ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`, which moves a `ListData`
 or calls your function with the moved keys and where they go; `layout="grid"` for cards), `Tree`,
-`Splitter`, `EmptyState`, `ProgressBar` and `Icon`. `useAnnouncer` reads out what happened out of
-sight, such as a moved row, through a polite live region; `cs-visually-hidden` hides text from
-sight only.
+`Splitter`, `Pagination` (range, previous, page jump, next), `EmptyState`, `ProgressBar` and
+`Icon`. `useAnnouncer` reads out what happened out of sight, such as a moved row, through a polite
+live region; `cs-visually-hidden` hides text from sight only.
 
 In a `GridList` with `keyboardNavigationBehavior="tab"`, a row keeps the keys of its controls to
 itself, so app-wide shortcuts listen on `window` in the capture phase.

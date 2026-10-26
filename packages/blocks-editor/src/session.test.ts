@@ -2,8 +2,8 @@ import { validateCourse } from "@course-suite/format";
 import { createMemoryHost, type FileRef } from "@course-suite/host";
 import { createProject, saveProject } from "@course-suite/project";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { blankCourse, fileNameFor } from "./course.js";
-import { AUTOSAVE_DELAY_MS, CourseSession, newestOf, openCourseFile } from "./session.js";
+import { blankCourse, fileNameFor, languageCode } from "./course.js";
+import { AUTOSAVE_DELAY_MS, CourseSession, openCourseFile } from "./session.js";
 
 const FILE = "Courses/Safety.crs";
 
@@ -77,7 +77,11 @@ describe("course session", () => {
       };
     };
     const reopened = await openCourseFile(host, file);
-    const session = new CourseSession(host, file, newestOf(reopened) as never);
+    const session = new CourseSession(
+      host,
+      file,
+      (reopened.kind === "ok" && reopened.project) as never,
+    );
     retitle(session, "Safety at work");
     await expect(session.save()).rejects.toThrow("The disk is full");
     expect(host.disk.get(FILE)).toEqual(before);
@@ -109,10 +113,56 @@ describe("course session", () => {
     const reopened = await openCourseFile(host, file);
     expect(reopened.kind).toBe("ok");
     expect(reopened.kind === "ok" && reopened.project.course.title).toBe("Safety");
-    expect(newestOf(reopened)?.course.title).toBe("Safety, unsaved");
+    expect(reopened.kind === "ok" && reopened.recovered?.course.title).toBe("Safety, unsaved");
     // A recovered session starts unsaved.
-    const recovered = new CourseSession(host, file, newestOf(reopened) as never, true);
+    const recovered = new CourseSession(
+      host,
+      file,
+      (reopened.kind === "ok" && reopened.recovered) as never,
+      true,
+    );
     expect(recovered.dirty).toBe(true);
+  });
+
+  test("UI-BLOCKS-EDITOR-R13: saving first puts what the fields hold into the document", async () => {
+    const { host, file, session } = await opened();
+    let typed = "Safety, typed";
+    const release = session.holdDraft(() => retitle(session, typed));
+    session.commitDrafts();
+    expect(session.dirty).toBe(true);
+    typed = "Safety, typed more";
+    await session.save();
+    const reopened = await openCourseFile(host, file);
+    expect(reopened.kind === "ok" && reopened.project.course.title).toBe("Safety, typed more");
+    release();
+    typed = "Not held";
+    session.commitDrafts();
+    expect(session.editor.document.title).toBe("Safety, typed more");
+  });
+
+  test("BLK-01 save as: the work goes on in a new file with the same ids; the old file keeps its last save", async () => {
+    const { host, file, session } = await opened();
+    retitle(session, "Safety, second edition");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
+    await autosaved(host);
+    const target = (await host.files.pickSave({
+      suggestedName: "Courses/Safety 2.crs",
+    })) as FileRef;
+    await session.saveAs(target);
+    expect(session.file).toEqual(target);
+    expect(session.state).toEqual({ kind: "saved" });
+    // The old file's autosaves held this work, which now lives in the new file.
+    expect(names(host)).toEqual([target.id, FILE]);
+    const old = await openCourseFile(host, file);
+    const saved = await openCourseFile(host, target);
+    expect(old.kind === "ok" && old.project.course.title).toBe("Safety");
+    expect(saved.kind === "ok" && saved.project.course).toEqual(session.editor.document);
+    // Edits now autosave next to the new file.
+    retitle(session, "Safety, third edition");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
+    await vi.waitFor(() =>
+      expect(names(host)).toEqual(["Courses/.Safety 2.crs.autosave/4.crs", target.id, FILE]),
+    );
   });
 
   test("closing stops a pending autosave, as a crash would", async () => {
@@ -135,7 +185,7 @@ describe("opening", () => {
     const damaged = await openCourseFile(host, file);
     expect(damaged.kind).toBe("damaged");
     expect(damaged.kind === "damaged" && damaged.problems.length).toBeGreaterThan(0);
-    expect(newestOf(damaged)).toBeUndefined();
+    expect(damaged.kind === "damaged" && damaged.recovered).toBeUndefined();
   });
 });
 
@@ -155,5 +205,14 @@ describe("new courses", () => {
     expect(fileNameFor("  Trailing dots... ", "Course")).toBe("Trailing dots.crs");
     expect(fileNameFor('<>:"|', "Course")).toBe("-----.crs");
     expect(fileNameFor("   ", "Course")).toBe("Course.crs");
+  });
+
+  test("rise.md 3L, BLK-01: a source language code is taken in its canonical form, as the format takes it", () => {
+    expect(languageCode(" fr-ca ")).toBe("fr-CA");
+    expect(languageCode("EN-us")).toBe("en-US");
+    expect(languageCode("zh-hant-tw")).toBe("zh-Hant-TW");
+    for (const wrong of ["", "english", "e", "en-", "en_US", "123"]) {
+      expect(languageCode(wrong), wrong).toBeUndefined();
+    }
   });
 });
