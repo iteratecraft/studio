@@ -129,6 +129,15 @@ async function saved(page: Page, file = FILE): Promise<Course> {
   return courseIn(page, file);
 }
 
+/** The course in the newest autosave next to course file `file`, if there is one. */
+async function autosaved(page: Page, file = FILE): Promise<Course | undefined> {
+  const folder = `.${file}.autosave/`;
+  const saves = (await files(page)).filter((name) => name.startsWith(folder));
+  const number = (name: string) => Number.parseInt(name.slice(folder.length), 10);
+  const newest = saves.sort((a, b) => number(a) - number(b)).at(-1);
+  return newest === undefined ? undefined : courseIn(page, newest);
+}
+
 const lessonIn = (course: Course, id: string) =>
   course.entries.find((entry) => entry.id === id) as LessonEntry;
 /** The first content item of a block: its heading and text. */
@@ -753,9 +762,9 @@ test.describe("block content", () => {
     page,
   }) => {
     await openGarden(page);
-    const paragraph = blockRow(
-      page,
-      "Planning",
+    // By place: the row's name follows its text as it is typed.
+    const paragraph = blocksOf(page, "Planning").getByRole("row").nth(1);
+    await expect(paragraph).toHaveAccessibleName(
       "Paragraph: Most vegetables need six hours of sun.",
     );
     const text = paragraph.getByRole("textbox", { name: "Text" });
@@ -1100,7 +1109,7 @@ test.describe("copying blocks to a lesson or a course", () => {
     expect(await rowNames(page, "Soil")).toEqual(["Heading: Pick a sunny spot", "Centred image"]);
   });
 
-  test("blocks-editor W12, BLK-01: a course holding work kept after a crash is not copied into, and its file and autosave stay as they were", async ({
+  test("blocks-editor W12, BLK-01: copying blocks into a course that a crash left autosaved work in asks first, as opening it does", async ({
     page,
   }) => {
     await launch(page);
@@ -1109,6 +1118,7 @@ test.describe("copying blocks to a lesson or a course", () => {
     await expect
       .poll(() => files(page), { timeout: 10_000 })
       .toContain(".Herb pots.crs.autosave/2.crs");
+    // The app dies without asking anything.
     await page.evaluate(() => window.editorTest.restart());
     const before = await bytesOf(page, "Herb pots.crs");
     await openFixture(page, FILE, garden(), { "bed.svg": BED });
@@ -1116,16 +1126,41 @@ test.describe("copying blocks to a lesson or a course", () => {
     await page.getByRole("button", { name: "Manage blocks" }).click();
     const manage = page.getByRole("dialog", { name: "Manage blocks" });
     await manage.getByText("Select all").click();
-    await manage.getByRole("button", { name: "Copy to another course…" }).click();
-    await page
-      .getByRole("dialog", { name: "Copy 4 blocks to another course" })
-      .getByRole("option", { name: /^Herb pots/ })
-      .dblclick();
-    const refused = page.getByRole("alertdialog", { name: "The blocks were not copied" });
-    await expect(refused).toContainText("holds work kept after the app closed unexpectedly");
-    await refused.getByRole("button", { name: "OK" }).click();
+    const copy = async () => {
+      await manage.getByRole("button", { name: "Copy to another course…" }).click();
+      await page
+        .getByRole("dialog", { name: "Copy 4 blocks to another course" })
+        .getByRole("option", { name: /^Herb pots/ })
+        .dblclick();
+    };
+    await copy();
+    const offer = page.getByRole("alertdialog", { name: "Recover unsaved changes?" });
+    await expect(offer).toContainText("Herb pots.crs was not closed properly last time.");
+    // Escape copies nothing, and leaves that course's file and its autosaved work alone.
+    await page.keyboard.press("Escape");
+    await expect(offer).toHaveCount(0);
     expect(await bytesOf(page, "Herb pots.crs")).toEqual(before);
     expect(await files(page)).toContain(".Herb pots.crs.autosave/2.crs");
+
+    // Recovering copies into the recovered work, which the author chose to keep.
+    await copy();
+    await offer.getByRole("button", { name: "Recover changes" }).click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "Copied 4 blocks to the end of Pots in Herb pots, unsaved",
+      }),
+    ).toBeVisible();
+    const course = await courseIn(page, "Herb pots.crs");
+    expect(course.title).toBe("Herb pots, unsaved");
+    expect(kinds(lessonIn(course, "lessherb01").blocks)).toEqual([
+      "text/heading",
+      "text/paragraph",
+      "image/centered",
+      "divider/continue",
+    ]);
+    expect(
+      (await files(page)).filter((name) => name.startsWith(".Herb pots.crs.autosave/")),
+    ).toEqual([]);
   });
 
   test("blocks-editor L16, W12, W13, 2.4: manage blocks gives every selected block one background in one undo step", async ({
@@ -1307,8 +1342,11 @@ test.describe("block previews and appearance", () => {
     await page.getByRole("searchbox", { name: "Search block types" }).fill("single");
     await page.getByRole("option", { name: "Single choice" }).click();
     const check = blocksOf(page, "Planning").getByRole("row").last();
+    // The library has closed and focus is in the new block: a click before that is lost.
+    await expect(check.getByRole("textbox", { name: "Question" })).toBeFocused();
     await check.getByRole("button", { name: "Style", exact: true }).click();
     const style = page.getByRole("dialog", { name: "Style" });
+    await expect(style).toBeVisible();
     await style.getByRole("button", { name: /Background/ }).click();
     await page.getByRole("option", { name: "Dark" }).click();
     const cards = style.getByRole("switch", { name: "Keep cards white" });
@@ -1316,7 +1354,10 @@ test.describe("block previews and appearance", () => {
     const card = check.locator(".be-block-preview form.check");
     await expect(card).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await expect(card.locator(".prompt")).toHaveCSS("color", "rgb(29, 31, 35)");
-    await cards.click();
+    // The background list has gone; a click on the switch's label turns it off.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await style.getByText("Keep cards white").click();
+    await expect(cards).not.toBeChecked();
     await expect(card).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     let block = lessonIn(await saved(page), "lessplan01").blocks.at(-1);
     expect(block?.settings).toEqual({
@@ -1344,6 +1385,8 @@ test.describe("block previews and appearance", () => {
     await page.keyboard.press("Escape");
     await button(page, "Preview").click();
     const frame = page.frameLocator("iframe[title='Course preview']:not([data-pending])");
+    // The check comes after the lesson's continue block.
+    await frame.getByRole("button", { name: "Continue" }).click();
     const submit = frame.locator(`[data-block="${block?.id}"]`).getByRole("button", {
       name: "Check",
     });
@@ -1428,6 +1471,58 @@ test.describe("rich text safety and descriptions", () => {
     await expect(page.locator("meta[http-equiv=refresh], base, iframe, form")).toHaveCount(0);
     // The course file is left as it was until the author edits the text.
     await expect(saveState(page)).toHaveText("Saved");
+  });
+
+  test("UI-BLOCKS-EDITOR-R13, BLK-01: formatted text is kept while typing: autosaved after a pause, as one undo step, and closing the window asks to save it", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    // By place: the row's name follows its text as it is typed.
+    const text = blocksOf(page, "Planning")
+      .getByRole("row")
+      .nth(1)
+      .getByRole("textbox", { name: "Text" });
+    await text.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type(" Water");
+    // A pause in typing hands the text to the course; the field keeps focus.
+    await expect(saveState(page)).toHaveText("Unsaved changes");
+    await expect(text).toBeFocused();
+    await page.keyboard.type(" daily");
+    // BLK-01: a crash loses at most 10 seconds of typing.
+    await expect
+      .poll(
+        async () =>
+          contentOf(lessonIn((await autosaved(page)) ?? garden(), "lessplan01").blocks[1])?.text,
+        {
+          timeout: 10_000,
+        },
+      )
+      .toBe("<p>Most vegetables need six hours of sun. Water daily</p>");
+    await expect(text).toBeFocused();
+
+    // Closing the window while the field is still being typed in asks first.
+    await page.keyboard.type("!");
+    const closing = page.evaluate(() => window.editorTest.host.requestClose());
+    const guard = page.getByRole("alertdialog", { name: "Save changes to Kitchen garden?" });
+    await guard.getByRole("button", { name: "Cancel" }).click();
+    expect(await closing).toBe(false);
+    await expect(text).toHaveText("Most vegetables need six hours of sun. Water daily!");
+    // Everything typed in the one visit to the field is one undo step.
+    await button(page, "Undo").click();
+    await expect(text).toHaveText("Most vegetables need six hours of sun.");
+    await expect(button(page, "Undo")).toBeDisabled();
+    // Save, when closing straight after typing, keeps what was typed.
+    await text.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type(" Mulch.");
+    const leaving = page.evaluate(() => window.editorTest.host.requestClose());
+    await guard.getByRole("button", { name: "Save", exact: true }).click();
+    expect(await leaving).toBe(true);
+    const course = await courseIn(page, FILE);
+    expect(contentOf(lessonIn(course, "lessplan01").blocks[1])?.text).toBe(
+      "<p>Most vegetables need six hours of sun. Mulch.</p>",
+    );
   });
 
   test("blocks-editor 2.2, BLK-01, BLK-02: the course and lesson descriptions are formatted text, edited without losing their formatting", async ({

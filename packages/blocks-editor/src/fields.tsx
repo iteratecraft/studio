@@ -92,7 +92,9 @@ function useDraft(
   /** Hands `next` to the course if it changed; `last` ends the visit and its undo step. */
   const keep = (next: string, last: boolean) => {
     clearTimeout(timer.current);
-    const tidied = tidy(next);
+    // Untouched text is never handed over, even where tidying would change it: a course file's
+    // own text stays as it is until the author edits it.
+    const tidied = next === kept ? kept : tidy(next);
     if (tidied !== kept) {
       if (!visit.current) {
         visit.current = { start: kept };

@@ -101,6 +101,34 @@ function linkAt(editor: HTMLElement): HTMLAnchorElement | undefined {
   return undefined;
 }
 
+/** Whether a pointer is pressed on the page; followed from the first rich-text field on. */
+let pressing = false;
+let following = false;
+
+function followPresses(): void {
+  if (following) return;
+  following = true;
+  document.addEventListener("pointerdown", () => (pressing = true), true);
+  for (const type of ["pointerup", "pointercancel"]) {
+    document.addEventListener(type, () => (pressing = false), true);
+  }
+}
+
+/** Runs `then` now, or when the press under way ends, after what that press does. */
+function afterPress(then: () => void): void {
+  if (!pressing) {
+    then();
+    return;
+  }
+  const done = () => {
+    document.removeEventListener("pointerup", done, true);
+    document.removeEventListener("pointercancel", done, true);
+    setTimeout(then);
+  };
+  document.addEventListener("pointerup", done, true);
+  document.addEventListener("pointercancel", done, true);
+}
+
 /**
  * Formatted text edited in place, with a formatting toolbar that shows while the field is in use:
  * Shift+Tab or Alt+F10 reach it from the text, Escape goes back. Ctrl/Cmd+B, I and U format and
@@ -134,6 +162,7 @@ export function RichTextField({
     block: "p",
   });
   overlay.current = menuOpen || link !== undefined;
+  useEffect(followPresses, []);
 
   // The field takes a value from outside (undo, Escape), never one it gave out itself: a value
   // that comes back after more typing must not undo that typing or move the caret.
@@ -212,6 +241,9 @@ export function RichTextField({
   };
 
   const openLink = () => {
+    // The selection as it is now: the browser reports changes to it only later, so a key pressed
+    // straight after moving the selection would otherwise link what was selected before.
+    refresh();
     const element = editor.current;
     const existing = element && linkAt(element);
     // The selection to link: focus coming back from the dialog moves the caret.
@@ -249,8 +281,13 @@ export function RichTextField({
       onFocus={() => setFocused(true)}
       onBlur={(event) => {
         if (overlay.current || event.currentTarget.contains(event.relatedTarget)) return;
-        setFocused(false);
+        const field = event.currentTarget;
         onLeave?.();
+        // The tools go once a press that took focus away has ended: the field shrinking during
+        // it would move what is being pressed, so the press would land elsewhere.
+        afterPress(() => {
+          if (!field.contains(document.activeElement)) setFocused(false);
+        });
       }}
       onKeyDown={(event) => {
         // Escape in the tools goes back to the text.
@@ -406,7 +443,9 @@ function LinkDialog({
           label={t("link.address")}
           description={t("link.help")}
           autoFocus
-          type="url"
+          // Not type="url": a link to a lesson or block (#/lessons/…) is no URL to the browser,
+          // whose own check would then block the dialog without a word.
+          inputMode="url"
           value={value}
           onChange={(next) => {
             setValue(next);
