@@ -25,7 +25,7 @@ for (const [name, size] of sizes)
     `${name.padEnd(36)} ${kb(size.raw).padStart(10)} raw ${kb(size.gzip).padStart(10)} gzip`,
   );
 
-const GROUPS = ["react", "react-aria", "kit", "blocks", "player"];
+const GROUPS = ["react", "react-aria", "kit", "blocks", "block-preview", "player"];
 // A built name is the chunk's name, a dash and an 8-character hash.
 const groupOf = (name: string) => name.replace(/-[\w-]{8}\.(js|css)$/, "");
 console.log("");

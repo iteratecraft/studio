@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { contrastRatio, luminance, textOn } from "./contrast.js";
+import { accentReadable, contrastRatio, luminance, textOn } from "./contrast.js";
 
 const WHITE = 1;
 const BLACK = 0;
@@ -23,4 +23,11 @@ test("UI-BLOCKS-EDITOR-R19: a fixed light or dark choice is kept, whatever its c
   expect(textOn("#000000", "dark")).toBe("dark");
   expect(textOn("#ffffff", "light")).toBe("light");
   expect(contrastRatio(luminance("#ffffff"), luminance("#000000"))).toBeCloseTo(21);
+});
+
+test("[rise:3D] BLK-03: a block's accent colour is used only where it keeps 4.5:1 on the block's surface", () => {
+  expect(accentReadable("#1f5fbf")).toBe(true);
+  expect(accentReadable("#ffeb3b")).toBe(false);
+  expect(accentReadable("#ffeb3b", "#000000")).toBe(true);
+  expect(accentReadable("#1f5fbf", "#2b3038")).toBe(false);
 });

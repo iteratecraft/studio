@@ -1,5 +1,5 @@
 // The editor's questions to the author, each a modal dialog from the kit that resolves to an
-// answer: a title (new, rename, duplicate), a choice of buttons, a course, or a notice.
+// answer: a title (new, rename, duplicate), a choice of buttons, a course or lesson, or a notice.
 import {
   Button,
   Dialog,
@@ -12,8 +12,7 @@ import {
   useStrings,
 } from "@course-suite/ui";
 import { type FormEvent, type ReactNode, useCallback, useState } from "react";
-import { shownTitle, TITLE_MAX } from "./course.js";
-import type { LibraryItem } from "./library.js";
+import { TITLE_MAX } from "./course.js";
 
 /** Shows one dialog at a time: `ask` renders it and resolves with its answer. */
 export function useDialogs() {
@@ -124,34 +123,43 @@ export function ChoiceDialog<T>({
 }
 
 /**
- * Asks which course to copy a lesson to (blocks-editor.md C8, W5): one of `courses`; `null` when
- * cancelled. Arrows select a course; Enter or a double click on one picks it at once.
+ * Asks the author to pick one of `items`: a course to copy to (blocks-editor.md C8, W5;
+ * blocks-publish-collab.md B7) or a lesson (W12 step 3). Resolves to the item's id, or `null` when
+ * cancelled. Arrows select one; Enter, a double click or the submit button picks it at once.
  */
-export function CoursePickerDialog({
+export function PickerDialog({
   title,
-  courses,
+  label,
+  items,
+  submit,
+  empty,
   answer,
 }: {
   title: string;
-  courses: readonly LibraryItem[];
-  answer: (value: LibraryItem | null) => void;
+  /** The list's name. */
+  label: string;
+  items: readonly { id: string; title: string }[];
+  submit: string;
+  /** What an empty list says. */
+  empty: { title: string; body: string };
+  answer: (value: string | null) => void;
 }) {
   const t = useStrings();
-  const [selected, setSelected] = useState<Key | undefined>(courses[0]?.file.id);
+  const [selected, setSelected] = useState<Key | undefined>(items[0]?.id);
   const pick = (key: Key | undefined) => {
-    const course = courses.find((item) => item.file.id === key);
-    if (course) answer(course);
+    const item = items.find((other) => other.id === key);
+    if (item) answer(item.id);
   };
   return (
     <Dialog isOpen title={title} onOpenChange={(open) => !open && answer(null)}>
-      {courses.length === 0 ? (
-        <EmptyState icon="file" title={t("copyTo.none")} level={3}>
-          {t("copyTo.noneBody")}
+      {items.length === 0 ? (
+        <EmptyState icon="file" title={empty.title} level={3}>
+          {empty.body}
         </EmptyState>
       ) : (
         <ListBox
-          aria-label={t("copyTo.courses")}
-          items={courses.map((item) => ({ id: item.file.id, title: item.title }))}
+          aria-label={label}
+          items={items}
           selectionMode="single"
           selectionBehavior="replace"
           // Escape then closes the dialog instead of clearing the choice.
@@ -161,18 +169,16 @@ export function CoursePickerDialog({
           onAction={pick}
           autoFocus="first"
         >
-          {(item) => (
-            <ListBoxItem id={item.id}>{shownTitle(item.title, t("course.untitled"))}</ListBoxItem>
-          )}
+          {(item) => <ListBoxItem id={item.id}>{item.title}</ListBoxItem>}
         </ListBox>
       )}
       <DialogActions>
         <Button variant="quiet" onPress={() => answer(null)}>
           {t("action.cancel")}
         </Button>
-        {courses.length > 0 && (
+        {items.length > 0 && (
           <Button variant="primary" onPress={() => pick(selected)}>
-            {t("action.copy")}
+            {submit}
           </Button>
         )}
       </DialogActions>

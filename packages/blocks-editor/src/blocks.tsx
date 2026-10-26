@@ -8,8 +8,7 @@ import type { Block, ContentItem, Course, Question } from "@course-suite/format"
 import { newContentId } from "@course-suite/format";
 import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import type { ComponentType } from "react";
-import { DraftField, RichDraftField, textOf } from "./fields.js";
-import { inlineHtml } from "./richtext.js";
+import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 
 /** Library groups in the library's order. Most are format categories; AI and templates are not. */
 export const GROUPS = [
@@ -66,6 +65,8 @@ export interface BlockType {
   Fields?: ComponentType<FieldsProps>;
   /** Other variants it can switch to, keeping its content (W8, UI-BLOCKS-EDITOR-R25). */
   switchable?: boolean;
+  /** Its items show as cards, which may stay white on a block colour (2.4 "keep cards white"). */
+  cards?: boolean;
 }
 
 /** The type id of a block or library entry: group or category, a slash, the variant. */
@@ -366,6 +367,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
       answers: [answer(id, t, "sample.right", true), answer(id, t, "sample.wrong", false)],
     })),
     Fields: QuestionFields,
+    cards: true,
   },
   {
     group: "knowledge-check",
@@ -382,6 +384,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
       ],
     })),
     Fields: QuestionFields,
+    cards: true,
   },
   {
     group: "knowledge-check",
@@ -394,6 +397,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
       acceptedAnswers: [t("sample.fillAnswer")],
     })),
     Fields: QuestionFields,
+    cards: true,
   },
   {
     group: "knowledge-check",
@@ -416,6 +420,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
       })),
     })),
     Fields: QuestionFields,
+    cards: true,
   },
   ...later("knowledge-check", ["draw"]),
   ...later("survey", ["survey"]),

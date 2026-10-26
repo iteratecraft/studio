@@ -175,6 +175,12 @@ importers:
       '@course-suite/host':
         specifier: workspace:*
         version: link:../host
+      '@course-suite/labels':
+        specifier: workspace:*
+        version: link:../labels
+      '@course-suite/player-blocks':
+        specifier: workspace:*
+        version: link:../player-blocks
       '@course-suite/project':
         specifier: workspace:*
         version: link:../project

@@ -1,31 +1,45 @@
 // Manage blocks (blocks-editor.md L16, W13; blocks-publish-collab.md C2, W10, W12): every block of
-// the lesson in a list to select from; the selection moves as one by its drag handles, and is
-// copied (to paste in any lesson of any course), duplicated below itself or deleted, each as one
-// undo step.
-import type { Editor } from "@course-suite/doc-ops";
+// the lesson in a list to select from; the selection moves as one by its drag handles, takes one
+// background (W12 step 5), is copied (to paste in any lesson of any course, or straight to the end
+// of a lesson of this course or of another course, B7, B8, UI-PUBCOLLAB-R31), duplicated below
+// itself or deleted, each as one undo step.
+import { clipBlocks, type Editor, pasteBlocks } from "@course-suite/doc-ops";
 import type { Block, LessonEntry } from "@course-suite/format";
 import {
   Button,
   Checkbox,
   Dialog,
   DialogActions,
+  DialogTrigger,
   GridList,
   GridListItem,
   Icon,
   type Key,
+  Popover,
   type ReorderTarget,
+  type ToastQueue,
   Toolbar,
   useReorder,
   useStrings,
 } from "@course-suite/ui";
 import { useEffect, useRef, useState } from "react";
+import { BackgroundFields, withSettings } from "./block-settings.js";
 import { blockName } from "./blocks.js";
+import { shownTitle } from "./course.js";
+import { PickerDialog } from "./dialogs.js";
 import { movesBetween } from "./outline.js";
 
 export interface ManageBlocksProps {
   editor: Editor;
   lesson: LessonEntry;
+  toasts: ToastQueue;
   onCopy: (ids: string[]) => void;
+  /** The other courses and microlearning items the selection can be copied to. */
+  courses: () => { id: string; title: string }[];
+  /** Copies blocks to the end of the last lesson of another course (W12 step 3). */
+  onCopyToCourse: (ids: string[], course: string) => Promise<void>;
+  /** Opens a lesson of this course: the copy notice's way to the copies. */
+  onGo: (id: string) => void;
   onClose: () => void;
   /** Says what happened, out of sight. */
   announce: (text: string) => void;
@@ -47,10 +61,21 @@ export function moveTogether(
   return movesBetween(order, next, (id, index) => ({ type: "moveBlock", id, index }));
 }
 
-export function ManageBlocks({ editor, lesson, onCopy, onClose, announce }: ManageBlocksProps) {
+export function ManageBlocks({
+  editor,
+  lesson,
+  toasts,
+  onCopy,
+  courses,
+  onCopyToCourse,
+  onGo,
+  onClose,
+  announce,
+}: ManageBlocksProps) {
   const t = useStrings();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
+  const [picking, setPicking] = useState<"lesson" | "course">();
   const blocks = lesson.blocks;
   // Lesson order, whatever order they were picked in; blocks undo took away are left out.
   const chosen = blocks.filter((block) => selected.has(block.id)).map((block) => block.id);
@@ -77,6 +102,21 @@ export function ManageBlocks({ editor, lesson, onCopy, onClose, announce }: Mana
       chosen.map((id, i) => ({ type: "duplicateBlock" as const, id, index: last + 1 + i })),
     );
     if (result.ok) announce(t("blocks.duplicatedMany", { count }));
+  };
+
+  /** W12 step 3, UI-PUBCOLLAB-R31: the copies go to the end of lesson `id`, in one undo step. */
+  const copyToLesson = (id: string) => {
+    const pasted = pasteBlocks(clipBlocks(editor.document, chosen), editor.document, id);
+    const target = editor.document.entries.find((entry) => entry.id === id);
+    if (!pasted || !target || !editor.dispatch(pasted.commands).ok) return;
+    const title = shownTitle(target.title, t("outline.untitledLesson"));
+    toasts.add(
+      {
+        title: t("copyBlocks.done", { count, lesson: title }),
+        action: { label: t("copyBlocks.openLesson"), onAction: () => onGo(id) },
+      },
+      { timeout: 8000 },
+    );
   };
 
   const remove = () => {
@@ -144,9 +184,36 @@ export function ManageBlocks({ editor, lesson, onCopy, onClose, announce }: Mana
             </div>
           ) : (
             <Toolbar aria-label={t("blocks.manage")} className="be-manage-tools">
+              {/* W13 step 4: one background for every selected block, one undo step. */}
+              <DialogTrigger>
+                <Button isDisabled={count === 0}>
+                  <Icon name="style" />
+                  {t("manage.style")}
+                </Button>
+                <Popover label={t("manage.styleTitle")} placement="top start">
+                  <div className="be-settings">
+                    <BackgroundFields
+                      settings={blocks.find((block) => block.id === chosen[0])?.settings ?? {}}
+                      onChange={(next) =>
+                        editor.dispatch(
+                          blocks
+                            .filter((block) => selected.has(block.id))
+                            .map((block) => withSettings(block, next)),
+                        )
+                      }
+                    />
+                  </div>
+                </Popover>
+              </DialogTrigger>
               <Button isDisabled={count === 0} onPress={() => onCopy(chosen)}>
                 <Icon name="copy" />
                 {t("action.copy")}
+              </Button>
+              <Button isDisabled={count === 0} onPress={() => setPicking("lesson")}>
+                {t("manage.copyToLesson")}
+              </Button>
+              <Button isDisabled={count === 0} onPress={() => setPicking("course")}>
+                {t("manage.copyToCourse")}
               </Button>
               <Button isDisabled={count === 0} onPress={duplicate}>
                 {t("action.duplicate")}
@@ -159,6 +226,37 @@ export function ManageBlocks({ editor, lesson, onCopy, onClose, announce }: Mana
           )}
         </div>
       </div>
+      {picking && (
+        <PickerDialog
+          title={t(picking === "lesson" ? "copyBlocks.lessonTitle" : "copyBlocks.courseTitle", {
+            count,
+          })}
+          label={t(picking === "lesson" ? "copyBlocks.lessons" : "copyBlocks.courses")}
+          items={
+            picking === "lesson"
+              ? editor.document.entries.flatMap((entry) =>
+                  entry.kind === "lesson"
+                    ? [
+                        {
+                          id: entry.id,
+                          title: shownTitle(entry.title, t("outline.untitledLesson")),
+                        },
+                      ]
+                    : [],
+                )
+              : courses()
+          }
+          submit={t("action.copy")}
+          empty={{ title: t("copyTo.none"), body: t("copyTo.noneBody") }}
+          answer={(id) => {
+            const kind = picking;
+            setPicking(undefined);
+            if (id === null) return;
+            if (kind === "lesson") copyToLesson(id);
+            else void onCopyToCourse(chosen, id);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

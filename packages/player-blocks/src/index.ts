@@ -1,6 +1,8 @@
 // Blocks player (ENG-04). The browser entry is `./boot` (built as one classic script, ADR-0003);
 // this entry gives builders and tests the package contract: the data file, the index page, the
-// chunk loader, lesson addresses, the progress engine and the player lifecycle.
+// chunk loader, lesson addresses, the progress engine, the player lifecycle, and the block renderer,
+// which the editor's block previews use.
+export { type BlockContext, renderBlock } from "./blocks.js";
 export type { PlayerRegistry } from "./boot.js";
 export type { CourseData, PlayerFiles } from "./data.js";
 export {

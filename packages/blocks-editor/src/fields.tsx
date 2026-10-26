@@ -1,9 +1,18 @@
 // Text fields that edit the course: what is typed is kept as one undo step when the field loses
 // focus or on Enter, and Escape puts back the kept value (UI-BLOCKS-EDITOR-R13, blocks-editor.md
 // 2.2, 2.3). Saving first keeps what the fields hold (keepDrafts).
-import { RichTextField, TextArea, TextField, type TextFieldProps } from "@course-suite/ui";
-import { useEffect, useRef, useState } from "react";
-import { cleanRichText } from "./richtext.js";
+import {
+  cleanRichText,
+  type LinkTarget,
+  RichTextField,
+  TextArea,
+  TextField,
+  type TextFieldProps,
+} from "@course-suite/ui";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+
+/** The lessons and quizzes of the open course, which links in formatted text may go to (L13). */
+export const LinkTargets = createContext<readonly LinkTarget[]>([]);
 
 const drafts = new Set<() => void>();
 
@@ -78,6 +87,7 @@ export interface RichDraftFieldProps {
  * tools, Escape puts back the kept text. What it keeps is normalised course rich text.
  */
 export function RichDraftField({ value: kept, onCommit, ...props }: RichDraftFieldProps) {
+  const lessons = useContext(LinkTargets);
   const [value, setValue] = useState(kept);
   useEffect(() => setValue(kept), [kept]);
   const commit = () => {
@@ -90,6 +100,7 @@ export function RichDraftField({ value: kept, onCommit, ...props }: RichDraftFie
   return (
     <RichTextField
       {...props}
+      lessons={lessons}
       value={value}
       onChange={setValue}
       onLeave={commit}
@@ -100,22 +111,20 @@ export function RichDraftField({ value: kept, onCommit, ...props }: RichDraftFie
   );
 }
 
-/** Plain text as the HTML fragment a rich-text field holds: a paragraph per line. */
-export function htmlOf(text: string): string {
-  const escaped = (line: string) =>
-    line.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p>${escaped(line)}</p>`)
-    .join("");
+/** Plain text as rich text inside an element (a heading or an answer): escaped, no paragraph. */
+export function inlineHtml(text: string): string {
+  return text.trim().replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-/** The text of an HTML fragment, a line per paragraph or line break, read by the browser. */
+/**
+ * The text of an HTML fragment, a line per paragraph or line break, read by the browser into an
+ * inert template, where nothing in it loads, runs or applies.
+ */
 export function textOf(html: string): string {
   if (!html) return "";
-  const body = new DOMParser().parseFromString(html, "text/html").body;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const body = template.content;
   for (const br of body.querySelectorAll("br")) br.replaceWith("\n");
   const blocks = body.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6, blockquote");
   const lines = blocks.length > 0 ? [...blocks].map((block) => block.textContent ?? "") : [];

@@ -54,5 +54,18 @@ export const RICH_TEXT_DROPPED: ReadonlySet<string> = new Set([
 /** Attributes kept: `lang` and `dir` on any kept element, and `href` on a link to a safe address. */
 export const RICH_TEXT_ATTRIBUTES: ReadonlySet<string> = new Set(["lang", "dir"]);
 
-/** A link address the player keeps: web and mail addresses only. */
-export const isSafeLink = (href: string): boolean => /^(https?:|mailto:)/i.test(href.trim());
+/**
+ * A link to a lesson or quiz of the same course, or to one block of it (blocks-editor.md L6, L13,
+ * UI-BLOCKS-EDITOR-R33): the player's own address of that page, `#/lessons/<id>`, optionally
+ * followed by `/<block id>`.
+ */
+export const isLessonLink = (href: string): boolean =>
+  /^#\/lessons\/[^/?#\s]+(\/[^/?#\s]+)?$/.test(href.trim());
+
+/** The link to lesson or quiz `page`, or to its block `block`: the player's address of it. */
+export const lessonLink = (page: string, block?: string): string =>
+  `#/lessons/${encodeURIComponent(page)}${block === undefined ? "" : `/${encodeURIComponent(block)}`}`;
+
+/** A link address the player keeps: web and mail addresses, and links to a lesson or a block. */
+export const isSafeLink = (href: string): boolean =>
+  /^(https?:|mailto:)/i.test(href.trim()) || isLessonLink(href);

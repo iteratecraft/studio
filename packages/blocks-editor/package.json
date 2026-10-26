@@ -23,6 +23,8 @@
     "@course-suite/doc-ops": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/host": "workspace:*",
+    "@course-suite/labels": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*",
     "@course-suite/project": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "react": "catalog:"

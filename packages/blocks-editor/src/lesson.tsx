@@ -5,7 +5,7 @@ import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
 import { EmptyState, ListBoxItem, Select, type ToastQueue, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
-import { DraftField, htmlOf, textOf } from "./fields.js";
+import { DraftField, RichDraftField } from "./fields.js";
 import { type Clipboard, LessonBlocks } from "./lesson-blocks.js";
 import type { CourseSession } from "./session.js";
 
@@ -66,15 +66,10 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
           value={entry.title}
           onCommit={(title) => update({ title })}
         />
-        <DraftField
+        <RichDraftField
           label={t("editor.description")}
-          multiline
-          value={textOf(entry.description ?? "")}
-          onCommit={(value) => {
-            const html = htmlOf(value);
-            if (html) update({ description: html });
-            else unset("description");
-          }}
+          value={entry.description ?? ""}
+          onCommit={(html) => (html ? update({ description: html }) : unset("description"))}
         />
         <DraftField
           label={t("lesson.author")}
@@ -87,7 +82,13 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
           }}
         />
       </div>
-      <LessonContent session={session} entry={entry} toasts={toasts} clipboard={clipboard} />
+      <LessonContent
+        session={session}
+        entry={entry}
+        toasts={toasts}
+        clipboard={clipboard}
+        onGo={onGo}
+      />
     </section>
   );
 }
@@ -98,11 +99,14 @@ export function LessonContent({
   entry,
   toasts,
   clipboard,
+  onGo,
 }: {
   session: CourseSession;
   entry: Entry;
   toasts: ToastQueue;
   clipboard: Clipboard;
+  /** Opens another lesson of the course. */
+  onGo?: (id: string) => void;
 }) {
   const t = useStrings();
   if (entry.kind === "quiz") {
@@ -113,5 +117,13 @@ export function LessonContent({
     );
   }
   if (entry.kind !== "lesson") return null;
-  return <LessonBlocks session={session} lesson={entry} toasts={toasts} clipboard={clipboard} />;
+  return (
+    <LessonBlocks
+      session={session}
+      lesson={entry}
+      toasts={toasts}
+      clipboard={clipboard}
+      {...(onGo && { onGo })}
+    />
+  );
 }

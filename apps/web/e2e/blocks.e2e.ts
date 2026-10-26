@@ -1,7 +1,8 @@
 // Block editing in Chromium against the in-memory host (M2-10, BLK-03): the block library and the
 // shortcut bar, moving, duplicating and deleting blocks, copy and paste within and across lessons
-// and courses, manage blocks, the style and format menus, formatted text, and the preview at the
-// lesson, by pointer and by keyboard, with axe on every screen in both themes.
+// and courses, manage blocks (one background, copies to a lesson or a course), links to blocks and
+// lessons, the style and format menus, formatted text and its safety, the block previews, and the
+// preview at the lesson, by pointer and by keyboard, with axe on every screen in both themes.
 import {
   type Block,
   type ContentItem,
@@ -14,11 +15,14 @@ import { violations } from "./axe.ts";
 import {
   back,
   button,
+  bytesOf,
   card,
   courseIn,
+  files,
   heading,
   launch,
   openFixture,
+  retitle,
   status,
   unzip,
 } from "./helpers.ts";
@@ -472,7 +476,7 @@ test.describe("copy and paste", () => {
     await list.getByRole("row", { name: "Heading: Pick a sunny spot" }).click();
     await list.getByRole("row", { name: "Continue" }).click();
     await expect(manage.getByRole("status")).toHaveText("3 blocks selected");
-    await manage.getByRole("button", { name: "Copy" }).click();
+    await manage.getByRole("button", { name: "Copy", exact: true }).click();
     await expect(
       page.getByRole("alertdialog", { name: "Copied 3 blocks. Paste them in any lesson." }),
     ).toBeVisible();
@@ -595,7 +599,7 @@ test.describe("block settings and preview", () => {
 
     await style.getByRole("button", { name: /Background/ }).click();
     await page.getByRole("option", { name: "Custom colour" }).click();
-    const color = style.getByRole("textbox", { name: "Colour" });
+    const color = style.getByRole("textbox", { name: "Colour", exact: true });
     await color.fill("#FFEB3B");
     await color.press("Enter");
     await style.getByRole("button", { name: /Text colour/ }).click();
@@ -626,7 +630,7 @@ test.describe("block settings and preview", () => {
     await expect(shown.locator("p")).toHaveCSS("color", "rgb(0, 0, 0)");
   });
 
-  test("[rise:3D] blocks-editor L10, W11, UI-BLOCKS-EDITOR-R18: by keyboard, the format menu sets padding by preset or exact pixels, linked or not, the content width and the animation", async ({
+  test("[rise:3D] blocks-editor L10, W11, 2.4, UI-BLOCKS-EDITOR-R18: by keyboard, the format menu sets padding by preset or exact pixels, linked or not, the content width and the animation", async ({
     page,
   }) => {
     await openGarden(page);
@@ -681,6 +685,10 @@ test.describe("block settings and preview", () => {
     block = lessonIn(await saved(page), "lessplan01").blocks[0];
     expect(block?.settings).toEqual({ padding: { top: 200, bottom: 61, linked: false } });
 
+    // 2.4: the width starts at the full text column (the lesson's 760 px column).
+    await expect(format.getByRole("button", { name: /Content width/ })).toContainText(
+      "Full column",
+    );
     await format.getByRole("button", { name: /Content width/ }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("option", { name: "Narrow" }).focus();
@@ -967,6 +975,492 @@ test.describe("block content", () => {
   });
 });
 
+test.describe("copying blocks to a lesson or a course", () => {
+  test("blocks-editor W12, W13, L16, UI-BLOCKS-EDITOR-R24, UI-PUBCOLLAB-R31, B8: manage blocks copies the selection to the end of another lesson in one step, and the notice opens that lesson", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    await page.getByRole("button", { name: "Manage blocks" }).click();
+    const manage = page.getByRole("dialog", { name: "Manage blocks" });
+    const list = manage.getByRole("grid", { name: "Blocks to select in Planning" });
+    // By keyboard: pick the heading, then copy it to Planting.
+    await list.getByRole("row", { name: "Heading: Pick a sunny spot" }).focus();
+    await page.keyboard.press("Space");
+    await manage.getByRole("button", { name: "Copy to a lesson…" }).click();
+    let picker = page.getByRole("dialog", { name: "Copy 1 block to a lesson" });
+    const lessons = picker.getByRole("listbox", { name: "Lessons" });
+    await expect(lessons.getByRole("option")).toHaveText(["Planning", "Planting"]);
+    await expect(lessons.getByRole("option", { name: "Planning" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(picker).toHaveCount(0);
+    await expect(
+      page.getByRole("alertdialog", { name: "Copied 1 block to the end of Planting" }),
+    ).toBeVisible();
+    // Then the paragraph: copies go to the end, after the heading.
+    await list.getByRole("row", { name: "Heading: Pick a sunny spot" }).click();
+    await list.getByRole("row", { name: /^Paragraph/ }).click();
+    await manage.getByRole("button", { name: "Copy to a lesson…" }).click();
+    picker = page.getByRole("dialog", { name: "Copy 1 block to a lesson" });
+    await picker.getByRole("option", { name: "Planting" }).click();
+    await picker.getByRole("button", { name: "Copy" }).click();
+    let course = await saved(page);
+    const copied = lessonIn(course, "lessplnt01").blocks;
+    expect(kinds(copied)).toEqual(["text/heading", "text/paragraph"]);
+    expect(copied.map((block) => block.id)).not.toContain("blkpara001");
+    expect(contentOf(copied[1])?.text).toBe("<p>Most vegetables need six hours of sun.</p>");
+    expect(kinds(lessonIn(course, "lessplan01").blocks)).toHaveLength(4);
+    // Each copy is one undo step.
+    await manage.getByRole("button", { name: "Close" }).click();
+    await heading(page, "Kitchen garden").click();
+    await page.keyboard.press("Control+Z");
+    course = await saved(page);
+    expect(kinds(lessonIn(course, "lessplnt01").blocks)).toEqual(["text/heading"]);
+    await page.keyboard.press("Control+Y");
+    // The notice's link opens the lesson the copies went to.
+    await page.getByRole("button", { name: "Manage blocks" }).click();
+    await list.getByRole("row", { name: "Continue" }).click();
+    await manage.getByRole("button", { name: "Copy to a lesson…" }).click();
+    await page
+      .getByRole("dialog", { name: "Copy 1 block to a lesson" })
+      .getByRole("option", { name: "Planting" })
+      .dblclick();
+    await manage.getByRole("button", { name: "Close" }).click();
+    // Copy notices pile up: the newest is the last.
+    await page
+      .getByRole("alertdialog", { name: "Copied 1 block to the end of Planting" })
+      .last()
+      .getByRole("button", { name: "Open that lesson" })
+      .click();
+    await expect(page.getByRole("heading", { level: 2, name: "Planting" })).toBeFocused();
+    expect(await rowNames(page, "Planting")).toEqual([
+      "Heading: Pick a sunny spot",
+      "Paragraph: Most vegetables need six hours of sun.",
+      "Continue",
+    ]);
+  });
+
+  test("blocks-editor W12, W13, B7, B8, UI-PUBCOLLAB-R31, BLK-03: manage blocks copies the selection to the end of another course or microlearning, with its media, and offers to open it", async ({
+    page,
+  }) => {
+    await launch(page);
+    const tips: Course = {
+      ...herbs(),
+      id: "5a0c1e3d-7b2f-4c86-9e14-3d2a6b8f0c71",
+      kind: "microlearning",
+      title: "Quick tips",
+      entries: [{ id: "lesstips01", kind: "lesson", title: "Quick tips", blocks: [] }],
+    };
+    const pots: Course = {
+      ...herbs(),
+      entries: [
+        { id: "lessherb01", kind: "lesson", title: "Pots", blocks: [] },
+        { id: "lessherb02", kind: "lesson", title: "Soil", blocks: [] },
+        { id: "secherb001", kind: "section", title: "More" },
+      ],
+    };
+    await openFixture(page, "Quick tips.crs", tips);
+    await back(page);
+    await openFixture(page, "Herb pots.crs", pots);
+    await back(page);
+    await openFixture(page, FILE, garden(), { "bed.svg": BED });
+    await openLesson(page, "Planning");
+    await page.getByRole("button", { name: "Manage blocks" }).click();
+    const manage = page.getByRole("dialog", { name: "Manage blocks" });
+    const list = manage.getByRole("grid", { name: "Blocks to select in Planning" });
+    await list.getByRole("row", { name: "Centred image" }).click();
+    await list.getByRole("row", { name: "Heading: Pick a sunny spot" }).click();
+    await manage.getByRole("button", { name: "Copy to another course…" }).click();
+    const picker = page.getByRole("dialog", { name: "Copy 2 blocks to another course" });
+    // Courses and microlearning items, never the open course.
+    await expect(
+      picker.getByRole("listbox", { name: "Courses and microlearnings" }).getByRole("option"),
+    ).toHaveText(["Herb pots", "Quick tips"]);
+    await picker.getByRole("option", { name: "Herb pots" }).click();
+    await picker.getByRole("button", { name: "Copy" }).click();
+    const notice = page.getByRole("alertdialog", {
+      name: "Copied 2 blocks to the end of Soil in Herb pots",
+    });
+    await expect(notice).toBeVisible();
+    // The other course's file holds them at the end of its last lesson, in order, with the image.
+    const course = await courseIn(page, "Herb pots.crs");
+    const blocks = lessonIn(course, "lessherb02").blocks;
+    expect(kinds(blocks)).toEqual(["text/heading", "image/centered"]);
+    expect(blocks.map((block) => block.id)).not.toContain("blkimage01");
+    expect(course.media).toEqual([expect.objectContaining({ key: "bed.svg" })]);
+    const zip = await unzip(page, "Herb pots.crs");
+    const manifest = JSON.parse(new TextDecoder().decode(await zip.read("project.json")));
+    expect(Object.keys(manifest.assets)).toEqual(["bed.svg"]);
+    // The open course is unchanged; the notice opens the other course.
+    await expect(saveState(page)).toHaveText("Saved");
+    await manage.getByRole("button", { name: "Close" }).click();
+    await notice.getByRole("button", { name: "Open that course" }).click();
+    await expect(heading(page, "Herb pots")).toBeVisible();
+    await openLesson(page, "Soil");
+    expect(await rowNames(page, "Soil")).toEqual(["Heading: Pick a sunny spot", "Centred image"]);
+  });
+
+  test("blocks-editor W12, BLK-01: a course holding work kept after a crash is not copied into, and its file and autosave stay as they were", async ({
+    page,
+  }) => {
+    await launch(page);
+    await openFixture(page, "Herb pots.crs", herbs());
+    await retitle(page, "Herb pots, unsaved");
+    await expect
+      .poll(() => files(page), { timeout: 10_000 })
+      .toContain(".Herb pots.crs.autosave/2.crs");
+    await page.evaluate(() => window.editorTest.restart());
+    const before = await bytesOf(page, "Herb pots.crs");
+    await openFixture(page, FILE, garden(), { "bed.svg": BED });
+    await openLesson(page, "Planning");
+    await page.getByRole("button", { name: "Manage blocks" }).click();
+    const manage = page.getByRole("dialog", { name: "Manage blocks" });
+    await manage.getByText("Select all").click();
+    await manage.getByRole("button", { name: "Copy to another course…" }).click();
+    await page
+      .getByRole("dialog", { name: "Copy 4 blocks to another course" })
+      .getByRole("option", { name: /^Herb pots/ })
+      .dblclick();
+    const refused = page.getByRole("alertdialog", { name: "The blocks were not copied" });
+    await expect(refused).toContainText("holds work kept after the app closed unexpectedly");
+    await refused.getByRole("button", { name: "OK" }).click();
+    expect(await bytesOf(page, "Herb pots.crs")).toEqual(before);
+    expect(await files(page)).toContain(".Herb pots.crs.autosave/2.crs");
+  });
+
+  test("blocks-editor L16, W12, W13, 2.4: manage blocks gives every selected block one background in one undo step", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    await page.getByRole("button", { name: "Manage blocks" }).click();
+    const manage = page.getByRole("dialog", { name: "Manage blocks" });
+    const list = manage.getByRole("grid", { name: "Blocks to select in Planning" });
+    await list.getByRole("row", { name: "Heading: Pick a sunny spot" }).click();
+    await list.getByRole("row", { name: "Continue" }).click();
+    // By keyboard from the tools: Style, the background list, Dark.
+    await manage.getByRole("button", { name: "Style" }).focus();
+    await page.keyboard.press("Enter");
+    const style = page.getByRole("dialog", { name: "Style of the selected blocks" });
+    await style.getByRole("button", { name: /Background/ }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("option", { name: "Dark" }).focus();
+    await page.keyboard.press("Enter");
+    let blocks = lessonIn(await saved(page), "lessplan01").blocks;
+    const dark = { background: { kind: "color", color: "#2b3038" } };
+    expect(blocks.map((block) => block.settings)).toEqual([dark, undefined, undefined, dark]);
+    // A custom colour too, kept with each block's other settings.
+    await style.getByRole("button", { name: /Background/ }).click();
+    await page.getByRole("option", { name: "Custom colour" }).click();
+    const color = style.getByRole("textbox", { name: "Colour", exact: true });
+    await color.fill("#123456");
+    await color.press("Enter");
+    blocks = lessonIn(await saved(page), "lessplan01").blocks;
+    const custom = { background: { kind: "color", color: "#123456" } };
+    expect(blocks.map((block) => block.settings)).toEqual([custom, undefined, undefined, custom]);
+    await page.keyboard.press("Escape");
+    await manage.getByRole("button", { name: "Close" }).click();
+    await heading(page, "Kitchen garden").click();
+    await page.keyboard.press("Control+Z");
+    blocks = lessonIn(await saved(page), "lessplan01").blocks;
+    const first = { background: { kind: "color", color: "#2f6f9f" } };
+    expect(blocks.map((block) => block.settings)).toEqual([first, undefined, undefined, first]);
+  });
+});
+
+test.describe("links to blocks and lessons", () => {
+  test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+
+  test("blocks-editor L6, W12, 2.4: copy link to block puts the block's address on the clipboard; as a text link, the player shows that block", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    await more(page, blockRow(page, "Planning", "Continue"), "Copy link to block");
+    await expect(
+      page.getByRole("alertdialog", { name: /^Copied a link to Continue\./ }),
+    ).toBeVisible();
+    const link = await page.evaluate(() => navigator.clipboard.readText());
+    expect(link).toBe("#/lessons/lessplan01/blkcont001");
+    // Pasted as the address of a link in the paragraph.
+    const text = blockRow(
+      page,
+      "Planning",
+      "Paragraph: Most vegetables need six hours of sun.",
+    ).getByRole("textbox", { name: "Text" });
+    await text.click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Shift+End");
+    await page.keyboard.press("Control+K");
+    const dialog = page.getByRole("dialog", { name: "Link" });
+    await dialog.getByRole("textbox", { name: "Web or email address" }).fill(link);
+    await dialog.getByRole("button", { name: "Add link" }).click();
+    await expect(text.getByRole("link")).toHaveAttribute("href", link);
+    await page.keyboard.press("Tab");
+    const html = contentOf(lessonIn(await saved(page), "lessplan01").blocks[1])?.text;
+    expect(html).toBe(
+      '<p><a href="#/lessons/lessplan01/blkcont001">Most vegetables need six hours of sun.</a></p>',
+    );
+    // In the player the link stays in the course and shows the block.
+    await button(page, "Preview").click();
+    const frame = page.frameLocator("iframe[title='Course preview']:not([data-pending])");
+    const shown = frame.getByRole("link", { name: "Most vegetables need six hours of sun." });
+    await expect(shown).not.toHaveAttribute("target");
+    await shown.click();
+    await expect(frame.locator('[data-block="blkcont001"]')).toBeFocused();
+  });
+
+  test("blocks-editor L13, W14, UI-BLOCKS-EDITOR-R33: by keyboard, the link dialog finds a lesson by its title and links text to it; the player opens it in place", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    const text = blockRow(
+      page,
+      "Planning",
+      "Paragraph: Most vegetables need six hours of sun.",
+    ).getByRole("textbox", { name: "Text" });
+    await text.click();
+    await page.keyboard.press("Control+End");
+    for (let i = 0; i < "sun.".length; i += 1) await page.keyboard.press("Shift+ArrowLeft");
+    await page.keyboard.press("Control+K");
+    const dialog = page.getByRole("dialog", { name: "Link" });
+    await expect(dialog.getByRole("textbox", { name: "Web or email address" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    const find = dialog.getByRole("searchbox", { name: "Find a lesson" });
+    await expect(find).toBeFocused();
+    const lessons = dialog.getByRole("listbox", { name: "Lessons" });
+    await expect(lessons.getByRole("option")).toHaveText(["Planning", "Planting"]);
+    await page.keyboard.type("plant");
+    // Enter in the search does not submit the empty address.
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await expect(lessons.getByRole("option")).toHaveText(["Planting"]);
+    await page.keyboard.type("zz");
+    await expect(lessons).toHaveText("No lesson matches");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Tab");
+    await expect(lessons.getByRole("option", { name: "Planting" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toHaveCount(0);
+    await expect(text.getByRole("link", { name: "sun." })).toHaveAttribute(
+      "href",
+      "#/lessons/lessplnt01",
+    );
+    await page.keyboard.press("Tab");
+    const html = contentOf(lessonIn(await saved(page), "lessplan01").blocks[1])?.text;
+    expect(html).toBe(
+      '<p>Most vegetables need six hours of <a href="#/lessons/lessplnt01">sun.</a></p>',
+    );
+    await button(page, "Preview").click();
+    const frame = page.frameLocator("iframe[title='Course preview']:not([data-pending])");
+    await frame.getByRole("link", { name: "sun." }).click();
+    await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Planting");
+  });
+});
+
+test.describe("block previews and appearance", () => {
+  test("BLK-03: each block shows beside its fields as the real player draws it, again after every edit, with its media and out of the way of keyboard and screen readers", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    const row = blockRow(page, "Planning", "Heading: Pick a sunny spot");
+    const preview = row.locator(".be-block-preview");
+    await expect(preview).toHaveAttribute("inert");
+    // The player's own markup and style sheet: its heading class and size.
+    const drawn = preview.locator("[data-block='blkhead001'] h2.block-heading");
+    await expect(drawn).toHaveText("Pick a sunny spot");
+    await expect(drawn).toHaveCSS("font-size", "32px");
+    const title = row.getByRole("textbox", { name: "Heading" });
+    await title.fill("Find the sun");
+    await title.press("Enter");
+    await expect(
+      blockRow(page, "Planning", "Heading: Find the sun").locator(".be-block-preview h2"),
+    ).toHaveText("Find the sun");
+    // The image from the course file, as an in-memory address.
+    const image = blockRow(page, "Planning", "Centred image").locator(".be-block-preview img");
+    await expect(image).toHaveAttribute("src", /^blob:/);
+    await expect
+      .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBeGreaterThan(0);
+    await expect(
+      blockRow(page, "Planning", "Continue").locator(".be-block-preview button"),
+    ).toHaveText("Continue");
+    // A paragraph with no text shows nothing to learners, and says so.
+    const text = blockRow(
+      page,
+      "Planning",
+      "Paragraph: Most vegetables need six hours of sun.",
+    ).getByRole("textbox", { name: "Text" });
+    await text.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("Tab");
+    await expect(blocksOf(page, "Planning").getByRole("row").nth(1)).toContainText(
+      "Learners see nothing of this block yet.",
+    );
+  });
+
+  test("[rise:3D] blocks-editor L9, W10, 2.4, BLK-03: cards stay white on a block colour unless turned off, and a block's accent colour is kept only when readable", async ({
+    page,
+  }) => {
+    await openGarden(page);
+    await page.getByRole("button", { name: "All blocks" }).click();
+    await page.getByRole("searchbox", { name: "Search block types" }).fill("single");
+    await page.getByRole("option", { name: "Single choice" }).click();
+    const check = blocksOf(page, "Planning").getByRole("row").last();
+    await check.getByRole("button", { name: "Style", exact: true }).click();
+    const style = page.getByRole("dialog", { name: "Style" });
+    await style.getByRole("button", { name: /Background/ }).click();
+    await page.getByRole("option", { name: "Dark" }).click();
+    const cards = style.getByRole("switch", { name: "Keep cards white" });
+    await expect(cards).toBeChecked();
+    const card = check.locator(".be-block-preview form.check");
+    await expect(card).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(card.locator(".prompt")).toHaveCSS("color", "rgb(29, 31, 35)");
+    await cards.click();
+    await expect(card).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    let block = lessonIn(await saved(page), "lessplan01").blocks.at(-1);
+    expect(block?.settings).toEqual({
+      background: { kind: "color", color: "#2b3038" },
+      cardStyle: "transparent",
+    });
+    // An accent colour that is hard to read on the block's surface is refused.
+    const accent = style.getByRole("textbox", { name: "Accent colour" });
+    await accent.fill("#1f3a5f");
+    await accent.press("Enter");
+    await expect(accent).toHaveAttribute("aria-invalid", "true");
+    await expect(style).toContainText("Hard to read on this block's background");
+    await accent.fill("#ffd166");
+    await accent.press("Enter");
+    await expect(accent).not.toHaveAttribute("aria-invalid");
+    const drawn = check.locator(".be-block-preview [data-block]");
+    await expect
+      .poll(() =>
+        drawn.evaluate((element) => getComputedStyle(element).getPropertyValue("--accent")),
+      )
+      .toBe("#ffd166");
+    block = lessonIn(await saved(page), "lessplan01").blocks.at(-1);
+    expect(block?.settings).toMatchObject({ accentColor: "#ffd166" });
+    // The real player shows it on the button, with dark text on it.
+    await page.keyboard.press("Escape");
+    await button(page, "Preview").click();
+    const frame = page.frameLocator("iframe[title='Course preview']:not([data-pending])");
+    const submit = frame.locator(`[data-block="${block?.id}"]`).getByRole("button", {
+      name: "Check",
+    });
+    await expect(submit).toHaveCSS("background-color", "rgb(255, 209, 102)");
+    await expect(submit).toHaveCSS("color", "rgb(0, 0, 0)");
+  });
+
+  test("[rise:3D] BLK-03, blocks-interactions GI-O5: in a microlearning a block can show in one step with the next; the last block cannot, and a course has no such setting", async ({
+    page,
+  }) => {
+    await launch(page);
+    await button(page, "New").click();
+    await page.getByRole("menuitem", { name: "Blank microlearning" }).click();
+    const dialog = page.getByRole("dialog", { name: "New microlearning" });
+    await dialog.getByRole("textbox", { name: "Title" }).fill("Steps");
+    await dialog.getByRole("button", { name: "Create" }).click();
+    const bar = page.getByRole("toolbar", { name: "Add a block at the end" });
+    await bar.getByRole("button", { name: "Paragraph with heading" }).click();
+    await bar.getByRole("button", { name: "Continue" }).click();
+    const rows = blocksOf(page, "Steps").getByRole("row");
+    await rows.last().getByRole("button", { name: "Format" }).click();
+    let format = page.getByRole("dialog", { name: "Format" });
+    await expect(
+      format.getByRole("switch", { name: "Show with the next block in one step" }),
+    ).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await rows.first().getByRole("button", { name: "Format" }).click();
+    format = page.getByRole("dialog", { name: "Format" });
+    const connect = format.getByRole("switch", { name: "Show with the next block in one step" });
+    await expect(connect).toHaveAccessibleDescription("For a microlearning that moves in steps.");
+    await connect.focus();
+    await page.keyboard.press("Space");
+    const course = await saved(page, "Steps.crs");
+    expect((course.entries[0] as LessonEntry).blocks[0]?.settings).toEqual({ connectToNext: true });
+    await page.keyboard.press("Escape");
+    await back(page);
+    await openFixture(page, FILE, garden(), { "bed.svg": BED });
+    await openLesson(page, "Planning");
+    await blockRow(page, "Planning", "Continue").getByRole("button", { name: "Format" }).click();
+    await expect(page.getByRole("dialog", { name: "Format" })).toBeVisible();
+    await expect(page.getByRole("switch", { name: /next block/ })).toHaveCount(0);
+  });
+});
+
+test.describe("rich text safety and descriptions", () => {
+  test("BLK-03: formatted text from a course file is cleaned before it enters the editor page, so a meta refresh or other markup in it does nothing", async ({
+    page,
+  }) => {
+    const hostile =
+      '<p>Hi <a href="javascript:alert(1)">there</a></p><meta http-equiv="refresh" content="0;url=/index.html#hijacked"><base href="https://example.com/"><img src="x" alt="x"><style>p{color:red}</style><form action="https://example.com"><input name="a"></form><svg><a href="https://example.com/s">svg</a></svg><iframe src="https://example.com"></iframe>';
+    const course = garden();
+    course.description = hostile;
+    const lesson = course.entries[0] as LessonEntry;
+    lesson.description = hostile;
+    (lesson.blocks[1]?.items?.[0] as ContentItem).text = hostile;
+    await launch(page);
+    await page.evaluate(() => Object.assign(window, { stillHere: true }));
+    const navigations: string[] = [];
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url());
+    });
+    await openFixture(page, FILE, course, { "bed.svg": BED });
+    const description = page.getByRole("textbox", { name: "Description" });
+    await expect(description).toHaveText("Hi theresvg");
+    await openLesson(page, "Planning");
+    const fields = [
+      page.getByRole("textbox", { name: "Description" }),
+      blocksOf(page, "Planning").getByRole("row").nth(1).getByRole("textbox", { name: "Text" }),
+    ];
+    for (const field of fields) {
+      await expect(field).toHaveText("Hi theresvg");
+      expect(await field.evaluate((element) => element.innerHTML)).toBe(
+        "<p>Hi there</p><p>svg</p>",
+      );
+    }
+    // Still the same page: nothing navigated it, loaded from elsewhere or changed its base.
+    expect(
+      await page.evaluate(() => (window as unknown as { stillHere?: boolean }).stillHere),
+    ).toBe(true);
+    expect(navigations).toEqual([]);
+    expect(await page.evaluate(() => document.baseURI)).toBe(page.url());
+    await expect(page.locator("meta[http-equiv=refresh], base, iframe, form")).toHaveCount(0);
+    // The course file is left as it was until the author edits the text.
+    await expect(saveState(page)).toHaveText("Saved");
+  });
+
+  test("blocks-editor 2.2, BLK-01, BLK-02: the course and lesson descriptions are formatted text, edited without losing their formatting", async ({
+    page,
+  }) => {
+    const rich = "<p><strong>Bold</strong> start</p><ul><li>One</li></ul>";
+    const course = garden();
+    course.description = rich;
+    (course.entries[0] as LessonEntry).description = rich;
+    await launch(page);
+    await openFixture(page, FILE, course, { "bed.svg": BED });
+    for (const place of ["course", "lesson"] as const) {
+      if (place === "lesson") await openLesson(page, "Planning");
+      const description = page.getByRole("textbox", { name: "Description" });
+      await expect(description.locator("strong")).toHaveText("Bold");
+      await expect(description.locator("ul > li")).toHaveText("One");
+      await description.click();
+      await page.keyboard.press("Control+End");
+      await page.keyboard.type(" end");
+      // Formatting from its tools, too.
+      await page.keyboard.press("Shift+Home");
+      await page.keyboard.press("Control+I");
+      await page.keyboard.press("Tab");
+    }
+    await page.keyboard.press("Control+S");
+    await expect(saveState(page)).toHaveText("Saved");
+    const kept = await courseIn(page, FILE);
+    const expected = "<p><strong>Bold</strong> start</p><ul><li><em>One end</em></li></ul>";
+    expect(kept.description).toBe(expected);
+    expect((kept.entries[0] as LessonEntry).description).toBe(expected);
+  });
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`UI-ACCESSIBILITY: no axe violation on the block editing screens in the ${theme} theme`, async ({
     page,
@@ -1014,6 +1508,15 @@ for (const theme of ["light", "dark"] as const) {
     const manage = page.getByRole("dialog", { name: "Manage blocks" });
     await manage.getByText("Select all").click();
     await check("manage blocks");
+    await manage.getByRole("button", { name: "Style" }).click();
+    await check("manage blocks, one background");
+    await page.keyboard.press("Escape");
+    await manage.getByRole("button", { name: "Copy to a lesson…" }).click();
+    await check("copy to a lesson");
+    await page.keyboard.press("Escape");
+    await manage.getByRole("button", { name: "Copy to another course…" }).click();
+    await check("copy to another course, none there");
+    await page.keyboard.press("Escape");
     await manage.getByRole("button", { name: "Delete" }).click();
     await check("delete question");
     await manage.getByRole("button", { name: "Delete" }).click();

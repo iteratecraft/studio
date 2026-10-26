@@ -2,7 +2,7 @@
 // title, the save state, undo and redo, save, the preview and the entry points of later waves;
 // under it the course overview (title, author, description and the outline), one open lesson, or
 // the preview of the course in the real player.
-import type { Entry } from "@course-suite/format";
+import { type Entry, lessonLink } from "@course-suite/format";
 import {
   Button,
   IconButton,
@@ -12,9 +12,9 @@ import {
   ToolbarSeparator,
   useStrings,
 } from "@course-suite/ui";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { shownTitle, TITLE_MAX } from "./course.js";
-import { DraftField, htmlOf, keepDrafts, textOf } from "./fields.js";
+import { DraftField, keepDrafts, LinkTargets, RichDraftField } from "./fields.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
@@ -79,6 +79,25 @@ export function EditorFrame({
             entry.id === view.id && entry.kind !== "section",
         )
       : undefined;
+  // UI-BLOCKS-EDITOR-R33: links in formatted text may go to a lesson or quiz of the course.
+  const { entries } = course;
+  const lessons = useMemo(
+    () =>
+      entries.flatMap((entry) =>
+        entry.kind === "section"
+          ? []
+          : [
+              {
+                href: lessonLink(entry.id),
+                title: shownTitle(
+                  entry.title,
+                  t(entry.kind === "quiz" ? "outline.untitledQuiz" : "outline.untitledLesson"),
+                ),
+              },
+            ],
+      ),
+    [entries, t],
+  );
   // A new screen: focus starts at its heading, for keyboard and screen reader users.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
@@ -112,107 +131,109 @@ export function EditorFrame({
   }[state.kind];
 
   return (
-    <div className="be-editor">
-      <header className="be-bar">
-        <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
-        <h1 ref={heading} tabIndex={-1} className="be-bar-title">
-          {title}
-        </h1>
-        <span role="status" className="be-save-state" data-state={state.kind}>
-          {stateText}
-        </span>
-        <Toolbar aria-label={t("editor.tools")} className="be-tools">
-          <IconButton
-            icon="undo"
-            label={t("editor.undo")}
-            isDisabled={!editor.canUndo}
-            onPress={() => editor.undo()}
-          />
-          <IconButton
-            icon="redo"
-            label={t("editor.redo")}
-            isDisabled={!editor.canRedo}
-            onPress={() => editor.redo()}
-          />
-          <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
-          <ToolbarSeparator />
-          {/* Theme arrives with M2-17, publish with M2-18. */}
-          <Button variant="quiet" isDisabled>
-            {t("editor.theme")}
-          </Button>
-          {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
-          <Button
-            isDisabled={view.kind === "preview"}
-            onPress={() =>
-              setView({
-                kind: "preview",
-                ...(view.kind === "entry" && { start: view.id }),
-              })
-            }
-          >
-            {t("editor.preview")}
-          </Button>
-          <Button variant="primary" isDisabled>
-            {t("editor.publish")}
-          </Button>
-        </Toolbar>
-      </header>
-      {view.kind === "preview" ? (
-        <main className="be-preview">
-          <PreviewPane
-            source={editor}
-            media={session.media}
-            start={view.start}
-            // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
-            onEdit={(page) => {
-              const entry = course.entries.find((other) => other.id === page);
-              go(
-                entry && entry.kind !== "section" && course.kind === "course"
-                  ? { kind: "entry", id: entry.id }
-                  : { kind: "overview" },
-              );
-            }}
-          />
-        </main>
-      ) : (
-        <main className="be-overview">
-          {open ? (
-            <LessonView
-              key={open.id}
-              session={session}
-              entry={open}
-              toasts={toasts}
-              clipboard={clipboard}
-              onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+    <LinkTargets value={lessons}>
+      <div className="be-editor">
+        <header className="be-bar">
+          <IconButton icon="back" label={t("editor.back")} onPress={onClose} />
+          <h1 ref={heading} tabIndex={-1} className="be-bar-title">
+            {title}
+          </h1>
+          <span role="status" className="be-save-state" data-state={state.kind}>
+            {stateText}
+          </span>
+          <Toolbar aria-label={t("editor.tools")} className="be-tools">
+            <IconButton
+              icon="undo"
+              label={t("editor.undo")}
+              isDisabled={!editor.canUndo}
+              onPress={() => editor.undo()}
             />
-          ) : (
-            <>
-              <CourseFields session={session} />
-              {course.kind === "microlearning" ? (
-                // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
-                // outline.
-                course.entries[0] && (
-                  <LessonContent
+            <IconButton
+              icon="redo"
+              label={t("editor.redo")}
+              isDisabled={!editor.canRedo}
+              onPress={() => editor.redo()}
+            />
+            <IconButton icon="save" label={t("editor.save")} onPress={onSave} />
+            <ToolbarSeparator />
+            {/* Theme arrives with M2-17, publish with M2-18. */}
+            <Button variant="quiet" isDisabled>
+              {t("editor.theme")}
+            </Button>
+            {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
+            <Button
+              isDisabled={view.kind === "preview"}
+              onPress={() =>
+                setView({
+                  kind: "preview",
+                  ...(view.kind === "entry" && { start: view.id }),
+                })
+              }
+            >
+              {t("editor.preview")}
+            </Button>
+            <Button variant="primary" isDisabled>
+              {t("editor.publish")}
+            </Button>
+          </Toolbar>
+        </header>
+        {view.kind === "preview" ? (
+          <main className="be-preview">
+            <PreviewPane
+              source={editor}
+              media={session.media}
+              start={view.start}
+              // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
+              onEdit={(page) => {
+                const entry = course.entries.find((other) => other.id === page);
+                go(
+                  entry && entry.kind !== "section" && course.kind === "course"
+                    ? { kind: "entry", id: entry.id }
+                    : { kind: "overview" },
+                );
+              }}
+            />
+          </main>
+        ) : (
+          <main className="be-overview">
+            {open ? (
+              <LessonView
+                key={open.id}
+                session={session}
+                entry={open}
+                toasts={toasts}
+                clipboard={clipboard}
+                onGo={(id) => go(id ? { kind: "entry", id } : { kind: "overview", from: open.id })}
+              />
+            ) : (
+              <>
+                <CourseFields session={session} />
+                {course.kind === "microlearning" ? (
+                  // rise.md 3A, blocks-editor.md 2.2 and W2: a microlearning is its one lesson, with no
+                  // outline.
+                  course.entries[0] && (
+                    <LessonContent
+                      session={session}
+                      entry={course.entries[0]}
+                      toasts={toasts}
+                      clipboard={clipboard}
+                    />
+                  )
+                ) : (
+                  <Outline
                     session={session}
-                    entry={course.entries[0]}
                     toasts={toasts}
-                    clipboard={clipboard}
+                    focusEntry={view.kind === "overview" ? view.from : undefined}
+                    onOpen={(id) => go({ kind: "entry", id })}
+                    onCopy={onCopyEntry}
                   />
-                )
-              ) : (
-                <Outline
-                  session={session}
-                  toasts={toasts}
-                  focusEntry={view.kind === "overview" ? view.from : undefined}
-                  onOpen={(id) => go({ kind: "entry", id })}
-                  onCopy={onCopyEntry}
-                />
-              )}
-            </>
-          )}
-        </main>
-      )}
-    </div>
+                )}
+              </>
+            )}
+          </main>
+        )}
+      </div>
+    </LinkTargets>
   );
 }
 
@@ -248,19 +269,18 @@ function CourseFields({ session }: { session: CourseSession }) {
           );
         }}
       />
-      <DraftField
+      {/* Rich text (2.2): its formatting is edited, never flattened. */}
+      <RichDraftField
         label={t("editor.description")}
         description={t("editor.descriptionHelp")}
-        multiline
-        value={textOf(description)}
-        onCommit={(value) => {
-          const html = htmlOf(value);
+        value={description}
+        onCommit={(html) =>
           editor.dispatch(
             html
               ? { type: "updateCourse", set: { description: html } }
               : { type: "updateCourse", unset: ["description"] },
-          );
-        }}
+          )
+        }
       />
     </div>
   );

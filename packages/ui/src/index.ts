@@ -1,6 +1,7 @@
 // The editor UI kit (M2-05, ENG-12): React Aria Components with our own styles. Import
 // "@course-suite/ui/styles.css" once in the app for the tokens and component styles.
 export * from "./buttons.js";
+export * from "./clean.js";
 export * from "./collections.js";
 export * from "./fields.js";
 export * from "./icons.js";

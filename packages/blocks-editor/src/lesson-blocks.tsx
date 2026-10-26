@@ -1,9 +1,10 @@
 // The blocks of one lesson (blocks-editor.md L1 to L6, L16, W7 to W13; rise.md 2 flow 3, 3C, 3D,
-// 3J; BLK-03): one row per block with its type, its tools and its content edited in place; an
-// insert control below every block and above the first; the shortcut bar and the block library;
-// copy and paste, also across lessons and courses; and the manage-blocks list for several blocks.
-// Every change is one doc-ops command list, so one undo step, and is announced to screen readers.
-import type { Block, LessonEntry } from "@course-suite/format";
+// 3J; BLK-03): one row per block with its type, its tools, its content edited in place and the
+// block as learners see it; an insert control below every block and above the first; the shortcut
+// bar and the block library; copy and paste, also across lessons and courses; a link to a block;
+// and the manage-blocks list for several blocks. Every change is one doc-ops command list, so one
+// undo step, and is announced to screen readers.
+import { type Block, type LessonEntry, lessonLink } from "@course-suite/format";
 import {
   Button,
   EmptyState,
@@ -26,6 +27,7 @@ import {
 } from "@course-suite/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { BlockLibrary } from "./block-library.js";
+import { BlockPreview } from "./block-preview.js";
 import { FormatMenu, StyleMenu } from "./block-settings.js";
 import { BLOCK_TYPES, type BlockType, blockName, idMaker, typeName, typeOf } from "./blocks.js";
 import { ManageBlocks, moveTogether } from "./manage.js";
@@ -39,6 +41,10 @@ export interface Clipboard {
   copy: (ids: string[]) => Promise<void>;
   /** Pastes them at `index` of lesson `lesson`; resolves to the new blocks' ids. */
   paste: (lesson: string, index: number) => Promise<string[]>;
+  /** The other courses and microlearning items blocks can be copied to (B7). */
+  courses: () => { id: string; title: string }[];
+  /** Copies blocks `ids` to the end of the last lesson of the course with id `course` (W12). */
+  copyToCourse: (ids: string[], course: string) => Promise<void>;
 }
 
 /** The shortcut bar (L2): the most used types the editor has today, added at the end. */
@@ -54,9 +60,11 @@ export interface LessonBlocksProps {
   lesson: LessonEntry;
   toasts: ToastQueue;
   clipboard: Clipboard;
+  /** Opens another lesson of the course. */
+  onGo?: (id: string) => void;
 }
 
-export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlocksProps) {
+export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: LessonBlocksProps) {
   const t = useStrings();
   const { editor } = session;
   const blocks = lesson.blocks;
@@ -167,6 +175,20 @@ export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlock
         toasts.add({ title: t("blocks.copied", { count: ids.length }) }, { timeout: 5000 }),
       )
       .catch(() => {});
+  };
+
+  /** Puts a link to the block on the system clipboard, for a text link (L6, W12 step 3). */
+  const copyLink = (block: Block) => {
+    navigator.clipboard
+      .writeText(lessonLink(lesson.id, block.id))
+      .then(
+        () => t("blocks.linkCopied", { name: name(block) }),
+        (error: unknown) =>
+          t("blocks.linkFailed", {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+      )
+      .then((title) => toasts.add({ title }, { timeout: 5000 }));
   };
 
   const paste = (index: number) => {
@@ -282,7 +304,11 @@ export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlock
                         className="be-block-tools"
                       >
                         <StyleMenu editor={editor} block={block} />
-                        <FormatMenu editor={editor} block={block} />
+                        <FormatMenu
+                          editor={editor}
+                          block={block}
+                          next={index < blocks.length - 1}
+                        />
                         <IconButton
                           icon="arrow-up"
                           label={t("outline.moveUp")}
@@ -313,6 +339,7 @@ export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlock
                             onAction={(key) => {
                               if (key === "copy") copy([block.id]);
                               else if (key === "paste") paste(index + 1);
+                              else if (key === "link") copyLink(block);
                               else setLibrary(index + 1);
                             }}
                           >
@@ -323,16 +350,20 @@ export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlock
                             <MenuItem id="insert">
                               {t("blocks.insertBelow", { name: title })}
                             </MenuItem>
+                            <MenuItem id="link">{t("blocks.copyLink")}</MenuItem>
                           </Menu>
                         </MenuTrigger>
                       </Toolbar>
                     </div>
-                    <div className="be-block-fields">
-                      {Fields ? (
-                        <Fields block={block} editor={editor} />
-                      ) : (
-                        <p className="be-note">{t("field.noFields")}</p>
-                      )}
+                    <div className="be-block-body">
+                      <div className="be-block-fields">
+                        {Fields ? (
+                          <Fields block={block} editor={editor} />
+                        ) : (
+                          <p className="be-note">{t("field.noFields")}</p>
+                        )}
+                      </div>
+                      <BlockPreview block={block} course={editor.document} media={session.media} />
                     </div>
                     <IconButton
                       icon="add"
@@ -383,7 +414,14 @@ export function LessonBlocks({ session, lesson, toasts, clipboard }: LessonBlock
           editor={editor}
           lesson={lesson}
           announce={announce}
+          toasts={toasts}
           onCopy={copy}
+          courses={clipboard.courses}
+          onCopyToCourse={clipboard.copyToCourse}
+          onGo={(id) => {
+            setManaging(false);
+            onGo?.(id);
+          }}
           onClose={() => setManaging(false)}
         />
       )}

@@ -1,8 +1,9 @@
-// The one place where the editor turns what the browser wrote into course rich text (BLK-03:
-// normalise once at the editor boundary). Only the format's elements and attributes stay
-// (@course-suite/format RICH_TEXT_ELEMENTS), the browser's own tags become their meaning (b to
-// strong, i to em, strike to s, div to p), style and class attributes go, and text outside a
-// paragraph, heading or list is put in a paragraph. Pasted text goes through the same door.
+// The one place where editor code turns HTML into course rich text (BLK-03: normalise once at the
+// editor boundary). Only the format's elements and attributes stay (@course-suite/format
+// RICH_TEXT_ELEMENTS), the browser's own tags become their meaning (b to strong, i to em, strike to
+// s, div to p), style and class attributes go, and text outside a paragraph, heading or list is put
+// in a paragraph. RichTextField cleans what it is given before it shows it, as course files come
+// from anywhere, and its callers clean what it gives out (typed or pasted) before they keep it.
 import {
   isSafeLink,
   RICH_TEXT_ATTRIBUTES,
@@ -57,11 +58,13 @@ function clean(parent: ParentNode): void {
       continue;
     }
     clean(node);
+    // An element of SVG or MathML is never course rich text, even with an HTML name.
+    const html = node.namespaceURI === "http://www.w3.org/1999/xhtml";
     const name = RENAMED[node.localName] ?? node.localName;
     const href = node.getAttribute("href");
     const unsafeLink = name === "a" && (href === null || !isSafeLink(href));
     // A span carries nothing once its style is gone.
-    if (name === "span" || unsafeLink || !RICH_TEXT_ELEMENTS.has(name)) {
+    if (!html || name === "span" || unsafeLink || !RICH_TEXT_ELEMENTS.has(name)) {
       node.replaceWith(...node.childNodes);
       continue;
     }
@@ -81,9 +84,4 @@ function clean(parent: ParentNode): void {
       }
     }
   }
-}
-
-/** Plain text as rich text inside an element (a heading or an answer): escaped, no paragraph. */
-export function inlineHtml(text: string): string {
-  return text.trim().replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }

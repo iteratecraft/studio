@@ -2,9 +2,8 @@
 // Each renderer reads one block of the course document and returns its element, or undefined for a
 // block it cannot show; other block families arrive with their own epics.
 import type { Block, ContentItem, Course, Response } from "@course-suite/format";
-import { isCorrect } from "@course-suite/format";
+import { accentReadable, isCorrect, SURFACE, textOn } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
-import { textOn } from "./contrast.js";
 import { h, richText, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
 import { requiresCorrect } from "./progress.js";
@@ -27,6 +26,8 @@ export interface BlockContext {
   course: Course;
   labels: Labels;
   lesson?: LessonHooks;
+  /** Where a media file is, by package media key; the editor's block previews give their own. */
+  mediaUrl?: (key: string) => string;
 }
 
 type Renderer = (block: Block, context: BlockContext) => HTMLElement | undefined;
@@ -48,7 +49,9 @@ const RENDERERS: Record<string, Renderer> = {
 
 /**
  * The block in its frame, or undefined: padding, content width and a background colour from the
- * block settings, with text, links and controls in white or black on that colour (contrast.ts).
+ * block settings, with text, links and controls in white or black on that colour (contrast.ts);
+ * the cards of its items white on that colour unless the author made them clear; and its own
+ * accent colour where that stays readable.
  */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
@@ -60,7 +63,8 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     console.error(`Block ${block.id} could not be shown`, error);
   }
   if (!content) return undefined;
-  const { padding, contentWidth, background, textContrast } = block.settings ?? {};
+  const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
+    block.settings ?? {};
   const full = block.variant === "full-width";
   const frame = h(
     "div",
@@ -81,6 +85,26 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (background?.kind === "color") {
     frame.style.backgroundColor = background.color;
     frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);
+    // Keep cards white (blocks-editor.md 2.4, W10 step 4): on by default.
+    if (cardStyle !== "transparent") frame.classList.add("cards-white");
+  }
+  if (accentColor) {
+    const color = background?.kind === "color" ? background.color : SURFACE;
+    const cards = frame.classList.contains("cards-white")
+      ? [...frame.querySelectorAll<HTMLElement>(".check")]
+      : [];
+    for (const [element, surface] of [
+      [frame, color] as const,
+      ...cards.map((card) => [card, SURFACE] as const),
+    ]) {
+      if (!accentReadable(accentColor, surface)) continue;
+      element.style.setProperty("--accent", accentColor);
+      element.style.setProperty("--focus", accentColor);
+      element.style.setProperty(
+        "--accent-text",
+        textOn(accentColor) === "light" ? "#ffffff" : "#000000",
+      );
+    }
   }
   return frame;
 }
@@ -122,14 +146,17 @@ function textBlock(
   );
 }
 
-function imageBlock(block: Block, { course }: BlockContext): HTMLElement | undefined {
+function imageBlock(
+  block: Block,
+  { course, mediaUrl: url = mediaUrl }: BlockContext,
+): HTMLElement | undefined {
   const ref = block.media?.[0];
   const entry = ref && course.media.find((media) => media.key === ref.key);
   if (!ref || !entry) return undefined;
   // An empty or missing alt text marks the image as decorative (ADR-0002 MediaRef).
   return h("img", {
     class: "image",
-    src: mediaUrl(entry.variantKey ?? entry.key),
+    src: url(entry.variantKey ?? entry.key),
     alt: ref.alt ?? "",
     width: entry.width,
     height: entry.height,

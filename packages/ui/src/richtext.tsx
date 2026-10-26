@@ -1,8 +1,10 @@
 // A text field that holds formatted text (blocks-editor.md L11, L13, 2.6, W14; BLK-03): paragraphs,
 // headings 2 to 5, bold, italic, underline, strikethrough, subscript, superscript, bulleted and
-// numbered lists and links, which is what a course's rich text may hold today. It edits in place
+// numbered lists and links to web and mail addresses, lessons and blocks (UI-BLOCKS-EDITOR-R33),
+// which is what a course's rich text may hold today. It edits in place
 // with the browser's own editing (contenteditable), so it needs no editor library; what it gives
-// out is the browser's HTML, which the caller normalises before keeping it.
+// out is the browser's HTML, which the caller normalises before keeping it. What it is given is
+// cleaned to course rich text before it enters the page: a course file may hold any HTML.
 import { isSafeLink } from "@course-suite/format";
 import {
   type FormEvent,
@@ -15,7 +17,9 @@ import {
   useState,
 } from "react";
 import { Button, cx, IconButton, ToggleButton, Toolbar, ToolbarSeparator } from "./buttons.js";
-import { TextField } from "./fields.js";
+import { cleanRichText } from "./clean.js";
+import { ListBox, ListBoxItem } from "./collections.js";
+import { SearchField, TextField } from "./fields.js";
 import { Icon, type IconName } from "./icons.js";
 import { Dialog, DialogActions, Menu, MenuItem, MenuTrigger } from "./overlays.js";
 import { useStrings } from "./provider.js";
@@ -43,7 +47,10 @@ export interface RichTextFieldProps {
   /** Keeps the label for screen readers only, where the place names the field. */
   hideLabel?: boolean;
   description?: string;
-  /** The HTML shown; the field takes it whenever it differs from what the field holds. */
+  /**
+   * The HTML shown, cleaned to course rich text first; the field takes it whenever it differs from
+   * what the field holds.
+   */
   value: string;
   /** Every change, with the field's HTML as the browser wrote it. */
   onChange: (html: string) => void;
@@ -51,7 +58,15 @@ export interface RichTextFieldProps {
   onLeave?: () => void;
   /** Keys typed in the text, after the field's own shortcuts (Alt+F10, Ctrl/Cmd+K). */
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+  /** Lessons a link may go to, found by title in the link dialog (L13, W14 step 3). */
+  lessons?: readonly LinkTarget[];
   className?: string;
+}
+
+/** A page of the course a link may go to: its title and its link address. */
+export interface LinkTarget {
+  title: string;
+  href: string;
 }
 
 /** How many characters of `root`'s text come before a point in it. */
@@ -99,6 +114,7 @@ export function RichTextField({
   onChange,
   onLeave,
   onKeyDown,
+  lessons = [],
   className,
 }: RichTextFieldProps) {
   const t = useStrings();
@@ -130,7 +146,10 @@ export function RichTextField({
     const element = editor.current;
     if (!element || sent.current.includes(value)) return;
     sent.current = [];
-    if (element.innerHTML !== value) element.innerHTML = value;
+    // Only the format's elements and safe links enter the live page: raw course HTML could
+    // navigate it away (a meta refresh) or load from anywhere.
+    const shown = cleanRichText(value);
+    if (element.innerHTML !== shown) element.innerHTML = shown;
   }, [value]);
 
   /** The marks and paragraph style where the selection is, and the selection, to put back. */
@@ -336,6 +355,7 @@ export function RichTextField({
         <LinkDialog
           href={link.href}
           existing={link.existing}
+          lessons={lessons}
           onClose={(answer) => {
             const { range: selected } = link;
             setLink(undefined);
@@ -352,19 +372,27 @@ export function RichTextField({
   );
 }
 
-/** Asks for a link address: the address, "" to remove the link, or null when cancelled. */
+/**
+ * Asks for a link address, typed or a lesson found by its title: the address, "" to remove the
+ * link, or null when cancelled.
+ */
 function LinkDialog({
   href,
   existing,
+  lessons,
   onClose,
 }: {
   href: string;
   existing: boolean;
+  lessons: readonly LinkTarget[];
   onClose: (answer: string | null) => void;
 }) {
   const t = useStrings();
   const [value, setValue] = useState(href);
   const [invalid, setInvalid] = useState(false);
+  const [find, setFind] = useState("");
+  const words = find.trim().toLocaleLowerCase();
+  const found = lessons.filter((lesson) => lesson.title.toLocaleLowerCase().includes(words));
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const address = value.trim();
@@ -387,6 +415,25 @@ function LinkDialog({
           isInvalid={invalid}
           errorMessage={t("link.error")}
         />
+        {lessons.length > 0 && (
+          // biome-ignore lint/a11y/noStaticElementInteractions: Enter in the search must not submit the address.
+          <div
+            className="cs-Form"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+            }}
+          >
+            <SearchField label={t("link.findLesson")} value={find} onChange={setFind} />
+            <ListBox
+              aria-label={t("link.lessons")}
+              items={found.map((lesson) => ({ id: lesson.href, ...lesson }))}
+              onAction={(key) => onClose(String(key))}
+              renderEmptyState={() => t("link.noLesson")}
+            >
+              {(lesson) => <ListBoxItem id={lesson.id}>{lesson.title}</ListBoxItem>}
+            </ListBox>
+          </div>
+        )}
         <DialogActions>
           {existing && (
             <Button variant="quiet" onPress={() => onClose("")}>

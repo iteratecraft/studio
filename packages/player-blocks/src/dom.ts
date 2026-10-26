@@ -1,5 +1,6 @@
 // DOM helpers for the player: element creation and rich text from the course document.
 import {
+  isLessonLink,
   isSafeLink,
   RICH_TEXT_ATTRIBUTES,
   RICH_TEXT_DROPPED,
@@ -61,8 +62,10 @@ function clean(parent: ParentNode, labels: Labels): void {
       const keep = RICH_TEXT_ATTRIBUTES.has(name) || (name === "href" && isSafeLink(value));
       if (!keep) node.removeAttribute(name);
     }
-    if (node.localName === "a" && node.hasAttribute("href")) {
+    const href = node.localName === "a" ? node.getAttribute("href") : null;
+    if (href !== null && !isLessonLink(href)) {
       // Inside an LMS frame a link must not replace the course, so it opens a new tab and says so.
+      // A link to a lesson or a block of this course opens it in place.
       node.setAttribute("target", "_blank");
       node.setAttribute("rel", "noopener noreferrer");
       node.append(h("span", { class: "visually-hidden" }, ` (${labels["sr.newTab"]})`));

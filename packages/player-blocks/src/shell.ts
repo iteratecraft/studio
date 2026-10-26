@@ -164,8 +164,18 @@ export function startShell(
     main.replaceChildren(view.element);
     refresh();
     document.title = page ? [page.title, course.title].join(" - ") : course.title;
-    // Focus moves to the new page's heading on every change of page, not on the first one.
-    if (!first) {
+    // An address that names a block of the page shows that block (blocks-editor.md L6, W12);
+    // otherwise focus moves to the new page's heading on every change of page, not on the first.
+    const block =
+      route.kind === "page" && route.block !== undefined
+        ? [...view.element.querySelectorAll<HTMLElement>(".block")].find(
+            (element) => element.dataset.block === route.block && !element.hidden,
+          )
+        : undefined;
+    if (block) {
+      block.tabIndex = -1;
+      block.focus();
+    } else if (!first) {
       window.scrollTo(0, 0);
       view.element.querySelector<HTMLElement>("h1")?.focus();
     }

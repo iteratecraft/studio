@@ -1,6 +1,7 @@
-// Text on a block's own background colour (rise.md rule 18, UI-BLOCKS-EDITOR-R19, R22): automatic
-// contrast picks white or black text, whichever keeps the higher contrast ratio with the colour.
-// One of the two is always 4.58:1 or more (WCAG 2.2 relative luminance), so text stays at 4.5:1.
+// Colours of a block's settings (rise.md rule 18, 3D, UI-BLOCKS-EDITOR-R19, R22): automatic contrast
+// picks white or black text on a block's own background colour, whichever keeps the higher
+// contrast ratio with it. One of the two is always 4.58:1 or more (WCAG 2.2 relative luminance), so
+// text stays at 4.5:1. The player draws blocks by these rules and the editor checks against them.
 
 /** WCAG 2.2 relative luminance of a `#rrggbb` colour. */
 export function luminance(color: string): number {
@@ -24,3 +25,14 @@ export function textOn(
   const background = luminance(color);
   return contrastRatio(background, 1) >= contrastRatio(background, 0) ? "light" : "dark";
 }
+
+/** The surface a block's text sits on when the block has no colour of its own. */
+export const SURFACE = "#ffffff";
+
+/**
+ * Whether a block's accent colour may stand in for the theme's (rise.md 3D, BLK-03): it colours
+ * links and marks on `surface`, so it must keep 4.5:1 there; text on the accent itself is white or
+ * black, whichever reads best (textOn).
+ */
+export const accentReadable = (accent: string, surface = SURFACE): boolean =>
+  contrastRatio(luminance(accent), luminance(surface)) >= 4.5;

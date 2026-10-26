@@ -1,4 +1,4 @@
-import type { Course } from "@course-suite/format";
+import { type Course, lessonLink } from "@course-suite/format";
 import { describe, expect, test } from "vitest";
 import { lessonNumber, pageHash, pagesOf, parseRoute } from "./route.js";
 
@@ -45,10 +45,19 @@ describe("lesson addresses", () => {
     expect(parseRoute("#/lessons/section001", pages)).toEqual({ kind: "unknown" });
   });
 
+  test("blocks-editor L6, W12: a block's address opens its lesson and names the block", () => {
+    expect(parseRoute(lessonLink("lesson0002", "blk 1"), pages)).toMatchObject({
+      kind: "page",
+      index: 2,
+      block: "blk 1",
+    });
+  });
+
   test.each([
     "#/lessons/gone000001",
     "#/lessons/",
-    "#/lessons/lesson0001/x",
+    "#/lessons/gone000001/x",
+    "#/lessons/lesson0001/x/y",
     "#/other",
     "#/lessons/%E0%A4%A",
   ])("an address that names no page is unknown: %s", (hash) =>

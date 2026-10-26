@@ -1,9 +1,9 @@
 // The settings every block shares (blocks-editor.md L9, L10, 2.4, W10, W11; rise.md 3D): the style
-// menu (background colour and its text contrast) and the format menu (padding, content width and
-// the entrance animation). Each change is one doc-ops command, so one undo step; the preview shows
-// it in the real player.
-import type { Editor } from "@course-suite/doc-ops";
-import type { Block, BlockSettings } from "@course-suite/format";
+// menu (background colour and its text contrast, white cards, the accent colour) and the format
+// menu (padding, content width, the entrance animation, and in a microlearning the step it shows
+// in). Each change is one doc-ops command list, so one undo step; the block's preview shows it.
+import type { Command, Editor } from "@course-suite/doc-ops";
+import { accentReadable, type Block, type BlockSettings, SURFACE } from "@course-suite/format";
 import {
   Button,
   DialogTrigger,
@@ -17,6 +17,7 @@ import {
   useStrings,
 } from "@course-suite/ui";
 import { useEffect, useId, useState } from "react";
+import { typeOf } from "./blocks.js";
 
 /** Background swatches (2.4): a fixed colour for each, none for light, the default. */
 const SWATCHES = {
@@ -36,13 +37,23 @@ export const PADDING = { top: 30, bottom: 30, max: 200 };
 const PRESETS = { small: 15, medium: 30, large: 60 } as const;
 
 /** New settings, where undefined leaves a setting out (back at its default). */
-type Settings = { [K in keyof BlockSettings]?: BlockSettings[K] | undefined };
+export type Settings = { [K in keyof BlockSettings]?: BlockSettings[K] | undefined };
+
+/** The command that gives `block` the settings `next`, keeping its others; defaults are left out. */
+export function withSettings(block: Block, next: Settings): Command {
+  const kept = Object.fromEntries(
+    Object.entries({ ...block.settings, ...next }).filter(([, value]) => value !== undefined),
+  ) as BlockSettings;
+  return Object.keys(kept).length > 0
+    ? { type: "updateBlock", id: block.id, set: { settings: kept } }
+    : { type: "updateBlock", id: block.id, unset: ["settings"] };
+}
 
 /**
  * Gives focus back to a menu's button when the menu closes. In a list row, the list would take it
  * to the row instead: the row first, then the button (see outline.tsx AfterRender).
  */
-function useReturnFocus() {
+export function useReturnFocus() {
   const id = useId();
   return {
     id,
@@ -58,24 +69,6 @@ function useReturnFocus() {
   };
 }
 
-/** Changes a block's settings, leaving out what is back at its default. */
-function useSettings(editor: Editor, block: Block) {
-  const settings = block.settings ?? {};
-  return {
-    settings,
-    change(next: Settings) {
-      const kept = Object.fromEntries(
-        Object.entries(next).filter(([, value]) => value !== undefined),
-      ) as BlockSettings;
-      editor.dispatch(
-        Object.keys(kept).length > 0
-          ? { type: "updateBlock", id: block.id, set: { settings: kept } }
-          : { type: "updateBlock", id: block.id, unset: ["settings"] },
-      );
-    },
-  };
-}
-
 function backgroundOf(settings: BlockSettings): Background {
   const background = settings.background;
   if (background?.kind === "image") return "image";
@@ -84,10 +77,19 @@ function backgroundOf(settings: BlockSettings): Background {
   return (swatch?.[0] as Background | undefined) ?? "custom";
 }
 
-/** The style menu (L9, W10): the block's background, and for a custom colour, its text. */
-export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
+/**
+ * A block's background (2.4, W10): a swatch or a custom colour with its text, which may then be
+ * fixed light or dark. `onChange` gets the new background settings; the manage-blocks list gives
+ * them to every selected block at once (L16, W13 step 4).
+ */
+export function BackgroundFields({
+  settings,
+  onChange,
+}: {
+  settings: BlockSettings;
+  onChange: (next: Settings) => void;
+}) {
   const t = useStrings();
-  const { settings, change } = useSettings(editor, block);
   const chosen = backgroundOf(settings);
   // A custom colour starts from the block's own one, or a colour no swatch has.
   const color =
@@ -109,83 +111,139 @@ export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
   const setBackground = (id: Background) => {
     if (id === chosen) return;
     if (id === "custom") {
-      change({ ...settings, background: { kind: "color", color } });
+      onChange({ background: { kind: "color", color } });
       return;
     }
     const swatch = SWATCHES[id as keyof typeof SWATCHES];
     // A swatch picks its text automatically; a fixed text choice belongs to a custom colour.
-    change({
-      ...settings,
+    onChange({
       background: swatch ? { kind: "color", color: swatch } : undefined,
       textContrast: undefined,
     });
   };
-  const trigger = useReturnFocus();
   const keepColor = () => {
     const value = typed.trim().toLowerCase();
     if (COLOR.test(value) && value !== color) {
-      change({ ...settings, background: { kind: "color", color: value } });
+      onChange({ background: { kind: "color", color: value } });
     }
   };
+  return (
+    <>
+      <Select
+        label={t("style.background")}
+        items={options}
+        selectedKey={chosen}
+        disabledKeys={LATER}
+        onSelectionChange={(key) => setBackground(key as Background)}
+      >
+        {(option) => (
+          <ListBoxItem id={option.id} {...(option.later && { description: option.later })}>
+            {option.label}
+          </ListBoxItem>
+        )}
+      </Select>
+      {chosen === "custom" && (
+        <>
+          <TextField
+            label={t("style.color")}
+            description={t("style.colorHelp")}
+            value={typed}
+            onChange={setTyped}
+            onBlur={keepColor}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") keepColor();
+              else event.continuePropagation();
+            }}
+            isInvalid={!COLOR.test(typed.trim().toLowerCase())}
+            errorMessage={t("style.colorError")}
+          />
+          <Select
+            label={t("style.contrast")}
+            selectedKey={settings.textContrast ?? "auto"}
+            onSelectionChange={(key) =>
+              onChange({ textContrast: key === "auto" ? undefined : (key as "light" | "dark") })
+            }
+          >
+            <ListBoxItem id="auto">{t("style.contrastAuto")}</ListBoxItem>
+            <ListBoxItem id="light">{t("style.contrastLight")}</ListBoxItem>
+            <ListBoxItem id="dark">{t("style.contrastDark")}</ListBoxItem>
+          </Select>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The style menu (L9, W10): the block's background; for a block with item cards whether they stay
+ * white (on by default); and its accent colour (rise.md 3D, BLK-03), which the player uses only
+ * where it keeps 4.5:1 on the block's surface, with white or black text on it.
+ */
+export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
+  const t = useStrings();
+  const settings = block.settings ?? {};
+  const change = (next: Settings) => editor.dispatch(withSettings(block, next));
+  const accent = settings.accentColor ?? "";
+  const [typed, setTyped] = useState(accent);
+  useEffect(() => setTyped(accent), [accent]);
+  const value = typed.trim().toLowerCase();
+  const surface = settings.background?.kind === "color" ? settings.background.color : SURFACE;
+  const keepAccent = () => {
+    if (value !== accent && (value === "" || COLOR.test(value))) {
+      change({ accentColor: value || undefined });
+    }
+  };
+  const trigger = useReturnFocus();
   return (
     <DialogTrigger onOpenChange={trigger.onOpenChange}>
       <IconButton id={trigger.id} icon="style" label={t("style.title")} data-part="style" />
       <Popover label={t("style.title")} placement="bottom end">
         <div className="be-settings">
-          <Select
-            label={t("style.background")}
-            items={options}
-            selectedKey={chosen}
-            disabledKeys={LATER}
-            onSelectionChange={(key) => setBackground(key as Background)}
-          >
-            {(option) => (
-              <ListBoxItem id={option.id} {...(option.later && { description: option.later })}>
-                {option.label}
-              </ListBoxItem>
-            )}
-          </Select>
-          {chosen === "custom" && (
-            <>
-              <TextField
-                label={t("style.color")}
-                description={t("style.colorHelp")}
-                value={typed}
-                onChange={setTyped}
-                onBlur={keepColor}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") keepColor();
-                  else event.continuePropagation();
-                }}
-                isInvalid={!COLOR.test(typed.trim().toLowerCase())}
-                errorMessage={t("style.colorError")}
-              />
-              <Select
-                label={t("style.contrast")}
-                selectedKey={settings.textContrast ?? "auto"}
-                onSelectionChange={(key) =>
-                  change({
-                    ...settings,
-                    textContrast: key === "auto" ? undefined : (key as "light" | "dark"),
-                  })
-                }
-              >
-                <ListBoxItem id="auto">{t("style.contrastAuto")}</ListBoxItem>
-                <ListBoxItem id="light">{t("style.contrastLight")}</ListBoxItem>
-                <ListBoxItem id="dark">{t("style.contrastDark")}</ListBoxItem>
-              </Select>
-            </>
+          <BackgroundFields settings={settings} onChange={change} />
+          {typeOf(block)?.cards && (
+            <Switch
+              isSelected={settings.cardStyle !== "transparent"}
+              onChange={(white) => change({ cardStyle: white ? undefined : "transparent" })}
+            >
+              {t("style.cards")}
+            </Switch>
           )}
+          <TextField
+            label={t("style.accent")}
+            description={t("style.accentHelp")}
+            value={typed}
+            onChange={setTyped}
+            onBlur={keepAccent}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") keepAccent();
+              else event.continuePropagation();
+            }}
+            isInvalid={value !== "" && (!COLOR.test(value) || !accentReadable(value, surface))}
+            errorMessage={t(COLOR.test(value) ? "style.accentUnreadable" : "style.colorError")}
+          />
         </div>
       </Popover>
     </DialogTrigger>
   );
 }
 
-/** The format menu (L10, W11): padding presets or exact values, content width, animation. */
-export function FormatMenu({ editor, block }: { editor: Editor; block: Block }) {
+/**
+ * The format menu (L10, W11): padding presets or exact values, content width, animation; in a
+ * microlearning, whether the block shows in one step with the next (BLK-03, rise.md 3D), which
+ * `next` (there is a block after it) allows.
+ */
+export function FormatMenu({
+  editor,
+  block,
+  next = false,
+}: {
+  editor: Editor;
+  block: Block;
+  next?: boolean;
+}) {
   const t = useStrings();
-  const { settings, change } = useSettings(editor, block);
+  const settings = block.settings ?? {};
+  const change = (changed: Settings) => editor.dispatch(withSettings(block, changed));
   const padding = settings.padding ?? { top: PADDING.top, bottom: PADDING.bottom };
   const linked = padding.linked !== false;
   const [more, setMore] = useState(false);
@@ -197,7 +255,6 @@ export function FormatMenu({ editor, block }: { editor: Editor; block: Block }) 
   );
   const setPadding = (top: number, bottom: number, link = linked) =>
     change({
-      ...settings,
       padding:
         top === PADDING.top && bottom === PADDING.bottom && link
           ? undefined
@@ -275,7 +332,6 @@ export function FormatMenu({ editor, block }: { editor: Editor; block: Block }) 
               selectedKey={settings.contentWidth ?? "medium"}
               onSelectionChange={(key) =>
                 change({
-                  ...settings,
                   contentWidth:
                     key === "medium" ? undefined : (key as BlockSettings["contentWidth"]),
                 })
@@ -291,13 +347,27 @@ export function FormatMenu({ editor, block }: { editor: Editor; block: Block }) 
             isSelected={animates}
             onChange={(on) =>
               change({
-                ...settings,
                 entranceAnimation: on === (block.category !== "text") ? undefined : on,
               })
             }
           >
             {t("format.animation")}
           </Switch>
+          {editor.document.kind === "microlearning" && (
+            <Switch
+              isSelected={settings.connectToNext === true}
+              isDisabled={!next && settings.connectToNext !== true}
+              onChange={(on) => change({ connectToNext: on || undefined })}
+              aria-describedby={`${trigger.id}-connect`}
+            >
+              {t("format.connect")}
+            </Switch>
+          )}
+          {editor.document.kind === "microlearning" && (
+            <p id={`${trigger.id}-connect`} className="be-note">
+              {t("format.connectHelp")}
+            </p>
+          )}
         </div>
       </Popover>
     </DialogTrigger>
