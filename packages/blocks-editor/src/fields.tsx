@@ -48,18 +48,25 @@ export function DraftField({
     timer: ReturnType<typeof setTimeout> | undefined;
     since: number | undefined;
     open: boolean;
-  }>({ timer: undefined, since: undefined, open: false });
+    /** The text this editing last put into the document, which the document now holds. */
+    sent: string | undefined;
+  }>({ timer: undefined, since: undefined, open: false, sent: undefined });
   // The document changed by other means (undo, redo): show it, unless the author is typing here.
   // While typing, the document may hold the text tidied (trimmed, say), which must not move the
   // text under the author's cursor.
   const editing = useRef(false);
-  // Counts finished editings, so that the field then shows what the document holds.
-  const [ends, setEnds] = useState(0);
   useEffect(() => {
     if (editing.current) return;
     typed.current = stored;
     setValue(stored);
-  }, [stored, ends]);
+  }, [stored]);
+  /** Shows `text` and stops editing. */
+  const show = (text: string) => {
+    editing.current = false;
+    edit.current.sent = undefined;
+    typed.current = text;
+    setValue(text);
+  };
 
   const commit = () => {
     const state = edit.current;
@@ -68,22 +75,22 @@ export function DraftField({
     state.since = undefined;
     if (!editing.current) return;
     const next = command(typed.current);
-    if (!next || typed.current === stored) return;
-    if (state.open) {
-      editor.dispatch(next);
-      return;
-    }
-    editor.beginGroup();
+    // `stored` can lag behind the document: a GridList row gets its new props a render after the
+    // change. What this editing sent is what the document holds.
+    if (!next || typed.current === (state.sent ?? stored)) return;
+    if (!state.open) editor.beginGroup();
     const result = editor.dispatch(next);
+    if (result.ok) state.sent = typed.current;
     if (result.ok && result.ops.length > 0) state.open = true;
-    else editor.endGroup();
+    else if (!state.open) editor.endGroup();
   };
   const end = () => {
     commit();
     if (edit.current.open) editor.endGroup();
     edit.current.open = false;
-    if (editing.current) setEnds((count) => count + 1);
-    editing.current = false;
+    // Show what the document holds now, without waiting for `stored`, which may still be the
+    // text from before this editing (see commit).
+    if (editing.current) show(edit.current.sent ?? stored);
   };
   const latest = useRef(commit);
   latest.current = commit;
@@ -114,12 +121,14 @@ export function DraftField({
         else if (event.key === "Escape") {
           // Back to the text before this editing: what it put in the document is one step.
           clearTimeout(edit.current.timer);
-          editing.current = false;
           if (edit.current.open) {
+            // The undo brings the old text back as a new `stored`.
+            editing.current = false;
+            edit.current.sent = undefined;
             edit.current.open = false;
             editor.endGroup();
             editor.undo();
-          } else setValue(stored);
+          } else show(stored);
         } else event.continuePropagation();
       }}
     />
