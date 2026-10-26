@@ -3,7 +3,7 @@
 // drag or by keyboard (drag handle, or Move up and Move down), duplicated, copied to another course
 // and deleted with an undo notice; a section's lessons fold away under it. Every change is one
 // doc-ops command list, so it is one undo step and autosaves like any edit.
-import type { Command } from "@course-suite/doc-ops";
+import { type Command, contentIds } from "@course-suite/doc-ops";
 import type { Entry } from "@course-suite/format";
 import { newContentId } from "@course-suite/format";
 import {
@@ -27,8 +27,10 @@ import {
   useStrings,
 } from "@course-suite/ui";
 import { useEffect, useId, useRef, useState } from "react";
+import { PickerDialog } from "./dialogs.js";
 import { DraftField } from "./fields.js";
 import type { CourseSession } from "./session.js";
+import { LESSON_TEMPLATES, type LessonTemplateId, lessonFrom } from "./templates.js";
 
 type Kind = Entry["kind"];
 
@@ -104,6 +106,7 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
   const { region, announce } = useAnnouncer();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [newTitle, setNewTitle] = useState("");
+  const [picking, setPicking] = useState(false);
   // The control to focus after the next render: a new row's title, a neighbour of a deleted row,
   // or the open button of the lesson the author comes back from.
   const outline = useRef<HTMLElement>(null);
@@ -161,6 +164,15 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
     });
     if (result.ok) announce(t("outline.added", { title: titleOf(value) }));
     return result.ok ? value.id : undefined;
+  };
+
+  /** A lesson from a placeholder template at the end of the outline (W3 step 3, C7, D-38). */
+  const addTemplate = (id: LessonTemplateId) => {
+    const value = lessonFrom(id, contentIds(editor.document), t);
+    const result = editor.dispatch({ type: "insertEntry", value });
+    if (!result.ok) return;
+    announce(t("outline.added", { title: titleOf(value) }));
+    setFocus({ id: value.id, part: "open" });
   };
 
   const addBelow = (entry: Entry, kind: Kind) => {
@@ -387,7 +399,8 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
           </Button>
           <Menu
             onAction={(key) => {
-              if (add(key as Kind, newTitle.trim())) setNewTitle("");
+              if (key === "template") setPicking(true);
+              else if (add(key as Kind, newTitle.trim())) setNewTitle("");
             }}
           >
             {kinds.map((kind) => (
@@ -395,8 +408,27 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
                 {t(ADD[kind])}
               </MenuItem>
             ))}
+            <MenuItem id="template">{t("outline.addFromTemplate")}</MenuItem>
           </Menu>
         </MenuTrigger>
+        {picking && (
+          <PickerDialog
+            title={t("templates.lessonTitle")}
+            label={t("templates.list")}
+            help={t("templates.help")}
+            items={LESSON_TEMPLATES.map((template) => ({
+              id: template.id,
+              title: t(template.title),
+              description: t(template.description),
+            }))}
+            submit={t("templates.use")}
+            empty={{ title: t("templates.list"), body: t("templates.help") }}
+            answer={(id) => {
+              setPicking(false);
+              if (id) addTemplate(id as LessonTemplateId);
+            }}
+          />
+        )}
       </div>
       {region}
     </section>

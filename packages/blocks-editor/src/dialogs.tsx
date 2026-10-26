@@ -133,13 +133,16 @@ export function PickerDialog({
   items,
   submit,
   empty,
+  help,
   answer,
 }: {
   title: string;
   /** The list's name. */
   label: string;
-  items: readonly { id: string; title: string }[];
+  items: readonly { id: string; title: string; description?: string }[];
   submit: string;
+  /** A line above the list. */
+  help?: string;
   /** What an empty list says. */
   empty: { title: string; body: string };
   answer: (value: string | null) => void;
@@ -152,6 +155,7 @@ export function PickerDialog({
   };
   return (
     <Dialog isOpen title={title} onOpenChange={(open) => !open && answer(null)}>
+      {help && <p className="be-note">{help}</p>}
       {items.length === 0 ? (
         <EmptyState icon="file" title={empty.title} level={3}>
           {empty.body}
@@ -169,7 +173,11 @@ export function PickerDialog({
           onAction={pick}
           autoFocus="first"
         >
-          {(item) => <ListBoxItem id={item.id}>{item.title}</ListBoxItem>}
+          {(item) => (
+            <ListBoxItem id={item.id} {...(item.description && { description: item.description })}>
+              {item.title}
+            </ListBoxItem>
+          )}
         </ListBox>
       )}
       <DialogActions>

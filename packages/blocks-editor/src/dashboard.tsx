@@ -58,7 +58,8 @@ export interface DashboardProps {
   onSortChange: (sort: SortKey) => void;
   layout: LayoutKey;
   onLayoutChange: (layout: LayoutKey) => void;
-  onNew: (kind: Course["kind"]) => void;
+  /** A blank course or microlearning, or one from a template. */
+  onNew: (kind: Course["kind"] | "template") => void;
   onOpen: () => void;
   /** An action on one course, or on the courses selected together. */
   onAction: (action: ItemAction, items: readonly LibraryItem[]) => void;
@@ -101,9 +102,10 @@ export function Dashboard(props: DashboardProps) {
                 {t("dashboard.new")}
                 <Icon name="chevron-down" />
               </Button>
-              <Menu onAction={(key) => props.onNew(key as Course["kind"])}>
+              <Menu onAction={(key) => props.onNew(key as Course["kind"] | "template")}>
                 <MenuItem id="course">{t("dashboard.newCourse")}</MenuItem>
                 <MenuItem id="microlearning">{t("dashboard.newMicrolearning")}</MenuItem>
+                <MenuItem id="template">{t("dashboard.newFromTemplate")}</MenuItem>
               </Menu>
             </MenuTrigger>
             <Button onPress={props.onOpen}>
