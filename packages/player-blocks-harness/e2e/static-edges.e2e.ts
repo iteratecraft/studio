@@ -1,12 +1,19 @@
 // Edge cases of the text and static blocks in the real player (M2-12, BLK-04; rise.md 3C;
 // blocks-editor.md 2.5, 2.9, 2.10; UI-BLOCKS-R45, R51): a cleared checklist point never holds a
 // continue block back, a picture links to a lesson or a web page, and the fills that carry
-// --accent-text keep their contrast when a theme gives buttons a colour of their own.
-import type { Block, ContentItem, Course } from "@course-suite/format";
+// --button keep their contrast in the colours a theme gives them.
+import {
+  type Block,
+  type ContentItem,
+  type Course,
+  contrastRatio,
+  luminance,
+} from "@course-suite/format";
 import { staticBlocksCourse } from "@course-suite/format/test/courses";
 import { expectAccessible, violations } from "./axe.ts";
 import { continueBlock, course, lesson } from "./courses.ts";
 import { expect, test } from "./fixture.ts";
+import { THEME_COLORS, themeTokens } from "./theme-tokens.ts";
 
 const subject = () => staticBlocksCourse();
 const block = (from: Course, id: string) =>
@@ -93,7 +100,7 @@ test("[rise:3C] blocks-editor 2.10, W15: a picture links to a lesson, which open
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Next steps");
 });
 
-test("[rise:3C] blocks-editor 2.5, 2.9, 2.10, UI-ACCESSIBILITY: the table header, the list numbers and the close button keep 4.5:1 when a theme gives buttons their own colour", async ({
+test("[rise:3C] blocks-editor 2.5, 2.9, 2.10, UI-ACCESSIBILITY: the table header, the list numbers and the close button keep 4.5:1 in every suggested theme colour", async ({
   write,
   open,
   page,
@@ -109,27 +116,48 @@ test("[rise:3C] blocks-editor 2.5, 2.9, 2.10, UI-ACCESSIBILITY: the table header
     }),
   });
   await open("#/lessons/lessontint");
-  // The theme's tokens: --accent-text is the text on --button, a light yellow here, while the
-  // accent stays a dark blue for links and marks (M2-17).
-  await page.evaluate(() => {
-    for (const element of [
-      document.documentElement,
-      ...document.querySelectorAll<HTMLElement>(".zoom-dialog"),
-    ]) {
-      element.style.setProperty("--accent", "#1f5fbf");
-      element.style.setProperty("--button", "#f5c518");
-      element.style.setProperty("--accent-text", "#000000");
-    }
-  });
   await page.getByRole("button", { name: "Enlarge image" }).click();
   await expect(page.getByRole("button", { name: "Close enlarged image" })).toBeFocused();
-  for (const width of [320, 1280]) {
-    await page.setViewportSize({ width, height: 800 });
-    const found = (await violations(page)).filter((line) => line.startsWith("color-contrast"));
-    expect(found, `at ${width} px`).toEqual([]);
+  const fills = [".table-wrap thead th", ".list-numbered li", ".zoom-close"];
+  for (const color of THEME_COLORS) {
+    const tokens = themeTokens(color);
+    // Where M2-17 sets them: the page, and the dialog, which takes the theme's colours back.
+    await page.evaluate((variables) => {
+      for (const element of [
+        document.documentElement,
+        ...document.querySelectorAll<HTMLElement>(".zoom-dialog"),
+      ]) {
+        for (const [name, value] of Object.entries(variables))
+          element.style.setProperty(name, value);
+      }
+    }, tokens);
+    // axe skips the numbers, which are generated content, so each fill is measured as well.
+    const pairs = await page.evaluate(
+      (selectors) =>
+        selectors.map((selector) => {
+          const element = document.querySelector(selector) as Element;
+          const style = getComputedStyle(element, selector.endsWith("li") ? "::before" : null);
+          return [selector, style.backgroundColor, style.color] as const;
+        }),
+      fills,
+    );
+    for (const [selector, fill, text] of pairs) {
+      expect(fill, `${selector} in ${color}`).toBe(rgb(tokens["--button"] as string));
+      expect(
+        contrastRatio(luminance(hex(fill)), luminance(hex(text))),
+        `${selector} in ${color}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+    for (const width of [320, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+      const found = (await violations(page)).filter((line) => line.startsWith("color-contrast"));
+      expect(found, `${color} at ${width} px`).toEqual([]);
+    }
   }
-  await expect(page.locator(".table-wrap thead th").first()).toHaveCSS(
-    "background-color",
-    "rgb(245, 197, 24)",
-  );
 });
+
+/** `#rrggbb` as getComputedStyle writes it, and back. */
+const rgb = (color: string) =>
+  `rgb(${[1, 3, 5].map((at) => Number.parseInt(color.slice(at, at + 2), 16)).join(", ")})`;
+const hex = (color: string) =>
+  `#${(color.match(/\d+/g) ?? []).map((c) => Number(c).toString(16).padStart(2, "0")).join("")}`;

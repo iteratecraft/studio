@@ -902,11 +902,11 @@ h3.block-heading {
   padding: 18px 24px;
 }
 
-/* Fills that carry --accent-text take the button colour, which is the accent colour until a
-   theme gives buttons a colour of their own: --accent-text is the text that keeps 4.5:1 on it. */
+/* Each fill takes its own text colour: --button-text on --button, --accent-text on --accent. The
+   button colour is the accent colour until a theme gives buttons one of their own. */
 .table-wrap thead th {
   background: var(--button, var(--accent));
-  color: var(--accent-text);
+  color: var(--button-text, var(--accent-text));
 }
 
 .table-wrap :is(th, td) > :first-child {
@@ -1191,7 +1191,7 @@ h3.block-heading {
   padding: 0 0.25em;
   border-radius: 999px;
   background: var(--marker, var(--button, var(--accent)));
-  color: var(--marker-text, var(--accent-text));
+  color: var(--marker-text, var(--button-text, var(--accent-text)));
   font-size: 0.875em;
   font-weight: 700;
   box-sizing: border-box;
@@ -1318,7 +1318,7 @@ h3.block-heading {
   border: 2px solid var(--button, var(--accent));
   border-radius: 6px;
   background: var(--button, var(--accent));
-  color: var(--accent-text);
+  color: var(--button-text, var(--accent-text));
   font: inherit;
   font-weight: 600;
   cursor: pointer;
