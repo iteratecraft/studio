@@ -139,7 +139,7 @@ export function CropButton({
   const t = useStrings();
   const { dialog, ask } = useDialogs();
   const url = usePictureUrl(session, entry);
-  if (!croppable(entry)) return <p className="be-note">{t("image.noCrop")}</p>;
+  if (!croppable(entry)) return <p className="be-note">{t("themeImage.noCrop")}</p>;
   const open = async () => {
     const answer = await ask<Crop | null | undefined>((reply) => (
       <CropDialog url={url} crop={crop} answer={reply} />
@@ -151,7 +151,7 @@ export function CropButton({
       <Button onPress={() => void open()} isDisabled={!url}>
         {label}
       </Button>
-      <span className="be-note">{t(crop ? "image.cropped" : "image.whole")}</span>
+      <span className="be-note">{t(crop ? "themeImage.cropped" : "themeImage.whole")}</span>
       {dialog}
     </div>
   );
@@ -194,7 +194,11 @@ function CropDialog({
     />
   );
   return (
-    <Dialog isOpen title={t("image.cropTitle")} onOpenChange={(open) => !open && answer(undefined)}>
+    <Dialog
+      isOpen
+      title={t("themeImage.cropTitle")}
+      onOpenChange={(open) => !open && answer(undefined)}
+    >
       <div className="be-form">
         <div className="be-crop-view">
           {url && <img src={url} alt="" />}
@@ -209,13 +213,13 @@ function CropDialog({
             }}
           />
         </div>
-        {slider("x", t("image.left"), 0, 99)}
-        {slider("y", t("image.top"), 0, 99)}
-        {slider("width", t("image.width"), 1, 100 - box.x)}
-        {slider("height", t("image.height"), 1, 100 - box.y)}
+        {slider("x", t("themeImage.left"), 0, 99)}
+        {slider("y", t("themeImage.top"), 0, 99)}
+        {slider("width", t("themeImage.width"), 1, 100 - box.x)}
+        {slider("height", t("themeImage.height"), 1, 100 - box.y)}
         <DialogActions>
           <Button variant="quiet" onPress={() => setBox(WHOLE)} isDisabled={whole}>
-            {t("image.reset")}
+            {t("themeImage.reset")}
           </Button>
           <Button variant="quiet" onPress={() => answer(undefined)}>
             {t("action.cancel")}
@@ -256,10 +260,10 @@ export function ThemePictureField({
   useEffect(() => setAlt(image?.alt ?? ""), [image?.alt]);
   const url = usePictureUrl(session, entry);
   const choose = async () => {
-    const picked = await pickPicture(host, session, t("image.filter")).catch(() => undefined);
+    const picked = await pickPicture(host, session, t("themeImage.filter")).catch(() => undefined);
     if (!picked) return;
     if ("notImage" in picked) {
-      setProblem(t("image.notImage", { file: picked.notImage }));
+      setProblem(t("themeImage.notImage", { file: picked.notImage }));
       return;
     }
     setProblem(undefined);
@@ -282,10 +286,12 @@ export function ThemePictureField({
       </span>
       {url && <img className="be-image-thumb" src={url} alt="" />}
       <div className="be-face-actions">
-        <Button onPress={() => void choose()}>{t(image ? "image.replace" : "image.choose")}</Button>
+        <Button onPress={() => void choose()}>
+          {t(image ? "themeImage.replace" : "themeImage.choose")}
+        </Button>
         {image && (
           <Button variant="quiet" onPress={() => onChange(undefined)}>
-            {t("image.remove")}
+            {t("themeImage.remove")}
           </Button>
         )}
       </div>
@@ -297,8 +303,8 @@ export function ThemePictureField({
       {image && (
         <>
           <TextField
-            label={t("image.alt")}
-            description={t("image.altHelp")}
+            label={t("themeImage.alt")}
+            description={t("themeImage.altHelp")}
             value={alt}
             onChange={setAlt}
             onBlur={keepAlt}
@@ -311,7 +317,7 @@ export function ThemePictureField({
             session={session}
             entry={entry}
             crop={image.crop}
-            label={t("image.crop")}
+            label={t("themeImage.crop")}
             onCrop={(crop) => {
               const { crop: _, ...rest } = image;
               onChange(crop ? { ...rest, crop } : rest);
