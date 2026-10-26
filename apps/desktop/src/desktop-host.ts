@@ -3,6 +3,7 @@
 // against one scope rule. This folder is the only place allowed to import @tauri-apps/*
 // (biome.json); the capability file in src-tauri/capabilities grants exactly the commands used here.
 import {
+  type ConverterInfo,
   checkDataName,
   createKeyValueStorage,
   type FileFilter,
@@ -10,10 +11,11 @@ import {
   HostError,
   type HostErrorCode,
   type HostInterface,
+  type MediaTaskOptions,
   projectFolder,
 } from "@course-suite/host";
 import { getName, getVersion } from "@tauri-apps/api/app";
-import { type InvokeArgs, type InvokeOptions, invoke } from "@tauri-apps/api/core";
+import { Channel, type InvokeArgs, type InvokeOptions, invoke } from "@tauri-apps/api/core";
 import { sep } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -36,6 +38,32 @@ async function call<T>(command: string, args?: InvokeArgs, options?: InvokeOptio
     const message = String(error);
     const code = REFUSAL.exec(message)?.[1] as HostErrorCode | undefined;
     throw code ? new HostError(code, message.slice(code.length + 2)) : new Error(message);
+  }
+}
+
+/**
+ * Runs one of the shell's media commands (src-tauri/src/media.rs) as a task: progress comes back
+ * through a channel, and aborting the signal asks the shell to stop it.
+ */
+async function task<T>(
+  command: string,
+  args: InvokeArgs & Record<string, unknown>,
+  { signal, onProgress }: MediaTaskOptions = {},
+): Promise<T> {
+  signal?.throwIfAborted();
+  const job = crypto.randomUUID();
+  const progress = new Channel<[number, number]>();
+  progress.onmessage = ([done, total]) => onProgress?.(done, total);
+  const stop = () => void invoke("media_cancel", { job });
+  signal?.addEventListener("abort", stop);
+  try {
+    return await call<T>(command, { ...args, job, onProgress: progress });
+  } catch (error) {
+    // The shell's own word for a stopped task; the caller gets the signal's reason, as fetch does.
+    if (signal?.aborted) throw signal.reason;
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", stop);
   }
 }
 
@@ -87,6 +115,20 @@ export function createDesktopHost(): HostInterface {
           remove: (parts) => call("remove_path", { path: path(parts) }),
           list: (parts) => call("list_folder", { path: path(parts) }),
         });
+      },
+    },
+    // The media converter (D-12, D-43): the shell downloads, checks and runs it.
+    media: {
+      converter: () => call<ConverterInfo>("media_converter"),
+      installConverter: (options) => task<void>("media_install", {}, options),
+      convert: async (input, kind, options) => {
+        const data = await task<ArrayBuffer>("media_convert", { input: input.id, kind }, options);
+        const video = kind === "video";
+        return {
+          data: new Uint8Array(data),
+          type: video ? "video/webm" : "audio/mpeg",
+          extension: video ? "webm" : "mp3",
+        };
       },
     },
     // WebView2 keeps localStorage in the app's own profile folder, so it is private to the app.

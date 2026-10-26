@@ -1,12 +1,22 @@
 // Smoke test of the built desktop app (M2-01, M2-02): launches the release executable with
 // WebView2's DevTools port open and drives its window with Playwright over CDP. It checks the page
 // reached the shell through the host, that the content security policy holds inside the real
-// WebView2, and the file scope of the shell's file commands. It also prints the app's idle memory.
+// WebView2, and the file scope of the shell's file commands and media commands (M2-13). It also
+// prints the app's idle memory. With MEDIA_CONVERTER_E2E=1 it downloads the media converter and
+// converts a 500 MB video (BLK-05).
 // Build the app first (`pnpm build`, then `pnpm --filter @course-suite/desktop build:app`); without
 // the executable the test skips, except on CI. CI also sets the DevTools port as a WebView2 policy
 // (ci.yml), because WebView2 ignores the variable on the runner.
 import { type ChildProcess, execFile, execFileSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -309,6 +319,130 @@ test("the course preview runs the real player in WebView2 under the shell's poli
   const report = `${tree.length} processes, working set ${mb(sum("workingSet"))} MiB, private ${mb(sum("privateBytes"))} MiB`;
   console.log(`Memory with a course in the preview: ${report}`);
   test.info().annotations.push({ type: "memory with preview", description: report });
+});
+
+/** Calls one of the shell's media commands from page script, with a progress channel. */
+const media = (command: string, args: Record<string, string>) =>
+  page.evaluate(
+    async ({ command, args }) => {
+      // biome-ignore lint/suspicious/noExplicitAny: the IPC bridge Tauri injects into the window
+      const internals = (window as any).__TAURI_INTERNALS__;
+      const progress: unknown[] = [];
+      const channel = internals.transformCallback((message: unknown) => progress.push(message));
+      try {
+        const result = await internals.invoke(command, {
+          ...args,
+          onProgress: `__CHANNEL__:${channel}`,
+        });
+        return {
+          ok: true,
+          value: result instanceof ArrayBuffer ? new Uint8Array(result).length : (result ?? null),
+          progress: progress.length,
+        };
+      } catch (error) {
+        return { ok: false, error: String(error), progress: progress.length };
+      }
+    },
+    { command, args },
+  );
+
+test("D-43: the media converter's commands say what it is, and refuse files the page may not read, unknown kinds and a converter that is not there", async () => {
+  const info = (await shell("media_converter", {})) as { ok: boolean; value: unknown };
+  const pin = JSON.parse(
+    readFileSync(join(import.meta.dirname, "../src-tauri/media-tool.json"), "utf8"),
+  );
+  expect(info).toMatchObject({
+    ok: true,
+    value: { name: pin.name, licence: pin.licence, size: pin.size },
+  });
+  const refused = await media("media_convert", {
+    job: "smoke-1",
+    input: join(process.env.WINDIR ?? "C:\\Windows", "win.ini"),
+    kind: "video",
+  });
+  expect(refused).toMatchObject({ ok: false, error: expect.stringMatching(/^not-allowed: /) });
+  const input = join(dataDir, "media-work", "smoke.wav");
+  const kind = await media("media_convert", { job: "smoke-2", input, kind: "image" });
+  expect(kind).toMatchObject({ ok: false, error: expect.stringMatching(/^invalid: /) });
+  if (!(info.value as { installed: boolean }).installed) {
+    const missing = await media("media_convert", { job: "smoke-3", input, kind: "audio" });
+    expect(missing).toMatchObject({ ok: false, error: expect.stringMatching(/^not-found: /) });
+  }
+  // Cancelling a job that does not run does nothing.
+  expect(await shell("media_cancel", { job: "none" })).toMatchObject({ ok: true });
+});
+
+/** A raw YUV4MPEG2 video of `frames` grey 640 x 360 frames that slowly brighten. */
+function rawVideo(frames: number): Buffer[] {
+  const width = 640;
+  const height = 360;
+  const chroma = Buffer.alloc((width / 2) * (height / 2) * 2, 128);
+  const parts = [Buffer.from(`YUV4MPEG2 W${width} H${height} F25:1 Ip A1:1 C420jpeg\n`)];
+  for (let i = 0; i < frames; i++) {
+    parts.push(Buffer.from("FRAME\n"), Buffer.alloc(width * height, 16 + (i % 200)), chroma);
+  }
+  return parts;
+}
+
+// BLK-05 done-when: a 500 MB video converted offline on desktop with visible progress and cancel.
+// It downloads the pinned converter (77 MB) once, so it runs only when asked for:
+// MEDIA_CONVERTER_E2E=1 pnpm --filter @course-suite/desktop test:e2e
+test("BLK-05, D-12, D-43: the converter downloads once, checked by SHA-256, converts a 500 MB video with progress, and stops at once when cancelled", async () => {
+  test.skip(!process.env.MEDIA_CONVERTER_E2E, "set MEDIA_CONVERTER_E2E=1 to download and run it");
+  test.setTimeout(30 * 60_000);
+  const installed = await media("media_install", { job: "install-1" });
+  expect(installed).toMatchObject({ ok: true });
+  const pin = JSON.parse(
+    readFileSync(join(import.meta.dirname, "../src-tauri/media-tool.json"), "utf8"),
+  );
+  expect(readFileSync(join(localData, "tools", pin.folder, ".verified"), "utf8")).toBe(pin.sha256);
+
+  // 1,450 frames of 640 x 360: just over 500 MB, put where a dropped file would go.
+  const folder = join(dataDir, "media-work");
+  mkdirSync(folder, { recursive: true });
+  const input = join(folder, "large.y4m");
+  writeFileSync(input, Buffer.concat(rawVideo(1450)));
+  expect(statSync(input).size).toBeGreaterThan(500 * 1000 * 1000);
+
+  // Cancel: started, then stopped after its first progress report.
+  const cancelled = page.evaluate(
+    async ({ input }) => {
+      // biome-ignore lint/suspicious/noExplicitAny: the IPC bridge Tauri injects into the window
+      const internals = (window as any).__TAURI_INTERNALS__;
+      let first: () => void = () => {};
+      const progressed = new Promise<void>((resolve) => {
+        first = resolve;
+      });
+      const channel = internals.transformCallback(() => first());
+      const run = internals.invoke("media_convert", {
+        job: "convert-1",
+        input,
+        kind: "video",
+        onProgress: `__CHANNEL__:${channel}`,
+      });
+      await progressed;
+      const asked = Date.now();
+      await internals.invoke("media_cancel", { job: "convert-1" });
+      const error = await run.then(
+        () => "finished",
+        (reason: unknown) => String(reason),
+      );
+      return { error, ms: Date.now() - asked };
+    },
+    { input },
+  );
+  // A data file under media-work is removed once read, cancelled or not; write it again.
+  const stopped = await cancelled;
+  expect(stopped.error).toBe("cancelled");
+  expect(stopped.ms).toBeLessThan(2_000);
+  writeFileSync(input, Buffer.concat(rawVideo(1450)));
+
+  const converted = await media("media_convert", { job: "convert-2", input, kind: "video" });
+  expect(converted).toMatchObject({ ok: true });
+  expect(converted.progress).toBeGreaterThan(0);
+  expect(converted.value).toBeGreaterThan(0);
+  expect(existsSync(input)).toBe(false);
+  expect(readdirSync(join(localData, "media-work"))).toEqual([]);
 });
 
 test("closing the window asks the page, which lets it close with no course open", async () => {

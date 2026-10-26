@@ -10,6 +10,10 @@ fn main() {
             "rename_file",
             "remove_path",
             "list_folder",
+            "media_converter",
+            "media_install",
+            "media_convert",
+            "media_cancel",
         ]),
     ))
     .expect("failed to run the Tauri build script");
