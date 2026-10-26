@@ -392,14 +392,17 @@ test("UI-BLOCKS-EDITOR-R46 BLK-09, keyboard only: lesson header background, heig
 }) => {
   await openBees(page);
   await openTheme(page);
+  // Into the lesson first: the preview shows each change at the lesson on show, so nothing acts in
+  // a frame an update is about to replace.
+  const frame = await player(page);
+  await frame.getByRole("link", { name: "Begin course" }).press("Enter");
+  await expect(frame.getByRole("heading", { level: 1, name: "The hive" })).toBeVisible();
   await tabTo(page, sectionButton(page, "Lesson headers"));
   await page.keyboard.press("Enter");
   await chooseByKeyboard(page, "Header background", "Theme colour");
   await chooseByKeyboard(page, "Header height", "Large");
   await tabTo(page, page.getByRole("switch", { name: "Lesson count label" }));
   await page.keyboard.press("Space");
-  const frame = await player(page);
-  await frame.getByRole("link", { name: "Begin course" }).click();
   const header = frame.locator(".lesson-header");
   await expect(header).toHaveCSS("background-color", "rgb(255, 99, 30)");
   await expect(header).toHaveClass(/header-large/);
@@ -685,6 +688,11 @@ for (const editorTheme of ["light", "dark"] as const) {
     await openTheme(page);
     await check("menu");
     await checkPlayer("cover, title on the theme colour");
+    // The player before the panel changes anything, so no update replaces the frame axe reads.
+    const frame = await player(page);
+    await frame.getByRole("link", { name: "Begin course" }).click();
+    await expect(frame.getByRole("heading", { level: 1, name: "The hive" })).toBeVisible();
+    await checkPlayer("lesson with a header in the theme colour");
     for (const name of ["Layout style", "Cover page", "Lesson headers", "Colours", "Blocks"]) {
       await openSection(page, name);
       await check(name);
@@ -708,10 +716,7 @@ for (const editorTheme of ["light", "dark"] as const) {
     await check("delete a font");
     await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("button", { name: "Cancel" }).click();
-    const frame = await player(page);
-    await frame.getByRole("link", { name: "Begin course" }).click();
-    await expect(frame.getByRole("heading", { level: 1, name: "The hive" })).toBeVisible();
-    await checkPlayer("lesson with a header in the theme colour");
+    await expect(sectionButton(page, "Fonts")).toBeFocused();
   });
 }
 
@@ -919,6 +924,10 @@ test("[rise:3E] [rise:R18] blocks-editor T6 2.18 BLK-09, keyboard only: the imag
   await openBees(page);
   await themeButton(page).focus();
   await page.keyboard.press("Enter");
+  // Into the lesson first, so each change shows there.
+  const frame = await player(page);
+  await frame.getByRole("link", { name: "Begin course" }).press("Enter");
+  await expect(frame.getByRole("heading", { level: 1, name: "The hive" })).toBeVisible();
   await tabTo(page, sectionButton(page, "Lesson headers"));
   await page.keyboard.press("Enter");
   await chooseByKeyboard(page, "Header background", "Image");
@@ -945,8 +954,6 @@ test("[rise:3E] [rise:R18] blocks-editor T6 2.18 BLK-09, keyboard only: the imag
   await expect(dialog).toHaveCount(0);
   await expect(picture.getByText("Cropped")).toBeVisible();
 
-  const frame = await player(page);
-  await frame.getByRole("link", { name: "Begin course" }).click();
   const header = frame.locator(".lesson-header");
   await expect(header).toHaveClass(/header-image/);
   await expect(header).toHaveClass(/text-light/);
