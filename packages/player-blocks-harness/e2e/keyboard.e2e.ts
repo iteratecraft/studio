@@ -36,7 +36,7 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonwhat");
     await expect(h1(page)).toHaveText("What compost is");
     const order: string[] = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       await page.keyboard.press("Tab");
       order.push(
         await page.evaluate(() => {
@@ -59,6 +59,8 @@ test.describe("keyboard-only journeys", () => {
       "outline: Greens and browns",
       "outline: Check what you know",
       "outline: Looking after the heap",
+      // The lesson's image opens large (zoom is on by default, blocks-editor.md 2.10).
+      "main: Enlarge image",
       "main: Continue",
       "main: Next lesson Greens and browns",
     ]);
@@ -114,7 +116,8 @@ test.describe("keyboard-only journeys", () => {
     await page.keyboard.press("Tab");
     await expect(outline(page)).toBeHidden();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByRole("button", { name: "Continue" })).toBeFocused();
+    // The first stop in the lesson: its image, which opens large.
+    await expect(page.getByRole("button", { name: /Enlarge image$/ })).toBeFocused();
 
     // Shift+Tab out of the contents, back to the button, leaves them open.
     await toggle.focus();

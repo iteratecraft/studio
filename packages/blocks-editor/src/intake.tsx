@@ -65,6 +65,8 @@ export interface MediaIntake {
   ): Promise<AddedMedia[]>;
   /** The name a file in the store was added with. */
   name(key: string): string | undefined;
+  /** Saves a copy of a file in the store where the author picks, such as a caption track (B5). */
+  saveCopy(key: string, suggestedName: string): Promise<void>;
 }
 
 const IntakeContext = createContext<MediaIntake | undefined>(undefined);
@@ -318,6 +320,16 @@ export function MediaIntakeProvider({
 
   const intake: MediaIntake = {
     name: (key) => session.mediaName(key),
+    async saveCopy(key, suggestedName) {
+      const data = await session.media(key);
+      if (!data) return;
+      const extension = extensionOf(suggestedName);
+      const file = await host.files.pickSave({
+        suggestedName,
+        ...(extension && { filters: [{ name: extension.toUpperCase(), extensions: [extension] }] }),
+      });
+      if (file) await host.files.write(file, data);
+    },
     async add(kind, from, { keepOriginal = false } = {}) {
       let sources: Source[];
       if (typeof from === "string") {

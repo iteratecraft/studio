@@ -439,7 +439,7 @@ async function unpacked(zip: ZipArchive): Promise<string> {
 const CAPTIONS = [
   "WEBVTT",
   "",
-  "00:00:00.500 --> 00:00:02.000",
+  "00:00:00.500 --> 00:00:02.000 line:85%",
   "<c.loud>The otters</c> come out",
   "",
   "00:00:02.000 --> 00:00:04.250",
@@ -451,7 +451,7 @@ const shownFrame = (page: Page) =>
   page.frameLocator("iframe[title='Course preview']:not([data-pending])");
 
 test.describe("captions", () => {
-  test("[rise:3C] UI-ACCESSIBILITY-R41, accessibility.md BA4, BA5, W19, W20, D3, BLK-05: caption files per language; the caption editor splits and joins captions by keyboard; edits show in the preview and ship as WebVTT in the package", async ({
+  test("[rise:3C] UI-ACCESSIBILITY-R41, accessibility.md BA4, BA5, W19, W20, D3, BLK-05: caption files per language; the caption editor splits, adds and joins captions by keyboard and changes the language; edits show in the preview and ship as WebVTT in the package; a track is saved as a copy (B5)", async ({
     page,
   }) => {
     await openRiver(page);
@@ -510,6 +510,15 @@ test.describe("captions", () => {
     await page.keyboard.press("Delete");
     await expect(text(2)).toHaveValue(" come out at <b>dusk</b>.");
     await expect(text(3)).toHaveCount(0);
+    // Enter at the very end adds a caption after it, from its end; it can be removed again.
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await expect(text(3)).toBeFocused();
+    await expect(
+      editor.getByRole("group", { name: "Caption 3" }).getByRole("textbox", { name: "Starts at" }),
+    ).toHaveValue("00:00:04.250");
+    await editor.getByRole("button", { name: "Remove caption 3" }).click();
+    await expect(text(3)).toHaveCount(0);
     // A time that is not hh:mm:ss.ttt blocks saving.
     await ends(2).fill("4 seconds");
     await expect(editor.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -540,8 +549,9 @@ test.describe("captions", () => {
       // Saving trims each caption line.
       [1.289, 5, "come out at <b>dusk</b>."],
     ]);
+    // Both halves of the split caption keep its position setting.
     const vtt =
-      "WEBVTT\n\n00:00:00.500 --> 00:00:01.289\nThe otters\n\n00:00:01.289 --> 00:00:05.000\ncome out at <b>dusk</b>.\n";
+      "WEBVTT\n\n00:00:00.500 --> 00:00:01.289 line:85%\nThe otters\n\n00:00:01.289 --> 00:00:05.000 line:85%\ncome out at <b>dusk</b>.\n";
     await page.getByRole("button", { name: "Edit" }).click();
     await saved(page);
 
@@ -555,6 +565,23 @@ test.describe("captions", () => {
     );
     expect(new TextDecoder().decode(await zip.read(`media/${french?.key}`))).toBe(vtt);
     expect(course.media).toHaveLength(3);
+
+    // A copy of a track is saved where the author picks (B5 "download each track as VTT").
+    await page.evaluate(() => {
+      window.editorTest.save = "exports/otters.vtt";
+    });
+    await captions.getByRole("button", { name: "Save a copy of the French (fr) captions" }).click();
+    await expect
+      .poll(async () => new TextDecoder().decode(await bytesOf(page, "exports/otters.vtt")))
+      .toBe(vtt);
+    // The caption editor also changes a track's language (BA5), one per language.
+    await captions.getByRole("button", { name: "Edit the French (fr) captions" }).click();
+    const trackLanguage = editor.getByRole("textbox", { name: "Language code" });
+    await trackLanguage.fill("fr-ca");
+    await editor.getByRole("button", { name: "Save" }).click();
+    await expect(captions.getByText("Canadian French (fr-CA)")).toBeVisible();
+    const relabelled = lessonOf(await saved(page)).blocks[0] as Block;
+    expect(relabelled.media?.[0]?.captions).toEqual([{ key: french?.key, language: "fr-CA" }]);
   });
 });
 
