@@ -14,11 +14,12 @@ export type {
   Verb,
 } from "./commands.js";
 export { applyCommands, COLLECTIONS, COMMAND_TYPES, LOCKED } from "./commands.js";
-export type { EntryCopy } from "./copy.js";
-export { copyCourse, copyEntryTo } from "./copy.js";
+export type { BlockClip, CopyCommands, EntryCopy } from "./copy.js";
+export { clipBlocks, copyCourse, copyEntryTo, pasteBlocks } from "./copy.js";
 export type { ChangeEvent, Editor, EditorOptions } from "./editor.js";
 export { createEditor } from "./editor.js";
 export type { Op, Path } from "./ops.js";
 export { applyOps } from "./ops.js";
 export { commandSchemas } from "./schemas.js";
 export type { Kind } from "./walk.js";
+export { contentIds } from "./walk.js";

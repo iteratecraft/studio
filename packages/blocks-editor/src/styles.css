@@ -331,21 +331,220 @@ body,
   align-self: start;
 }
 
+/* Lesson blocks (L1 to L6): a row per block with its type, tools and fields, an insert control on
+   the line under each block, and the shortcut bar at the end. */
 .be-blocks {
   display: flex;
   flex-direction: column;
   gap: var(--cs-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+}
+
+.be-blocks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cs-space-2);
+}
+
+.be-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
 }
 
 .be-block {
-  padding: var(--cs-space-3);
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  min-width: 0;
+  padding: var(--cs-space-3) var(--cs-space-3) var(--cs-space-4);
   border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius-md);
-  background: var(--cs-surface);
+  background: var(--cs-raised);
+}
+
+.be-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--cs-space-2);
+}
+
+.be-block-type {
+  color: var(--cs-text-muted);
   font-size: var(--cs-text-sm);
+  font-weight: var(--cs-weight-strong);
+}
+
+.be-block-tools {
+  padding: 2px;
+}
+
+.be-block-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  min-width: 0;
+}
+
+/* The fields and, beside them on a wide screen, the block as learners see it (BLK-03). */
+.be-block-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cs-space-3);
+}
+
+@media (min-width: 64rem) {
+  .be-block-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.be-block-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+  min-width: 0;
+}
+
+.be-block-preview-label {
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-sm);
+}
+
+/* The player draws on its own white page; the frame shows where that page ends. */
+.be-block-preview > div {
+  overflow: hidden;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-sm);
+}
+
+.be-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--cs-space-2) var(--cs-space-4);
+}
+
+.be-answer > .cs-Field {
+  flex: 1 1 12rem;
+}
+
+/* The insert control sits on the line under its block (L3). */
+.be-block > .be-insert {
+  position: absolute;
+  inset: auto auto calc(var(--cs-control-height) / -2 - var(--cs-space-2)) 50%;
+  z-index: 1;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-bg);
+  translate: -50% 0;
+}
+
+.be-blocks > .be-insert {
+  align-self: center;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-full);
+}
+
+.be-shortcuts {
+  margin-top: var(--cs-space-4);
+}
+
+.be-note {
+  margin: 0;
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-sm);
+}
+
+/* Style and format menus */
+.be-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  width: min(20rem, 80vw);
+}
+
+.be-presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+}
+
+.be-preset-buttons {
+  display: flex;
+  gap: var(--cs-space-1);
+}
+
+.be-preset-buttons > .cs-Button {
+  flex: 1;
+}
+
+/* Block library and manage blocks */
+.be-library,
+.be-manage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  width: min(28rem, 85vw);
+}
+
+.be-library .cs-ListBox--standalone {
+  max-height: min(24rem, 55vh);
+}
+
+.be-manage-list {
+  max-height: min(20rem, 45vh);
+  overflow: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.be-manage-list .cs-GridListItem {
+  gap: var(--cs-space-2);
+}
+
+.be-manage-check {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  align-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-sm);
+}
+
+.be-manage-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.be-confirm p {
+  margin: 0 0 var(--cs-space-2);
+  font-size: var(--cs-text-sm);
+}
+
+/* Preview (P1): the pane fills the window under the top bar and scrolls inside. */
+.be-editor:has(> .be-preview) {
+  height: 100%;
+}
+
+.be-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.be-preview > .cs-Preview {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Dialogs */

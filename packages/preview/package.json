@@ -1,0 +1,30 @@
+{
+  "name": "@course-suite/preview",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@course-suite/exporters": "workspace:*",
+    "@course-suite/format": "workspace:*",
+    "@course-suite/player-blocks": "workspace:*",
+    "@course-suite/tracking": "workspace:*"
+  },
+  "devDependencies": {
+    "@course-suite/zip": "workspace:*",
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  }
+}

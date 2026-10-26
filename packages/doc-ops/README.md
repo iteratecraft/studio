@@ -32,6 +32,14 @@ It refuses with a `reason` instead (`ok: false`) when the target is a microlearn
 exactly one lesson and no quiz (rise.md 3A), and when a lesson has a custom block, as custom blocks
 have no commands yet.
 
+`clipBlocks(course, ids)` takes blocks aside for copy and paste (rise.md 3J, BLK-03): the blocks
+in lesson order with the media index entries they use. `pasteBlocks(clip, target, lesson, index)`
+gives the commands that insert copies of them into a lesson of any course from `index` on: new
+ids, a media index entry for each file the target lacks and the storage `keys` whose bytes it
+needs. In another course a button to a lesson is dropped (D-36) and a custom block is refused
+(undefined); in its own course a button keeps its lesson. `contentIds(course)` gives every content
+id in a course, for `newContentId`.
+
 ## Commands
 
 | Command | For |

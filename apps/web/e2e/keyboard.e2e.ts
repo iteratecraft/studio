@@ -31,9 +31,14 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   await press(page, "Tab", page.getByRole("textbox", { name: "Course title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Lesson title" }));
   await press(page, "Tab", page.getByRole("textbox", { name: "Description" }));
-  // The search field's clear button is not a stop; the toggle buttons are one.
+  // The search field's clear button is not a stop; a group of toggle buttons is one stop, on the
+  // one that is on.
   await press(page, "Tab", page.getByRole("searchbox", { name: "Search by title" }));
-  await press(page, "Tab", page.getByRole("radio", { name: "Grid" }));
+  // Formatted text: its tools show once it has focus, before it, so Tab goes into the text.
+  await press(page, "Tab", page.getByRole("textbox", { name: "Lesson summary" }));
+  await press(page, "Tab", page.getByRole("slider", { name: "Top padding" }));
+  await press(page, "Tab", page.getByRole("spinbutton", { name: "Top padding (pixels)" }));
+  await press(page, "Tab", page.getByRole("radio", { name: "Computer" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Show lesson numbers" }));
   await press(page, "Tab", page.getByRole("checkbox", { name: "Some lessons are required" }));
   // The disabled switch is skipped.
@@ -60,22 +65,25 @@ test("Tab walks the page in reading order, one stop per composite control", asyn
   await expect(page.locator("main :focus")).toHaveCount(0);
 });
 
-test("search field and toggle buttons: Escape clears the search, arrows move between toggles", async ({
-  page,
-}) => {
+test("search field: Escape clears the search", async ({ page }) => {
   const search = page.getByRole("searchbox", { name: "Search by title" });
   await search.focus();
   await expect(search).toHaveValue("Safety");
   await press(page, "Escape", search);
   await expect(search).toHaveValue("");
   await expect(page.getByRole("button", { name: "Clear search" })).toBeHidden();
-  const grid = page.getByRole("radio", { name: "Grid" });
-  const list = page.getByRole("radio", { name: "List" });
-  await grid.focus();
-  await press(page, "ArrowRight", list);
+});
+
+test("toggle buttons: arrow keys move along a group, Space turns one on", async ({ page }) => {
+  const group = page.getByRole("radiogroup", { name: "Device" });
+  await group.getByRole("radio", { name: "Computer" }).focus();
+  await press(page, "ArrowRight", group.getByRole("radio", { name: "Tablet" }));
+  await press(page, "ArrowRight", group.getByRole("radio", { name: "Phone" }));
+  await expect(group.getByRole("radio", { name: "Computer" })).toBeChecked();
   await page.keyboard.press("Space");
-  await expect(list).toBeChecked();
-  await expect(grid).not.toBeChecked();
+  await expect(group.getByRole("radio", { name: "Phone" })).toBeChecked();
+  await expect(group.getByRole("radio", { name: "Computer" })).not.toBeChecked();
+  await press(page, "ArrowLeft", group.getByRole("radio", { name: "Tablet" }));
 });
 
 test("buttons: an icon button shows its name as a tooltip on focus, Escape hides it", async ({

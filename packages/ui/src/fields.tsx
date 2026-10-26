@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
   Button as AriaButton,
   Checkbox as AriaCheckbox,
@@ -7,6 +7,7 @@ import {
   type SearchFieldProps as AriaSearchFieldProps,
   Select as AriaSelect,
   type SelectProps as AriaSelectProps,
+  Slider as AriaSlider,
   Switch as AriaSwitch,
   type SwitchProps as AriaSwitchProps,
   TextArea as AriaTextArea,
@@ -18,6 +19,8 @@ import {
   Label,
   ListBox,
   SelectValue,
+  SliderThumb,
+  SliderTrack,
   Text,
 } from "react-aria-components";
 import { cx, IconButton } from "./buttons.js";
@@ -197,5 +200,84 @@ export function SearchField({
       </div>
       <FieldFooter description={description} errorMessage={errorMessage} />
     </AriaSearchField>
+  );
+}
+
+export interface SliderFieldProps {
+  label: string;
+  /** The unit after the number, for screen readers too, such as "pixels". */
+  unit: string;
+  value: number;
+  minValue: number;
+  maxValue: number;
+  step?: number;
+  /** Every change while dragging or typing. */
+  onChange: (value: number) => void;
+  /** The value the author settled on: a drag or key press ended, or the typed number was kept. */
+  onChangeEnd: (value: number) => void;
+  isDisabled?: boolean;
+}
+
+/**
+ * A number set with a slider or typed in the box beside it (blocks-editor.md 2.4: padding). The box
+ * keeps a typed number on Enter or when it loses focus, held to the range.
+ */
+export function SliderField({
+  label,
+  unit,
+  value,
+  minValue,
+  maxValue,
+  step = 1,
+  onChange,
+  onChangeEnd,
+  isDisabled,
+}: SliderFieldProps) {
+  const [typed, setTyped] = useState<string>();
+  const keep = () => {
+    if (typed === undefined) return;
+    setTyped(undefined);
+    const number = Number.parseInt(typed, 10);
+    if (Number.isNaN(number)) return;
+    const next = Math.min(maxValue, Math.max(minValue, number));
+    onChange(next);
+    onChangeEnd(next);
+  };
+  return (
+    <AriaSlider
+      className="cs-Field cs-Slider"
+      value={value}
+      minValue={minValue}
+      maxValue={maxValue}
+      step={step}
+      onChange={onChange}
+      onChangeEnd={onChangeEnd}
+      {...(isDisabled !== undefined && { isDisabled })}
+    >
+      <Label className="cs-Label">{label}</Label>
+      <div className="cs-Slider-row">
+        <SliderTrack className="cs-Slider-track">
+          <SliderThumb className="cs-Slider-thumb" />
+        </SliderTrack>
+        <input
+          type="number"
+          className="cs-Input cs-Slider-input"
+          aria-label={`${label} (${unit})`}
+          min={minValue}
+          max={maxValue}
+          step={step}
+          disabled={isDisabled}
+          value={typed ?? String(value)}
+          onChange={(event) => setTyped(event.currentTarget.value)}
+          onBlur={keep}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") keep();
+          }}
+        />
+        <span className="cs-Slider-unit" aria-hidden="true">
+          {unit}
+        </span>
+      </div>
+    </AriaSlider>
   );
 }

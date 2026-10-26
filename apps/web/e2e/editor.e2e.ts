@@ -645,7 +645,8 @@ test.describe("course editor", () => {
     await page.keyboard.press("End");
     await page.keyboard.type(", revised");
     await page.keyboard.press("Shift+Tab");
-    await expect(button(page, "Save as")).toBeFocused();
+    // The tools are one stop, entered at their last control that is on: Preview.
+    await expect(button(page, "Preview")).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(button(page, "Back to your courses")).toBeFocused();
     await page.keyboard.press("Enter");
@@ -762,15 +763,16 @@ test.describe("course editor", () => {
     expect(course.sourceLanguage).toBe("fr-CA");
   });
 
-  test("blocks-editor C1: settings entry points of later waves are shown but disabled", async ({
+  test("blocks-editor C1: settings entry points of later waves are shown but disabled; preview is on", async ({
     page,
   }) => {
     await launch(page);
     await create(page, "Entry points");
     const tools = page.getByRole("toolbar", { name: "Course tools" });
-    for (const name of ["Theme", "Preview", "Publish"]) {
+    for (const name of ["Theme", "Publish"]) {
       await expect(tools.getByRole("button", { name })).toBeDisabled();
     }
+    await expect(tools.getByRole("button", { name: "Preview" })).toBeEnabled();
   });
 });
 

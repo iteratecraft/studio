@@ -56,15 +56,22 @@ function newEntry(kind: Kind, title: string, taken: ReadonlySet<string>): Entry 
   return { id, kind, title };
 }
 
-/** moveEntry commands that turn the order `from` into `to`, as one list (one undo step). */
-export function movesBetween(from: readonly string[], to: readonly string[]): Command[] {
+/**
+ * Move commands that turn the order `from` into `to`, as one list (one undo step): moveEntry for
+ * outline entries, or the command `move` makes, such as moveBlock.
+ */
+export function movesBetween(
+  from: readonly string[],
+  to: readonly string[],
+  move = (id: string, index: number): Command => ({ type: "moveEntry", id, index }),
+): Command[] {
   const current = [...from];
   const commands: Command[] = [];
   to.forEach((id, index) => {
     if (current[index] === id) return;
     current.splice(current.indexOf(id), 1);
     current.splice(index, 0, id);
-    commands.push({ type: "moveEntry", id, index });
+    commands.push(move(id, index));
   });
   return commands;
 }
@@ -400,7 +407,7 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
  * Runs `effect` after every render of the list row it sits in. Its effects run once the list has
  * set up the row, which a ref callback runs too early for.
  */
-function AfterRender({ effect }: { effect: () => void }) {
+export function AfterRender({ effect }: { effect: () => void }) {
   useEffect(effect);
   return null;
 }

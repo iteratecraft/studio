@@ -1,30 +1,34 @@
 // Lesson addresses (rise.md §3 B): the cover page has the root address and every lesson and quiz has
 // its own, built from its stable id, so a link to a lesson survives republishing. Addresses live in
 // the URL fragment, which works from disk, on any static host and inside an LMS frame.
-import type { Course, LessonEntry, QuizEntry } from "@course-suite/format";
+import { type Course, type LessonEntry, lessonLink, type QuizEntry } from "@course-suite/format";
 
 /** An entry the learner can open: a lesson or a quiz. Section headers hold no blocks. */
 export type Page = LessonEntry | QuizEntry;
 
 export type Route =
   | { kind: "cover" }
-  | { kind: "page"; page: Page; index: number }
+  /** `block`: the block of the page the address names, to show first (blocks-editor.md L6). */
+  | { kind: "page"; page: Page; index: number; block?: string }
   /** An address that names no page of this course, for example a lesson removed by an update. */
   | { kind: "unknown" };
 
 export const COVER_HASH = "#/";
-export const pageHash = (id: string) => `#/lessons/${encodeURIComponent(id)}`;
+/** A page's address; its blocks have one each too (@course-suite/format lessonLink). */
+export const pageHash = (id: string) => lessonLink(id);
 
 export const pagesOf = (course: Course): Page[] =>
   course.entries.filter((entry): entry is Page => entry.kind !== "section");
 
 export function parseRoute(hash: string, pages: readonly Page[]): Route {
   if (hash === "" || hash === "#" || hash === COVER_HASH) return { kind: "cover" };
-  const match = /^#\/lessons\/([^/]+)$/.exec(hash);
+  const match = /^#\/lessons\/([^/]+)(?:\/([^/]+))?$/.exec(hash);
   const id = match?.[1] === undefined ? undefined : safeDecode(match[1]);
+  const block = match?.[2] === undefined ? undefined : safeDecode(match[2]);
   const index = pages.findIndex((page) => page.id === id);
   const page = pages[index];
-  return page ? { kind: "page", page, index } : { kind: "unknown" };
+  if (!page) return { kind: "unknown" };
+  return block ? { kind: "page", page, index, block } : { kind: "page", page, index };
 }
 
 const safeDecode = (text: string) => {

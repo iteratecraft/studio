@@ -1,3 +1,4 @@
+export { accentReadable, contrastRatio, luminance, SURFACE, textOn } from "./contrast.js";
 export type * from "./course.js";
 export { activityIri, newContentId, newProjectId, withNewProjectId } from "./ids.js";
 export type { JsonObject, MigrateResult, Migration } from "./migrate.js";
@@ -19,5 +20,13 @@ export {
   shuffle,
   toInteraction,
 } from "./quiz.js";
+export {
+  isLessonLink,
+  isSafeLink,
+  lessonLink,
+  RICH_TEXT_ATTRIBUTES,
+  RICH_TEXT_DROPPED,
+  RICH_TEXT_ELEMENTS,
+} from "./richtext.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";

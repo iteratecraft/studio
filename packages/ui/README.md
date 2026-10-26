@@ -25,12 +25,28 @@ Components: `Button`, `IconButton`, `ToggleButtonGroup` with `ToggleButton`, `To
 names the field), `SearchField`, `Checkbox`, `Switch`, `Select`, `Menu`, `Tabs`, `Dialog`,
 `Popover`, `ToastRegion`, `ListBox`, `GridList` (reorder with `useReorder`, which moves a `ListData`
 or calls your function with the moved keys and where they go; `layout="grid"` for cards), `Tree`,
-`Splitter`, `Pagination` (range, previous, page jump, next), `EmptyState`, `ProgressBar` and
-`Icon`. `useAnnouncer` reads out what happened out of sight, such as a moved row, through a polite
-live region; `cs-visually-hidden` hides text from sight only.
+`Splitter`, `Pagination` (range, previous, page jump, next), `EmptyState`, `ProgressBar`, `Icon`,
+`RichTextField` and `SliderField`. `ListBoxItem` takes a `description`, read after its name, and
+`ListBoxSection` groups options under a title. `useAnnouncer` reads out what happened out of
+sight, such as a moved row, through a polite live region; `cs-visually-hidden` hides text from
+sight only.
 
 In a `GridList` with `keyboardNavigationBehavior="tab"`, a row keeps the keys of its controls to
 itself, so app-wide shortcuts listen on `window` in the capture phase.
+
+`RichTextField` (M2-10) edits formatted text in place with the browser's own editing
+(contenteditable, no library): paragraphs, headings 2 to 5, bold, italic, underline,
+strikethrough, subscript, superscript, bulleted and numbered lists and web or mail links, with its
+tools above it while in use (Alt+F10 reaches them, Escape goes back; Ctrl/Cmd+B, I, U and K, and
+Ctrl/Cmd+Shift+X for strikethrough, since Ctrl/Cmd+S saves; lead decision). A tool with keys names
+them in its tooltip and accessible description (`ToggleButton`'s `shortcut`). It gives out the browser's HTML; the caller normalises it. `SliderField` sets a number by slider or by
+typing it in the box beside it.
+
+`PreviewPane` (M2-11, UI-BLOCKS-EDITOR P1) shows a course in the real player from
+`@course-suite/preview`, with an edit button back to the lesson on show, Restart, and device
+buttons for computer, tablet (768 px) and phone (375 px) widths. It loads the player bundle the first
+time a pane opens, so an editor that never previews does not download it. `apps/web/preview.html`
+is its dev and test page.
 
 ## Tokens and themes
 
@@ -61,4 +77,5 @@ so React Aria does not try (see `apps/desktop/index.html`).
 - Editor UI code (`packages/ui/src`, `apps/web/src`) never imports Node.js modules or
   `@tauri-apps/*`: files, dialogs and processes go through the host interface (ADR-0006).
   `pnpm lint` enforces it; `tools/lint/editor-imports.test.ts` shows what it reports.
-- No ports: the kit needs no files, storage or time of its own.
+- No ports: the kit needs no files, storage or time of its own. `PreviewPane` takes the media
+  bytes it shows from its caller.

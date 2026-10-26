@@ -82,3 +82,12 @@ export function idsIn(value: Obj, kind: Located["kind"]): string[] {
   });
   return ids;
 }
+
+/** Every content id in a course, to keep new ids from colliding with them (newContentId). */
+export function contentIds(course: object): Set<string> {
+  const ids = new Set<string>();
+  walk(course as Obj, "course", [], (found) => {
+    if (typeof found.value.id === "string") ids.add(found.value.id);
+  });
+  return ids;
+}

@@ -1,10 +1,13 @@
 // Duplicating a whole course (rise.md 3J, BLK-01 "a duplicated course shares no ids with its
 // source"): a new project id and a new content id for every object, with references kept. And
 // copying one lesson to another course (rise.md 3B, BLK-02).
-import type { Course, Entry, MediaEntry } from "@course-suite/format";
+import type { Block, Course, Entry, MediaEntry } from "@course-suite/format";
 import { newContentId, newProjectId } from "@course-suite/format";
 import type { Command } from "./commands.js";
+import type { Kind } from "./walk.js";
 import { idsIn, indexDocument } from "./walk.js";
+
+type Obj = Record<string, unknown>;
 
 /**
  * A copy of the course that shares no id with it: a new project id, a new id for every object
@@ -33,15 +36,17 @@ export function copyCourse(course: Course): Course {
   return { ...(copy(course) as Course), id: newProjectId() };
 }
 
+/** Commands that copy part of one course into another, and the media files they need. */
+export interface CopyCommands {
+  /** Commands for the target course, applied as one list. */
+  commands: Command[];
+  /** Storage keys of the media files the copy uses, whose bytes the target project needs. */
+  keys: string[];
+}
+
 /** What copying an outline entry to another course needs, or why it cannot be copied. */
 export type EntryCopy =
-  | {
-      ok: true;
-      /** Commands for the target course, applied as one list. */
-      commands: Command[];
-      /** Storage keys of the media files the copy uses, whose bytes the target project needs. */
-      keys: string[];
-    }
+  | ({ ok: true } & CopyCommands)
   | {
       ok: false;
       /**
@@ -66,23 +71,117 @@ export function copyEntryTo(source: Course, id: string, target: Course): EntryCo
   if (entry.kind === "lesson" && entry.blocks.some((block) => block.customBlock)) {
     return { ok: false, reason: "custom-block" };
   }
-  const taken = new Set([...indexDocument(source).keys(), ...indexDocument(target).keys()]);
+  const copier = copierFor([entry], "entry", source, target, () => false, [
+    ...indexDocument(source).keys(),
+  ]);
+  return {
+    ok: true,
+    ...copier.result([{ type: "insertEntry", value: copier.copies[0] as Entry }]),
+  };
+}
+
+/** Blocks taken from a course, with the media index entries they use: what copy puts aside. */
+export interface BlockClip {
+  /** Id of the course the blocks come from. */
+  course: string;
+  blocks: Block[];
+  /** The source course's media index entries for the files the blocks use. */
+  media: MediaEntry[];
+}
+
+/** The blocks with ids `ids` of `course`, in lesson order, and the media index entries they use. */
+export function clipBlocks(course: Course, ids: Iterable<string>): BlockClip {
+  const wanted = new Set(ids);
+  const blocks = course.entries.flatMap((entry) =>
+    entry.kind === "lesson" ? entry.blocks.filter((block) => wanted.has(block.id)) : [],
+  );
+  const keys = new Set(mediaKeysIn(blocks));
+  return { course: course.id, blocks, media: course.media.filter((media) => keys.has(media.key)) };
+}
+
+/**
+ * Pastes copies of the clipped blocks into lesson `lesson` of `target`, from `index` on (the end
+ * when left out), in their order (rise.md 3J, UI-BLOCKS-EDITOR-R24, W12, W13; BLK-03): new ids,
+ * unused in the target, and a media index entry for each file the target lacks, whose bytes it
+ * needs (`keys`). Pasted into another course, a button to a lesson is removed (D-36); in its own
+ * course it keeps pointing at the lesson. Undefined when `lesson` is not a lesson of `target`, or
+ * when a block from another course uses a custom-block document, which has no commands yet.
+ */
+export function pasteBlocks(
+  clip: BlockClip,
+  target: Course,
+  lesson: string,
+  index?: number,
+): CopyCommands | undefined {
+  const into = target.entries.find((entry) => entry.id === lesson);
+  const sameCourse = clip.course === target.id;
+  if (into?.kind !== "lesson") return undefined;
+  if (!sameCourse && clip.blocks.some((block) => block.customBlock)) return undefined;
+  const entries = new Set(target.entries.map((entry) => entry.id));
+  const copier = copierFor(
+    clip.blocks,
+    "block",
+    clip,
+    target,
+    (id) => sameCourse && entries.has(id),
+  );
+  const at = index ?? into.blocks.length;
+  return copier.result(
+    copier.copies.map((value, i) => ({
+      type: "insertBlock",
+      parent: lesson,
+      index: at + i,
+      value: value as Block,
+    })),
+  );
+}
+
+/** Storage keys of the media files used by `values`: every `key` of a media reference. */
+function mediaKeysIn(values: unknown): string[] {
+  const keys: string[] = [];
+  const visit = (value: unknown, name?: string) => {
+    if (typeof value === "string" && name === "key") keys.push(value);
+    else if (Array.isArray(value)) for (const item of value) visit(item);
+    else if (value && typeof value === "object" && !Object.hasOwn(value, "containerId")) {
+      for (const [field, item] of Object.entries(value)) visit(item, field);
+    }
+  };
+  visit(values);
+  return keys;
+}
+
+/**
+ * Copies of `values` (objects of `kind`) for `target`: a new id, unused in either course, for every
+ * object in them (and none of `alsoTaken`) and every reference to one pointing at its copy; a button to an outline entry that
+ * was not copied stays only when `keepEntry` says so; a quiz's skip-ahead goes. `result` adds a
+ * media index entry for each file the copies use that `target` lacks.
+ */
+function copierFor(
+  values: readonly object[],
+  kind: Kind,
+  source: { media: readonly MediaEntry[] },
+  target: Course,
+  keepEntry: (id: string) => boolean,
+  alsoTaken: readonly string[] = [],
+) {
+  const old = values.flatMap((value) => idsIn(value as Obj, kind));
+  const taken = new Set([...indexDocument(target).keys(), ...old, ...alsoTaken]);
   const fresh = () => {
     const next = newContentId(taken);
     taken.add(next);
     return next;
   };
-  const renamed = new Map(
-    idsIn(entry as unknown as Record<string, unknown>, "entry").map((old) => [old, fresh()]),
-  );
+  const renamed = new Map(old.map((id) => [id, fresh()]));
   const known = new Map(source.media.map((media) => [media.key, media]));
   const keys = new Set<string>();
-  const elsewhere = (value: unknown) => {
+  const dropped = (value: unknown) => {
     const item = value as { kind?: unknown; destination?: { kind?: unknown; entry?: unknown } };
+    const entry = item?.destination?.entry as string;
     return (
       item?.kind === "button" &&
       item.destination?.kind === "lesson" &&
-      !renamed.has(item.destination.entry as string)
+      !renamed.has(entry) &&
+      !keepEntry(entry)
     );
   };
   const copy = (value: unknown, name?: string): unknown => {
@@ -90,7 +189,7 @@ export function copyEntryTo(source: Course, id: string, target: Course): EntryCo
       if (name === "key" && known.has(value)) keys.add(value);
       return renamed.get(value) ?? value;
     }
-    if (Array.isArray(value)) return value.filter((item) => !elsewhere(item)).map((v) => copy(v));
+    if (Array.isArray(value)) return value.filter((item) => !dropped(item)).map((v) => copy(v));
     if (value === null || typeof value !== "object") return value;
     if (Object.hasOwn(value, "containerId")) return value;
     return Object.fromEntries(
@@ -99,14 +198,19 @@ export function copyEntryTo(source: Course, id: string, target: Course): EntryCo
         .map(([field, item]) => [field, copy(item, field)]),
     );
   };
-  const value = copy(entry) as Entry;
-  const present = new Set(target.media.map((media) => media.key));
-  const commands: Command[] = [...keys]
-    .filter((key) => !present.has(key))
-    .map((key) => ({
-      type: "insertMedia",
-      value: { ...(known.get(key) as MediaEntry), id: fresh() },
-    }));
-  commands.push({ type: "insertEntry", value });
-  return { ok: true, commands, keys: [...keys] };
+  const copies = values.map((value) => copy(value));
+  return {
+    copies,
+    result(inserts: Command[]): CopyCommands {
+      const present = new Set(target.media.map((media) => media.key));
+      const commands: Command[] = [...keys]
+        .filter((key) => !present.has(key))
+        .map((key) => ({
+          type: "insertMedia",
+          value: { ...(known.get(key) as MediaEntry), id: fresh() },
+        }));
+      commands.push(...inserts);
+      return { commands, keys: [...keys] };
+    },
+  };
 }

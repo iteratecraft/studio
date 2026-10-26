@@ -1,10 +1,19 @@
 // The blocks editor app (M2-08, BLK-01): the dashboard on launch and one open course at a time in
 // the editor frame. It reaches files, dialogs and the window only through the host interface, so
 // the desktop app and a browser run the same screens (ADR-0006).
-import { applyCommands, copyCourse, copyEntryTo } from "@course-suite/doc-ops";
+import {
+  applyCommands,
+  type BlockClip,
+  type Command,
+  clipBlocks,
+  copyCourse,
+  copyEntryTo,
+  pasteBlocks,
+} from "@course-suite/doc-ops";
 import type { Course, Entry } from "@course-suite/format";
 import type { AppInfo, FileRef, HostInterface } from "@course-suite/host";
 import {
+  type AssetInfo,
   addAsset,
   copyProject,
   createProject,
@@ -23,8 +32,9 @@ import {
 } from "react";
 import { blankCourse, fileNameFor, shownTitle } from "./course.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
-import { ChoiceDialog, CoursePickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
+import { ChoiceDialog, PickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import type { Clipboard } from "./lesson-blocks.js";
 import {
   itemOf,
   type LibraryItem,
@@ -54,6 +64,9 @@ export function BlocksEditorApp({ host, locale = "en" }: BlocksEditorAppProps) {
 
 type Answer = "save" | "discard" | "cancel";
 
+/** Copied blocks with the bytes of their media files, which outlive the course they came from. */
+type Clip = BlockClip & { assets: Map<string, { data: Uint8Array; info: AssetInfo }> };
+
 function App({ host }: { host: HostInterface }) {
   const t = useStrings();
   const { dialog, ask } = useDialogs();
@@ -65,6 +78,7 @@ function App({ host }: { host: HostInterface }) {
   const [sort, setSort] = useState<SortKey>("updated");
   const [layout, setLayout] = useState<LayoutKey>("grid");
   const [session, setSession] = useState<CourseSession>();
+  const [clip, setClip] = useState<Clip>();
   const filters = [{ name: t("file.filter"), extensions: ["crs"] }];
 
   /** Changes the course list and keeps it in the host's storage. */
@@ -244,7 +258,10 @@ function App({ host }: { host: HostInterface }) {
    * as on opening; renaming, and copying a lesson into the course, save the file, which drops the
    * autosaves, and the question says so.
    */
-  const workOf = async (item: LibraryItem, change: "rename" | "duplicate" | "copy") => {
+  const workOf = async (
+    item: LibraryItem,
+    change: "rename" | "duplicate" | "copy" | "copyBlocks",
+  ) => {
     const opened = await openCourseFile(host, item.file);
     if (opened.kind === "missing" || (opened.kind === "damaged" && !opened.recovered)) {
       markMissing(item.file, opened.kind === "missing");
@@ -310,40 +327,41 @@ function App({ host }: { host: HostInterface }) {
     await remember(item.file, project.course);
   };
 
+  /** Courses and microlearning items other than the open one that can be opened, to copy into. */
+  const targets = (kinds: readonly Course["kind"][]) =>
+    library.current
+      .filter(
+        (item) =>
+          kinds.includes(item.kind) &&
+          item.deleted === undefined &&
+          item.file.id !== session?.file.id &&
+          !missing.has(item.file.id),
+      )
+      .map((item) => ({ id: item.file.id, title: shownTitle(item.title, t("course.untitled")) }));
+
   /**
-   * Copies a lesson or quiz of the open course to the end of another course's outline, with its
-   * media, and saves that course's file (rise.md 3B, blocks-editor.md W5, UI-BLOCKS-EDITOR-R10).
-   * A microlearning holds one lesson and no quiz, so only courses are offered.
+   * Copies part of the open course into the course file of the listed item with id `id` and saves
+   * that file: `copy` gives the commands and the media keys whose files the target lacks, or a
+   * reason it cannot copy. When a crash left autosaved work in the target, the author first keeps
+   * it or the saved file, as opening asks. Then a notice offers to open the target.
    */
-  const copyEntry = async (entry: Entry) => {
-    if (!session) return;
+  const copyInto = async (
+    id: string,
+    change: "copy" | "copyBlocks",
+    failed: string,
+    copy: (course: Course) => { commands: Command[]; keys: string[] } | { refused: string },
+    done: (course: Course) => string,
+  ) => {
     const from = session;
+    const target = library.current.find((item) => item.file.id === id);
+    if (!from || !target) return;
     from.commitDrafts();
-    const title = shownTitle(entry.title, t("outline.untitledLesson"));
-    const target = await ask<LibraryItem | null>((answer) => (
-      <CoursePickerDialog
-        title={t("copyTo.title", { title })}
-        courses={library.current.filter(
-          (item) =>
-            item.kind === "course" &&
-            item.deleted === undefined &&
-            item.file.id !== from.file.id &&
-            !missing.has(item.file.id),
-        )}
-        answer={answer}
-      />
-    ));
-    if (!target) return;
-    const project = await workOf(target, "copy");
+    // Crash-recovery work in the target is the author's to keep or drop first, as opening asks.
+    const project = await workOf(target, change);
     if (!project) return;
-    const copied = copyEntryTo(from.editor.document, entry.id, project.course);
-    if (!copied.ok) {
-      const reason = {
-        "not-found": "copyTo.gone",
-        "custom-block": "copyTo.custom",
-        microlearning: "copyTo.microlearning",
-      } as const;
-      await notify(t("copyTo.failed"), t(reason[copied.reason], { title }));
+    const copied = copy(project.course);
+    if ("refused" in copied) {
+      await notify(failed, copied.refused);
       return;
     }
     const result = applyCommands(project.course, copied.commands);
@@ -360,10 +378,7 @@ function App({ host }: { host: HostInterface }) {
     await remember(target.file, project.course);
     toasts.add(
       {
-        title: t("copyTo.done", {
-          title,
-          course: shownTitle(project.course.title, t("course.untitled")),
-        }),
+        title: done(project.course),
         action: {
           label: t("copyTo.open"),
           onAction: () =>
@@ -375,6 +390,106 @@ function App({ host }: { host: HostInterface }) {
       { timeout: 8000 },
     );
   };
+
+  /**
+   * Copies a lesson or quiz of the open course to the end of another course's outline, with its
+   * media (rise.md 3B, blocks-editor.md W5, UI-BLOCKS-EDITOR-R10). A microlearning holds one lesson
+   * and no quiz, so only courses are offered.
+   */
+  const copyEntry = async (entry: Entry) => {
+    if (!session) return;
+    const from = session;
+    const title = shownTitle(entry.title, t("outline.untitledLesson"));
+    const id = await ask<string | null>((answer) => (
+      <PickerDialog
+        title={t("copyTo.title", { title })}
+        label={t("copyTo.courses")}
+        items={targets(["course"])}
+        submit={t("action.copy")}
+        empty={{ title: t("copyTo.none"), body: t("copyTo.noneBody") }}
+        answer={answer}
+      />
+    ));
+    if (!id) return;
+    await copyInto(
+      id,
+      "copy",
+      t("copyTo.failed"),
+      (course) => {
+        const copied = copyEntryTo(from.editor.document, entry.id, course);
+        if (copied.ok) return copied;
+        const reason = {
+          "not-found": "copyTo.gone",
+          "custom-block": "copyTo.custom",
+          microlearning: "copyTo.microlearning",
+        } as const;
+        return { refused: t(reason[copied.reason], { title }) };
+      },
+      (course) =>
+        t("copyTo.done", { title, course: shownTitle(course.title, t("course.untitled")) }),
+    );
+  };
+
+  /**
+   * Copy and paste of blocks (rise.md 3J, W12, W13; BLK-03): the app keeps the copied blocks and
+   * their media files, so they paste into any lesson of this course or of a course opened later,
+   * with new ids and their media (UI-BLOCKS-EDITOR-R24). Manage blocks also copies blocks straight
+   * to the end of the last lesson of another course or microlearning (W12 step 3, B7, B8,
+   * UI-PUBCOLLAB-R31).
+   */
+  const clipboard = (into: CourseSession): Clipboard => ({
+    count: clip?.blocks.length ?? 0,
+    async copy(ids) {
+      const taken = clipBlocks(into.editor.document, ids);
+      const assets: Clip["assets"] = new Map();
+      for (const { key } of taken.media) {
+        const asset = await into.asset(key);
+        if (asset) assets.set(key, asset);
+      }
+      setClip({ ...taken, assets });
+    },
+    async paste(lesson, index) {
+      if (!clip) return [];
+      const pasted = pasteBlocks(clip, into.editor.document, lesson, index);
+      if (!pasted) {
+        await notify(t("blocks.pasteFailed"), t("blocks.pasteCustom"));
+        return [];
+      }
+      for (const key of pasted.keys) {
+        const asset = clip.assets.get(key);
+        if (asset) await into.addAsset(key, asset);
+      }
+      const result = into.editor.dispatch(pasted.commands);
+      if (!result.ok) return [];
+      return pasted.commands.flatMap((command) =>
+        command.type === "insertBlock" ? [command.value.id] : [],
+      );
+    },
+    courses: () => targets(["course", "microlearning"]),
+    copyToCourse: (ids, id) =>
+      copyInto(
+        id,
+        "copyBlocks",
+        t("copyBlocks.failed"),
+        (course) => {
+          const lesson = course.entries.findLast((entry) => entry.kind === "lesson");
+          const name = shownTitle(course.title, t("course.untitled"));
+          if (!lesson) return { refused: t("copyBlocks.noLesson", { course: name }) };
+          const pasted = pasteBlocks(clipBlocks(into.editor.document, ids), course, lesson.id);
+          return pasted ?? { refused: t("blocks.pasteCustom") };
+        },
+        (course) => {
+          const lesson = course.entries.findLast((entry) => entry.kind === "lesson");
+          return t("copyBlocks.doneCourse", {
+            count: ids.length,
+            lesson: shownTitle(lesson?.title ?? "", t("outline.untitledLesson")),
+            course: shownTitle(course.title, t("course.untitled")),
+          });
+        },
+      ).catch(async (error: unknown) => {
+        await failure(error);
+      }),
+  });
 
   const setDeleted = (chosen: readonly LibraryItem[], deleted: number | undefined) => {
     const ids = new Set(chosen.map((item) => item.file.id));
@@ -539,6 +654,7 @@ function App({ host }: { host: HostInterface }) {
           onSaveAs={() => void saveAs().catch(failure)}
           onClose={() => void closeCourse()}
           onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
+          clipboard={clipboard(session)}
         />
       ) : (
         <Dashboard

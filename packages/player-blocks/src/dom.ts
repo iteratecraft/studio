@@ -1,4 +1,11 @@
 // DOM helpers for the player: element creation and rich text from the course document.
+import {
+  isLessonLink,
+  isSafeLink,
+  RICH_TEXT_ATTRIBUTES,
+  RICH_TEXT_DROPPED,
+  RICH_TEXT_ELEMENTS,
+} from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 
 type Child = Node | string | undefined | false;
@@ -26,55 +33,8 @@ let nextId = 0;
 export const uid = (prefix: string) => `${prefix}-${++nextId}`;
 
 // Rich text is HTML written in the editor (ADR-0002 RichText). The editor previews courses with this
-// player, so a co-author's text must never run script: only these elements and attributes survive.
-const KEEP = new Set([
-  "a",
-  "abbr",
-  "b",
-  "blockquote",
-  "br",
-  "cite",
-  "code",
-  "del",
-  "em",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "i",
-  "ins",
-  "kbd",
-  "li",
-  "mark",
-  "ol",
-  "p",
-  "pre",
-  "q",
-  "s",
-  "small",
-  "span",
-  "strong",
-  "sub",
-  "sup",
-  "u",
-  "ul",
-]);
-// Dropped with everything inside them; any other element is replaced by its cleaned content.
-const DROP = new Set([
-  "embed",
-  "iframe",
-  "noscript",
-  "object",
-  "script",
-  "select",
-  "style",
-  "template",
-  "textarea",
-  "title",
-]);
-const SAFE_URL = /^(https?:|mailto:)/i;
-
+// player, so a co-author's text must never run script: only the format's elements and attributes
+// survive (@course-suite/format RICH_TEXT_ELEMENTS).
 /** Course rich text as nodes, with every element and attribute outside the allow-list removed. */
 export function richText(html: string, labels: Labels): DocumentFragment {
   const template = document.createElement("template");
@@ -86,22 +46,26 @@ export function richText(html: string, labels: Labels): DocumentFragment {
 function clean(parent: ParentNode, labels: Labels): void {
   for (const node of [...parent.childNodes]) {
     if (node.nodeType === Node.TEXT_NODE) continue;
-    if (!(node instanceof Element) || DROP.has(node.localName)) {
+    if (!(node instanceof Element) || RICH_TEXT_DROPPED.has(node.localName)) {
       node.remove();
       continue;
     }
     clean(node, labels);
-    if (!KEEP.has(node.localName) || node.namespaceURI !== "http://www.w3.org/1999/xhtml") {
+    if (
+      !RICH_TEXT_ELEMENTS.has(node.localName) ||
+      node.namespaceURI !== "http://www.w3.org/1999/xhtml"
+    ) {
       node.replaceWith(...node.childNodes);
       continue;
     }
     for (const { name, value } of [...node.attributes]) {
-      const keep =
-        name === "lang" || name === "dir" || (name === "href" && SAFE_URL.test(value.trim()));
+      const keep = RICH_TEXT_ATTRIBUTES.has(name) || (name === "href" && isSafeLink(value));
       if (!keep) node.removeAttribute(name);
     }
-    if (node.localName === "a" && node.hasAttribute("href")) {
+    const href = node.localName === "a" ? node.getAttribute("href") : null;
+    if (href !== null && !isLessonLink(href)) {
       // Inside an LMS frame a link must not replace the course, so it opens a new tab and says so.
+      // A link to a lesson or a block of this course opens it in place.
       node.setAttribute("target", "_blank");
       node.setAttribute("rel", "noopener noreferrer");
       node.append(h("span", { class: "visually-hidden" }, ` (${labels["sr.newTab"]})`));

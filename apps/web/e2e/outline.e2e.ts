@@ -14,7 +14,6 @@ import {
   heading,
   launch,
   openFixture,
-  retitle,
   status,
 } from "./helpers.ts";
 
@@ -248,36 +247,6 @@ test.describe("course outline", () => {
     await button(page, "Undo").click();
     await expect(field).toHaveValue("Notes");
     await expect(button(page, "Undo")).toBeDisabled();
-  });
-
-  test("blocks-editor 2.2: a description with formatting is shown read-only and kept as it is", async ({
-    page,
-  }) => {
-    const course = workshop();
-    course.description = RICH;
-    const welcome = course.entries[1] as LessonEntry;
-    welcome.description = "<p>Read <em>this</em> first.</p>";
-    await launch(page);
-    await openFixture(page, FILE, course);
-    const description = page.getByRole("textbox", { name: "Description" });
-    await expect(description).toHaveAttribute("readonly", "");
-    await expect(description).toHaveValue("Bold start\nOne");
-    await expect(description).toHaveAccessibleDescription(/has formatting this field cannot keep/);
-    await description.click();
-    await page.keyboard.type(" end");
-    await expect(description).toHaveValue("Bold start\nOne");
-    await retitle(page, "Workshop basics, revised");
-    expect((await saved(page)).description).toBe(RICH);
-
-    await row(page, "Welcome").getByRole("button", { name: "Open Welcome" }).click();
-    await expect(description).toHaveAttribute("readonly", "");
-    await expect(description).toHaveValue("Read this first.");
-    const title = page.getByRole("textbox", { name: "Lesson title" });
-    await title.fill("Welcome aboard");
-    await title.press("Enter");
-    const lesson = (await saved(page)).entries[1] as LessonEntry;
-    expect(lesson.title).toBe("Welcome aboard");
-    expect(lesson.description).toBe("<p>Read <em>this</em> first.</p>");
   });
 
   test("UI-BLOCKS-EDITOR-R11, R12, blocks-editor C10, D-36: delete offers undo in one step, and buttons to a deleted lesson go with it", async ({
@@ -515,7 +484,9 @@ test.describe("course outline", () => {
     await notice.getByRole("button", { name: "Open that course" }).click();
     await expect(heading(page, "Garden tools")).toBeVisible();
     await row(page, "Tools").getByRole("button", { name: "Open Tools" }).click();
-    await expect(page.getByRole("listitem")).toHaveText(["Image"]);
+    await expect(page.getByRole("grid", { name: "Blocks of Tools" }).getByRole("row")).toHaveText([
+      /Centred image/,
+    ]);
   });
 
   test("blocks-editor W5, BLK-01: copying a lesson into a course that a crash left autosaved work in asks first, as opening it does", async ({
@@ -595,7 +566,7 @@ test.describe("course outline", () => {
 });
 
 test.describe("lessons", () => {
-  test("blocks-editor L1, C11, UI-BLOCKS-EDITOR-R15: a lesson opens with its blocks read-only; the switcher goes to another lesson or back to its row", async ({
+  test("blocks-editor L1, C11, UI-BLOCKS-EDITOR-R15: a lesson opens with its blocks; the switcher goes to another lesson or back to its row", async ({
     page,
   }) => {
     await launch(page);
@@ -603,8 +574,10 @@ test.describe("lessons", () => {
     await row(page, "Welcome").getByRole("button", { name: "Open Welcome" }).click();
     const lessonHeading = page.getByRole("heading", { level: 2, name: "Welcome" });
     await expect(lessonHeading).toBeFocused();
-    await expect(page.getByRole("list")).toBeVisible();
-    await expect(page.getByRole("listitem")).toHaveText(["Text", "Interactive"]);
+    const blocks = page.getByRole("grid", { name: "Blocks of Welcome" });
+    await expect(blocks.getByRole("row")).toHaveCount(2);
+    await expect(blocks.getByRole("row", { name: "Heading: Hello" })).toBeVisible();
+    await expect(blocks.getByRole("row", { name: "Button stack" })).toBeVisible();
     await expect(button(page, "Undo")).toBeDisabled();
 
     const title = page.getByRole("textbox", { name: "Lesson title" });
@@ -723,7 +696,7 @@ for (const theme of ["light", "dark"] as const) {
     await check("empty outline");
     await back(page);
     await openFixture(page, FILE, { ...workshop(), description: RICH });
-    await check("outline, with a read-only description");
+    await check("outline, with a formatted description");
     await row(page, "Tools").getByRole("button", { name: "Actions for Tools" }).click();
     await check("row menu");
     await page.getByRole("menuitem", { name: "Copy to another course…" }).click();

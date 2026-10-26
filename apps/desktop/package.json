@@ -23,6 +23,8 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@course-suite/format": "workspace:*",
+    "@course-suite/preview": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

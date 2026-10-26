@@ -136,6 +136,61 @@ body {
   background: var(--cs-border);
 }
 
+/* PreviewPane: the course in the real player, at the width of the device picked. */
+.cs-Preview {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.cs-Preview-bar {
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.cs-Preview-spacer {
+  flex: 1;
+}
+
+.cs-Preview-stage {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  background: var(--cs-surface);
+}
+
+/*
+ * The width (--cs-preview-width) is the frame's own: a border must not take from it. Centred on a
+ * whole pixel, so the course is drawn as sharply as in a browser window of that width.
+ */
+.cs-Preview-device {
+  position: relative;
+  flex: none;
+  box-sizing: content-box;
+  inline-size: var(--cs-preview-width);
+  margin-inline-start: max(0px, round(down, (100% - var(--cs-preview-width)) / 2 - 1px, 1px));
+}
+
+.cs-Preview-device:not([data-device="computer"]) {
+  border-inline: 1px solid var(--cs-border);
+}
+
+.cs-Preview-device > iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+}
+
+/* A new load waits unseen over the frame on show until the player shows its page. */
+.cs-Preview-device > iframe[data-pending] {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+
 /* Fields: TextField, TextArea, Select */
 .cs-Field {
   display: flex;
@@ -773,6 +828,115 @@ body {
     opacity: 0.4;
     animation: none;
   }
+}
+
+/* RichTextField: formatted text edited in place, its tools above it while in use. */
+.cs-RichText-tools {
+  padding: 2px;
+}
+
+.cs-RichText-tools .cs-Button--quiet:not(.cs-IconButton) {
+  gap: var(--cs-space-1);
+}
+
+.cs-RichText-editor {
+  min-height: 4.5rem;
+  overflow-wrap: anywhere;
+  font-size: var(--cs-text-md);
+  line-height: var(--cs-leading);
+  cursor: text;
+}
+
+.cs-RichText-editor > :first-child {
+  margin-top: 0;
+}
+
+.cs-RichText-editor > :last-child {
+  margin-bottom: 0;
+}
+
+.cs-RichText-editor :is(p, ul, ol, h2, h3, h4, h5) {
+  margin: 0 0 var(--cs-space-2);
+}
+
+.cs-RichText-editor a {
+  color: var(--cs-accent);
+}
+
+.cs-Form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
+}
+
+/* SliderField: a slider with a number box beside it. */
+.cs-Slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+}
+
+.cs-Slider-track {
+  position: relative;
+  flex: 1;
+  min-width: 6rem;
+  height: var(--cs-control-height);
+}
+
+.cs-Slider-track::before {
+  position: absolute;
+  inset: calc(50% - 2px) 0 auto;
+  height: 4px;
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-control-border);
+  content: "";
+}
+
+.cs-Slider-thumb {
+  top: 50%;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--cs-bg);
+  border-radius: var(--cs-radius-full);
+  background: var(--cs-accent);
+  box-shadow: 0 0 0 1px var(--cs-accent);
+}
+
+.cs-Slider-thumb[data-focus-visible] {
+  outline: var(--cs-focus-width) solid var(--cs-focus);
+  outline-offset: var(--cs-focus-offset);
+}
+
+.cs-Slider-input {
+  width: 4.5rem;
+}
+
+.cs-Slider-unit {
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-xs);
+}
+
+/* ListBox sections and described options */
+.cs-ListBoxSection-title {
+  padding: var(--cs-space-2) var(--cs-space-2) var(--cs-space-1);
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-xs);
+  font-weight: var(--cs-weight-strong);
+  text-transform: uppercase;
+}
+
+.cs-ListBoxItem--described {
+  flex-direction: column;
+  align-items: start;
+  justify-content: center;
+  gap: 0;
+  padding-block: var(--cs-space-1);
+}
+
+.cs-ListBoxItem-description {
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-xs);
+  font-weight: normal;
 }
 
 /* One focus ring for every focusable part, last so it wins: an outline, which high-contrast

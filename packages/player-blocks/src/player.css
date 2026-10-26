@@ -1,7 +1,9 @@
 /* Blocks player styles (ENG-04). One centred column of blocks with the outline beside it on wide
    screens; below 992 px the outline sits behind the contents button (rise.md §3 N,
-   UI-BLOCKS-EDITOR-R53 and R55). Colours keep 4.5:1 for text and 3:1 for controls (WCAG 2.2 AA). */
-:root {
+   UI-BLOCKS-EDITOR-R53 and R55). Colours keep 4.5:1 for text and 3:1 for controls (WCAG 2.2 AA).
+   A white card on a block's own colour takes these colours back (.cards-white). */
+:root,
+.cards-white .check {
   color-scheme: light;
   --text: #1d1f23;
   --muted: #545a63;
@@ -287,6 +289,53 @@ main {
 
 .block-inner {
   margin: 0 auto;
+}
+
+/* A block on a colour of its own (UI-BLOCKS-EDITOR-R19, R22): its text, links, controls and marks
+   all take the one colour, white or black, that keeps 4.5:1 on it; fields and panels go clear. */
+.block.has-background {
+  padding-right: 24px;
+  padding-left: 24px;
+  color: var(--text);
+}
+
+.text-light {
+  --text: #ffffff;
+  --muted: #ffffff;
+  --accent: #ffffff;
+  --accent-text: #000000;
+  --focus: #ffffff;
+  --correct: #ffffff;
+  --wrong: #ffffff;
+  --border: #ffffff;
+}
+
+.text-dark {
+  --text: #000000;
+  --muted: #000000;
+  --accent: #000000;
+  --accent-text: #ffffff;
+  --focus: #000000;
+  --correct: #000000;
+  --wrong: #000000;
+  --border: #000000;
+}
+
+.text-light,
+.text-dark {
+  --surface: transparent;
+  --panel: transparent;
+  --accent-soft: transparent;
+  --rule: var(--border);
+}
+
+/* Keep cards white (blocks-editor.md 2.4, W10 step 4): on a block's own colour, the cards of its
+   items stay white with the theme's own text and controls. */
+.cards-white .check {
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
 }
 
 .width-narrow {
