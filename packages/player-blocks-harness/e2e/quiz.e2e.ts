@@ -18,13 +18,12 @@ async function answerAll(page: Page, right = [true, true, false]) {
     .fill(right[1] ? "ON " : "off");
   await page.getByRole("button", { name: "Submit" }).click();
   await page.getByRole("button", { name: "Next question" }).click();
+  // Matching: an item picked, then its match (UI-BLOCKS-R28).
   const match = right[2] ? ["Green", "Brown"] : ["Brown", "Green"];
-  await page
-    .getByRole("combobox", { name: "Grass cuttings" })
-    .selectOption({ label: match[0] as string });
-  await page
-    .getByRole("combobox", { name: "Dry leaves" })
-    .selectOption({ label: match[1] as string });
+  for (const [i, item] of ["Grass cuttings", "Dry leaves"].entries()) {
+    await page.getByRole("button", { name: new RegExp(`^${item} `) }).click();
+    await page.getByRole("button", { name: match[i] as string, exact: true }).click();
+  }
   await page.getByRole("button", { name: "Submit" }).click();
   await page.getByRole("button", { name: "See your result" }).click();
 }
@@ -74,7 +73,9 @@ test("UI-BLOCKS-R29 to R34: a quiz from start screen to results, one question pe
   await expect(page.locator(".accepted li")).toHaveText(["on", "closed"]);
   await page.getByRole("button", { name: "Next question" }).click();
 
-  // UI-BLOCKS-R28: matching by drop-downs; a wrong row is marked and its match revealed.
+  // UI-BLOCKS-R28: matching by the drop-downs, the other way; a wrong row is marked and its
+  // match revealed.
+  await page.getByRole("button", { name: "Answer with drop-down lists" }).click();
   await page.getByRole("combobox", { name: "Grass cuttings" }).selectOption({ label: "Brown" });
   await page.getByRole("combobox", { name: "Dry leaves" }).selectOption({ label: "Brown" });
   await page.getByRole("button", { name: "Submit" }).click();
@@ -151,7 +152,7 @@ test("reveal answers off: no marks or feedback after a submit", async ({ write, 
   await expect(page.getByRole("button", { name: "Next question" })).toBeFocused();
 });
 
-test("[rise:R15] UI-BLOCKS-R39: the timer submits at zero with unanswered questions wrong, and restarts on retake", async ({
+test("[rise:R15] UI-BLOCKS-R39, R59: the timer starts on the start button and is said once, submits at zero with unanswered questions wrong, and restarts on retake", async ({
   write,
   open,
   page,
@@ -165,10 +166,23 @@ test("[rise:R15] UI-BLOCKS-R39: the timer submits at zero with unanswered questi
   await page.getByRole("button", { name: "Begin quiz" }).click();
   const timer = page.getByRole("timer", { name: "Quiz timer" });
   await expect(timer).toContainText("Time left: 1:00");
+  // UI-BLOCKS-R59: the page's polite status says the limit once at the start, not every second.
+  const said = page.locator(".layout ~ [role=status]");
+  await expect(said).toHaveText("The quiz timer has started. Time limit: 1 min");
+  await said.evaluate((status) => {
+    const changes = { count: 0 };
+    new MutationObserver((records) => {
+      changes.count += records.length;
+    }).observe(status, { childList: true, characterData: true, subtree: true });
+    Object.assign(window, { statusChanges: changes });
+  });
   await page.getByRole("radio", { name: "Brown" }).check();
   await page.getByRole("button", { name: "Submit" }).click();
   await page.clock.runFor(30_000);
   await expect(timer).toContainText("Time left: 0:30");
+  expect(
+    await page.evaluate(() => (window as { statusChanges?: { count: number } }).statusChanges),
+  ).toEqual({ count: 0 });
   await page.getByRole("button", { name: "Hide timer" }).click();
   await expect(timer.locator(".timer-time")).toBeHidden();
   await page.getByRole("button", { name: "Show timer" }).click();

@@ -342,7 +342,7 @@ export const BLOCK_TYPES: readonly BlockType[] = [
   ]),
   // Knowledge checks (M2-15).
   ...CHECK_TYPES,
-  ...later("knowledge-check", ["draw"]),
+  ...later("knowledge-check", ["bank-draw"]),
   ...later("survey", ["survey"]),
   ...later("chart", ["bar", "line", "pie"]),
   {

@@ -318,6 +318,90 @@ test.describe("knowledge checks", () => {
   });
 });
 
+test.describe("answers pasted and matching orders", () => {
+  /**
+   * Pastes `text` into the focused field, as Ctrl+V does with text on the clipboard: false when
+   * the editor took the paste over, true when it left it to the field.
+   */
+  const paste = (page: Page, text: string) =>
+    page.evaluate((pasted) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", pasted);
+      return document.activeElement?.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+      );
+    }, text);
+
+  test("[rise:3C] blocks-interactions 2.12, A17, UI-BLOCKS-R28: by keyboard, lines pasted into an answer become answers in one undo step, and matching keeps the matches in the author's order on the preview's board", async ({
+    page,
+  }) => {
+    await openPond(page);
+    await addBlock(page, "Single choice");
+    const check = lastRow(page);
+    await expect(
+      check.getByText("Paste several lines into an answer to add an answer for each line."),
+    ).toBeVisible();
+    await check.getByRole("textbox", { name: "Answer 2" }).focus();
+    expect(await paste(page, "A newt\nA toad\r\n\nA heron\n")).toBe(false);
+    await expect(check.getByRole("group", { name: /^Answer/ })).toHaveCount(4);
+    await expect(check.getByRole("textbox", { name: "Answer 4" })).toHaveValue("A heron");
+    let block = lessonIn(await saved(page), "lesspond01").blocks[1] as Block;
+    expect(
+      block.question?.kind === "single-choice" &&
+        block.question.answers.map((a) => [a.text, a.correct]),
+    ).toEqual([
+      ["A right answer", true],
+      ["A newt", false],
+      ["A toad", false],
+      ["A heron", false],
+    ]);
+    // One line is left to the field, as ordinary typing.
+    await check.getByRole("textbox", { name: "Answer 3" }).focus();
+    expect(await paste(page, "A frog")).toBe(true);
+    // The paste is one step (the shortcut outside a text field).
+    await check.getByRole("button", { name: "Format", exact: true }).focus();
+    await page.keyboard.press("Control+Z");
+    await expect(check.getByRole("group", { name: /^Answer/ })).toHaveCount(2);
+    await expect(check.getByRole("textbox", { name: "Answer 2" })).toHaveValue("A wrong answer");
+
+    // A17: matching keeps the matches column in the author's order.
+    await pick(page, select(check, "Question type"), "Matching");
+    await pick(page, select(check, "Order learners see"), "Keep the matches in my order");
+    block = lessonIn(await saved(page), "lesspond01").blocks[1] as Block;
+    expect(block.question).toMatchObject({ kind: "matching", freezeColumn: "matches" });
+    const pairs = block.question?.kind === "matching" ? block.question.pairs : [];
+    const plain = (html: string) => html.replace(/<[^>]+>/g, "");
+
+    // In the preview: the board's matches in the author's order, paired by keyboard.
+    const frame = await preview(page);
+    const form = frame.locator("form.check");
+    await expect(form.locator(".match-tile")).toHaveText(pairs.map((pair) => plain(pair.match)));
+    expect(await violations(await previewFrame(page))).toEqual([]);
+    for (const pair of pairs) {
+      const item = form.getByRole("button", { name: new RegExp(`^${plain(pair.prompt)} `) });
+      await item.focus();
+      await item.press("Space");
+      await item.press("ArrowRight");
+      // The top of the matches column, then down to the match.
+      for (const _ of pairs) await frame.locator(":focus").press("ArrowUp");
+      for (let i = 0; i < pairs.length; i++) {
+        const focused = await form
+          .getByRole("button", { name: plain(pair.match), exact: true })
+          .evaluate((element) => element === document.activeElement);
+        if (focused) break;
+        await frame.locator(":focus").press("ArrowDown");
+      }
+      await frame.locator(":focus").press("Space");
+      await expect(item).toHaveAccessibleName(
+        `${plain(pair.prompt)} Matched with ${plain(pair.match)}`,
+      );
+    }
+    await frame.locator(":focus").press("Enter");
+    await expect(form.locator(".feedback .outcome")).toHaveText("Correct");
+    expect(await violations(await previewFrame(page))).toEqual([]);
+  });
+});
+
 test.describe("quiz lessons", () => {
   test("[rise:3I] blocks-interactions W11, A15, A16, 2.13: by keyboard, questions are added, moved, duplicated and deleted, and every quiz setting is set", async ({
     page,
@@ -421,7 +505,7 @@ test.describe("quiz lessons", () => {
     });
   });
 
-  test("[rise:3I] [rise:R14] UI-BLOCKS-R41: by pointer, a question changes type in its place and takes audio; the last lesson offers no skip ahead, and turning it off clears it", async ({
+  test("[rise:3I] [rise:R14] UI-BLOCKS-R41, blocks-interactions 2.12: by pointer, a question changes type in its place and takes audio beside a picture; the last lesson offers no skip ahead, and turning it off clears it", async ({
     page,
   }) => {
     await openPond(page, "Pond quiz");
@@ -443,7 +527,16 @@ test.describe("quiz lessons", () => {
       window.editorTest.open = ["croak.mp3"];
     });
     await page.getByRole("button", { name: "Choose audio" }).click();
-    await expect(page.getByText("File: croak.mp3")).toBeVisible();
+    await expect(page.getByText("Audio: croak.mp3")).toBeVisible();
+    // 2.12 "prompt + media + audio": a picture joins the audio rather than taking its place.
+    await page.evaluate((svg) => {
+      window.editorTest.host.disk.set("frog.svg", new TextEncoder().encode(svg));
+      window.editorTest.open = ["frog.svg"];
+    }, FROG);
+    await page.getByRole("button", { name: "Choose an image" }).click();
+    await expect(page.getByText("Picture: frog.svg")).toBeVisible();
+    await page.getByText("Decorative: screen readers skip it").click();
+    await expect(page.getByText("Audio: croak.mp3")).toBeVisible();
 
     await page.getByRole("button", { name: "Quiz settings" }).click();
     const dialog = page.getByRole("dialog", { name: "Quiz settings" });
@@ -456,7 +549,8 @@ test.describe("quiz lessons", () => {
     expect(first).toMatchObject({
       kind: "single-choice",
       answers: [{ text: "cold", correct: true }, { correct: false }],
-      media: { key: expect.stringMatching(/\.mp3$/) },
+      media: { key: expect.stringMatching(/\.svg$/), alt: "" },
+      audio: { key: expect.stringMatching(/\.mp3$/) },
     });
 
     // The last entry: nothing to skip to.
@@ -503,12 +597,12 @@ test.describe("the quiz in the player", () => {
     await frame.getByRole("textbox").fill(right ? "Water Lily" : "reed");
     await frame.getByRole("button", { name: "Submit" }).click();
     await frame.getByRole("button", { name: "Next question" }).click();
-    await frame
-      .getByRole("combobox", { name: "Tadpole" })
-      .selectOption({ label: right ? "Frog" : "Dragonfly" });
-    await frame
-      .getByRole("combobox", { name: "Nymph" })
-      .selectOption({ label: right ? "Dragonfly" : "Frog" });
+    // Matching on the board: an item picked, then its match (UI-BLOCKS-R28).
+    const matches = right ? ["Frog", "Dragonfly"] : ["Dragonfly", "Frog"];
+    for (const [i, item] of ["Tadpole", "Nymph"].entries()) {
+      await frame.getByRole("button", { name: new RegExp(`^${item} `) }).click();
+      await frame.getByRole("button", { name: matches[i] as string, exact: true }).click();
+    }
     await frame.getByRole("button", { name: "Submit" }).click();
     await frame.getByRole("button", { name: "See your result" }).click();
   }
@@ -543,7 +637,8 @@ test.describe("the quiz in the player", () => {
     await frame.getByRole("button", { name: "Next question" }).click();
     await frame.getByRole("button", { name: "Submit" }).click();
     await expect(frame.locator(".hint")).toHaveClass(/is-needed/);
-    await frame.getByRole("combobox", { name: "Tadpole" }).selectOption({ label: "Dragonfly" });
+    await frame.getByRole("button", { name: /^Tadpole / }).click();
+    await frame.getByRole("button", { name: "Dragonfly", exact: true }).click();
     await frame.getByRole("button", { name: "Submit" }).click();
     await frame.getByRole("button", { name: "See your result" }).click();
     await expect(frame.locator(".quiz-score")).toHaveText("Your score: 0%");
@@ -564,26 +659,29 @@ test.describe("the quiz in the player", () => {
     await expect(frame.getByRole("link", { name: "Continue" })).toHaveCount(0);
   });
 
-  test("[rise:R15] UI-BLOCKS-R39, BLK-07: in the preview a timer reaching zero submits with unanswered questions wrong, and restarts on retry", async ({
+  // The preview's sandboxed frame takes no fake clock, so this checks the wiring only: the time
+  // running out, the unanswered questions counted wrong and the restart on retake run under a fake
+  // clock in the exported player (player-blocks-harness quiz.e2e.ts, a11y.e2e.ts) and in every
+  // standard's LMS trace (conformance quiz.e2e.ts).
+  test("[rise:R15] UI-BLOCKS-R39, R59, BLK-07: in the preview a timed quiz shows its limit, starts its timer on the start button and says so once; the learner can hide the timer", async ({
     page,
   }) => {
-    // The preview's sandboxed frame takes no fake clock: a real one-minute limit runs out.
-    test.setTimeout(150_000);
     await openQuiz(page, 1);
     const frame = await preview(page);
+    await expect(frame.getByText("Time limit: 1 min")).toBeVisible();
+    await expect(frame.getByRole("timer")).toHaveCount(0);
     await frame.getByRole("button", { name: "Begin quiz" }).click();
-    await frame.getByRole("radio", { name: "In water" }).check();
-    await frame.getByRole("button", { name: "Submit" }).click();
-    await expect(frame.getByRole("timer")).toContainText(/0:\d\d of 1:00/);
-    const up = frame.getByRole("dialog", { name: "Time is up. Your answers were submitted." });
-    await expect(up).toBeVisible({ timeout: 75_000 });
+    await expect(
+      frame.getByRole("timer", { name: "Quiz timer" }).locator(".timer-time"),
+    ).toHaveText(/^\d:\d\d of 1:00$/);
+    await expect(frame.locator(".layout ~ [role=status]")).toHaveText(
+      "The quiz timer has started. Time limit: 1 min",
+    );
+    await frame.getByRole("button", { name: "Hide timer" }).click();
+    await expect(frame.locator(".timer-time")).toBeHidden();
+    await frame.getByRole("button", { name: "Show timer" }).click();
+    await expect(frame.locator(".timer-time")).toBeVisible();
     expect(await violations(await previewFrame(page))).toEqual([]);
-    await up.getByRole("button", { name: "See your result" }).click();
-    await expect(frame.locator(".quiz-score")).toHaveText("Your score: 25%");
-    await frame.getByRole("button", { name: "Retake quiz" }).click();
-    await frame.getByRole("button", { name: "Retake quiz" }).click();
-    // A new attempt starts its clock again, well short of the limit.
-    await expect(frame.getByRole("timer")).toContainText(/0:[0-4]\d of 1:00/);
   });
 
   test("[rise:3C] [rise:3I] UI-BLOCKS-R24 UI-BLOCKS-R26: the exported web package shows the checks and the quiz with their media; a required check out of tries keeps the quiz locked, a right answer opens it", async ({

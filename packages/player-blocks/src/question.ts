@@ -1,9 +1,9 @@
 // Question views shared by knowledge checks and quiz lessons (ENG-05): single choice, multiple
-// response, fill-in and matching, answered locally and marked after submit (blocks-interactions.md
-// UI-BLOCKS-R20 to R23, R28 and R29).
-import type { Question, Response } from "@course-suite/format";
+// response, fill-in and matching (by dragging, or by drop-down lists), answered locally and marked
+// after submit (blocks-interactions.md 4, UI-BLOCKS-R20 to R23, R28 and R29).
+import type { MatchPair, Question, Response } from "@course-suite/format";
 import { accentReadable, isCorrect, SURFACE, shuffle } from "@course-suite/format";
-import type { Labels } from "@course-suite/labels";
+import { formatLabel, type Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
 
 /** After submit: mark every answer, only the learner's own, or nothing (UI-BLOCKS-R20). */
@@ -57,6 +57,12 @@ export function questionView(
   let instruction: string;
   let response: () => Response | undefined;
   let fill: (value: Response) => void;
+  /** Where the answer controls sit; a matching board has its own. */
+  let area: HTMLElement | undefined;
+  /** The control that takes focus first: a matching board's in its order. */
+  let first = (): HTMLElement | undefined => controls[0]?.input;
+  /** A matching board's own controls follow lock and reset. */
+  let locked = (_on: boolean) => {};
 
   if (question.kind === "single-choice" || question.kind === "multiple-response") {
     const multiple = question.kind === "multiple-response";
@@ -126,9 +132,13 @@ export function questionView(
       h("ul", {}, ...question.acceptedAnswers.map((answer) => h("li", {}, answer))),
     );
   } else {
-    // One drop-down per item: the keyboard and screen-reader form of matching (UI-BLOCKS-R28).
-    instruction = labels["question.match"];
-    const matches = shuffle(question.pairs);
+    // Matching (UI-BLOCKS-R28, 2.12): by dragging a match onto its item, with the drop-down lists,
+    // one per item, as the other way. The lists hold the answer in both ways. A column is shuffled
+    // unless the author keeps it in order.
+    instruction = labels["question.matchDrag"];
+    const order = (column: "prompts" | "matches") =>
+      question.freezeColumn === column ? question.pairs : shuffle(question.pairs);
+    const matches = order("matches");
     controls = question.pairs.map((pair) => {
       const select = h(
         "select",
@@ -172,6 +182,19 @@ export function questionView(
       });
       return chosen.length === 0 ? undefined : Object.fromEntries(chosen);
     };
+    const board = matchBoard(
+      question.pairs,
+      order("prompts"),
+      matches,
+      controls,
+      labels,
+      (text) => {
+        hint.textContent = text;
+      },
+    );
+    area = board.element;
+    first = board.first;
+    locked = board.lock;
     fill = (value) => {
       if (typeof value !== "object" || Array.isArray(value)) return;
       const record = value as Readonly<Record<string, string>>;
@@ -179,6 +202,7 @@ export function questionView(
         const control = controls[i];
         if (control && Object.hasOwn(record, pair.id)) control.input.value = record[pair.id] ?? "";
       });
+      board.sync();
     };
   }
 
@@ -189,7 +213,7 @@ export function questionView(
     h("div", { class: "prompt", id: promptId }, richText(question.prompt, labels)),
     options.media,
     hint,
-    h("div", { class: "choices" }, ...controls.map((control) => control.row)),
+    area ?? h("div", { class: "choices" }, ...controls.map((control) => control.row)),
     accepted,
   );
 
@@ -214,6 +238,7 @@ export function questionView(
           ...(marks === "all" ? control.revealed() : []),
         );
       }
+      locked(true);
       // UI-BLOCKS-R20, R21: the accepted answers show when all is revealed or the answer is right.
       accepted.hidden = !(marks === "all" || (marks === "own" && isCorrect(question, response())));
       hint.classList.remove("is-needed");
@@ -228,14 +253,222 @@ export function questionView(
         control.row.classList.remove("is-selected", "is-correct", "is-wrong");
         control.marks.replaceChildren();
       }
+      locked(false);
       accepted.hidden = true;
-      controls[0]?.input.focus();
+      first()?.focus();
     },
 
     needAnswer() {
       hint.classList.add("is-needed");
-      controls[0]?.input.focus();
+      first()?.focus();
     },
+  };
+}
+
+interface MatchBoard {
+  element: HTMLElement;
+  /** The item to focus first, or the first drop-down when the learner chose them. */
+  first(): HTMLElement | undefined;
+  lock(on: boolean): void;
+  /** Shows the drop-downs' values on the board. */
+  sync(): void;
+}
+
+/**
+ * The matching board (UI-BLOCKS-R28, blocks-interactions.md 4): the items in one column, the
+ * matches in the other. Dragging a match onto an item, or picking one and then one of the other
+ * column (Space or a click), pairs the two; Up and Down move in a column, Left and Right cross to
+ * the other, Escape lets go of a pick, Enter submits. Pairing sets the item's drop-down, which
+ * holds the answer either way; a button switches to the drop-downs and back.
+ */
+function matchBoard(
+  pairs: readonly MatchPair[],
+  prompts: readonly MatchPair[],
+  matches: readonly MatchPair[],
+  controls: Control[],
+  labels: Labels,
+  instruct: (text: string) => void,
+): MatchBoard {
+  const text = (html: string) => richText(html, labels).textContent ?? "";
+  const button = (cls: string, pair: MatchPair, ...content: Node[]) =>
+    h(
+      "button",
+      {
+        type: "button",
+        class: cls,
+        "aria-pressed": "false",
+        draggable: "true",
+        "data-pair": pair.id,
+      },
+      ...content,
+    );
+  const slots = pairs.map(() => h("span", { class: "match-slot" }));
+  const items = pairs.map((pair, i) => {
+    // The space keeps the item and its slot apart in the button's name.
+    const item = button(
+      "match-item",
+      pair,
+      h("span", {}, text(pair.prompt)),
+      document.createTextNode(" "),
+      slots[i] as Node,
+    );
+    controls[i]?.row.prepend(item);
+    return item;
+  });
+  const rows = prompts.map((pair) => controls[pairs.indexOf(pair)]?.row as HTMLElement);
+  const column = h(
+    "div",
+    { class: "match-items", role: "group", "aria-label": labels["question.items"] },
+    ...rows,
+  );
+  const ordered = rows.map((row) => row.querySelector(".match-item") as HTMLButtonElement);
+  const tiles = matches.map((pair) =>
+    button("match-tile", pair, document.createTextNode(text(pair.match))),
+  );
+  const board = h(
+    "div",
+    { class: "match-board" },
+    column,
+    h(
+      "div",
+      { class: "match-tiles", role: "group", "aria-label": labels["question.matches"] },
+      ...tiles,
+    ),
+  );
+  const mode = h("button", { type: "button", class: "match-mode" }, labels["question.useLists"]);
+  const status = h("p", { class: "visually-hidden", role: "status" });
+  const byId = new Map(pairs.map((pair) => [pair.id, pair]));
+  const listOf = (b: HTMLElement) => (b.classList.contains("match-tile") ? tiles : ordered);
+  let picked: HTMLButtonElement | undefined;
+  let dragged: HTMLButtonElement | undefined;
+  let isLocked = false;
+
+  const pick = (b: HTMLButtonElement | undefined) => {
+    picked = b;
+    for (const one of [...ordered, ...tiles]) one.setAttribute("aria-pressed", String(one === b));
+  };
+  const sync = () => {
+    pairs.forEach((_pair, i) => {
+      const chosen = byId.get(controls[i]?.input.value ?? "");
+      (slots[i] as HTMLElement).textContent = chosen
+        ? formatLabel(labels, "question.matchedWith", { match: text(chosen.match) })
+        : labels["question.notMatched"];
+      items[i]?.classList.toggle("is-matched", chosen !== undefined);
+    });
+  };
+  /** Pairs an item with a match, whichever was taken first. */
+  const join = (a: HTMLButtonElement, b: HTMLButtonElement) => {
+    const [item, tile] = a.classList.contains("match-item") ? [a, b] : [b, a];
+    const i = items.indexOf(item);
+    const control = controls[i];
+    const pair = pairs[i];
+    const match = byId.get(tile.dataset.pair ?? "");
+    pick(undefined);
+    if (!control || !pair || !match) return;
+    control.input.value = match.id;
+    sync();
+    status.textContent = formatLabel(labels, "sr.matched", {
+      item: text(pair.prompt),
+      match: text(match.match),
+    });
+  };
+  const choose = (b: HTMLButtonElement) => {
+    if (isLocked) return;
+    if (!picked || picked === b) pick(picked ? undefined : b);
+    else if (listOf(picked) === listOf(b)) pick(b);
+    else join(picked, b);
+  };
+  const target = (event: Event) =>
+    (event.target as Element).closest<HTMLButtonElement>(".match-item, .match-tile") ?? undefined;
+
+  board.addEventListener("click", (event) => {
+    const b = target(event);
+    if (b) choose(b);
+  });
+  board.addEventListener("keydown", (event) => {
+    const b = target(event);
+    if (!b) return;
+    const list = listOf(b);
+    const other = list === tiles ? ordered : tiles;
+    const i = list.indexOf(b);
+    let next: HTMLButtonElement | undefined;
+    if (event.key === "ArrowUp") next = list[Math.max(0, i - 1)];
+    else if (event.key === "ArrowDown") next = list[Math.min(list.length - 1, i + 1)];
+    else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      next = other[Math.min(i, other.length - 1)];
+    } else if (event.key === "Escape" && picked) {
+      pick(undefined);
+      event.stopPropagation();
+    } else return;
+    event.preventDefault();
+    next?.focus();
+  });
+  // One tab stop per column: the button last focused in it.
+  const rove = (list: HTMLButtonElement[], current: HTMLButtonElement | undefined) => {
+    for (const one of list) one.tabIndex = one === current ? 0 : -1;
+  };
+  rove(ordered, ordered[0]);
+  rove(tiles, tiles[0]);
+  board.addEventListener("focusin", (event) => {
+    const b = target(event);
+    if (b) rove(listOf(b), b);
+  });
+
+  // Dragging: a match onto an item's row, or an item onto a match.
+  const dropOn = (event: DragEvent) => {
+    const element = event.target as Element;
+    const b =
+      element.closest<HTMLButtonElement>(".match-tile") ??
+      element.closest(".match")?.querySelector<HTMLButtonElement>(".match-item");
+    return b && dragged && listOf(b) !== listOf(dragged) ? b : undefined;
+  };
+  board.addEventListener("dragstart", (event) => {
+    dragged = isLocked ? undefined : target(event);
+    if (!dragged) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer?.setData("text/plain", dragged.dataset.pair ?? "");
+  });
+  board.addEventListener("dragover", (event) => {
+    if (dropOn(event)) event.preventDefault();
+  });
+  board.addEventListener("drop", (event) => {
+    const b = dropOn(event);
+    if (!b || !dragged) return;
+    event.preventDefault();
+    join(dragged, b);
+  });
+  board.addEventListener("dragend", () => {
+    dragged = undefined;
+  });
+  // A drop-down the learner changed.
+  board.addEventListener("change", sync);
+
+  mode.addEventListener("click", () => {
+    const lists = board.classList.toggle("is-lists");
+    mode.textContent = labels[lists ? "question.useDrag" : "question.useLists"];
+    instruct(labels[lists ? "question.match" : "question.matchDrag"]);
+    pick(undefined);
+  });
+  sync();
+
+  return {
+    element: h("div", { class: "match-area" }, board, mode, status),
+    first: () =>
+      board.classList.contains("is-lists")
+        ? (column.querySelector("select") ?? undefined)
+        : ordered.find((b) => b.tabIndex === 0),
+    lock(on) {
+      isLocked = on;
+      pick(undefined);
+      for (const b of [...ordered, ...tiles]) {
+        b.disabled = on;
+        b.draggable = !on;
+      }
+      if (!on) sync(); // a retry cleared the lists
+    },
+    sync,
   };
 }
 
@@ -292,7 +525,10 @@ export function onAnswer(form: HTMLFormElement, answer: () => void): void {
     answer();
   });
   form.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !(event.target instanceof HTMLInputElement)) return;
+    const field =
+      event.target instanceof HTMLInputElement ||
+      (event.target instanceof Element && event.target.closest(".match-board"));
+    if (event.key !== "Enter" || !field) return;
     event.preventDefault();
     answer();
   });

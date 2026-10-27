@@ -96,14 +96,24 @@ export function newQuestion(kind: QuestionKind, id: () => string, t: Translate):
   }
 }
 
-/** What every type has: its id, prompt, media, feedback and extension data. */
+/** What every type has: its id, prompt, media, audio, feedback and extension data. */
 function common(question: Question) {
-  const { id, prompt, media, feedbackMode, feedback, correctFeedback, incorrectFeedback, ext } =
-    question;
+  const {
+    id,
+    prompt,
+    media,
+    audio,
+    feedbackMode,
+    feedback,
+    correctFeedback,
+    incorrectFeedback,
+    ext,
+  } = question;
   return {
     id,
     prompt,
     ...(media && { media }),
+    ...(audio && { audio }),
     // Feedback per answer choice is for single choice only (2.12).
     ...(feedbackMode && feedbackMode !== "perAnswer" && { feedbackMode }),
     ...(feedback !== undefined && { feedback }),

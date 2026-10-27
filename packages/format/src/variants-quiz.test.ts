@@ -43,6 +43,43 @@ describe("knowledge checks and quizzes (M2-15)", () => {
     expect(errors.map((error) => error.path)).toContain(`${CHECK}${at}`);
   });
 
+  test("blocks-interactions 2.12: a fill-in takes up to 10 accepted answers and matching up to 10 pairs", () => {
+    const words = (count: number) => Array.from({ length: count }, (_, i) => `word${i}`);
+    const pairs = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `pairnum${String(i).padStart(3, "0")}`,
+        prompt: `Item ${i}`,
+        match: `Match ${i}`,
+      }));
+    const fill = "/entries/0/blocks/3/question/acceptedAnswers";
+    const match = "/entries/0/blocks/4/question/pairs";
+    expect(validateCourse(edit(quizCourse(), fill, words(10)))).toEqual([]);
+    expect(validateCourse(edit(quizCourse(), match, pairs(10)))).toEqual([]);
+    for (const count of [11, 15]) {
+      expect(validateCourse(edit(quizCourse(), fill, words(count)))).toEqual([
+        { path: fill, message: "must have at most 10 items" },
+      ]);
+    }
+    for (const count of [11, 12]) {
+      expect(validateCourse(edit(quizCourse(), match, pairs(count)))).toEqual([
+        { path: match, message: "must have at most 10 items" },
+      ]);
+    }
+  });
+
+  test("blocks-interactions 2.12, A17: a matching question keeps one column in order, and a question takes audio beside its picture", () => {
+    const question = "/entries/0/blocks/4/question";
+    expect(validateCourse(edit(quizCourse(), `${question}/freezeColumn`, "matches"))).toEqual([]);
+    expect(
+      validateCourse(edit(quizCourse(), `${question}/freezeColumn`, "both")).map((e) => e.path),
+    ).toEqual([`${question}/freezeColumn`]);
+    const audio = "/entries/0/blocks/0/question/audio";
+    expect(validateCourse(edit(quizCourse(), audio, { key: "croak.mp3" }))).toEqual([]);
+    expect(validateCourse(edit(quizCourse(), audio, { key: "gone.mp3" }))).toEqual([
+      { path: `${audio}/key`, message: "is not in the media index" },
+    ]);
+  });
+
   test("a check of a question type without its question is refused", () => {
     const course = quizCourse();
     delete (course.entries[0] as LessonEntry).blocks[0]?.question;

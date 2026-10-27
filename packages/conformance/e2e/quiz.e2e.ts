@@ -3,12 +3,15 @@
 // a fail over three attempts with falling scores where passing is required and the retries run
 // out. Each answered question is an interaction (SCORM) or an answered statement (xAPI, cmi5), the
 // LMS keeps the best score, a failed learner never completes the course, and a closed attempt
-// resumes with its answers and the attempts used.
+// resumes with its answers and the attempts used. A timed attempt closed part-way resumes with its
+// answers and the time it used; when the time runs out the unanswered questions count wrong and
+// are reported so, with the score (rise.md rule 15, UI-BLOCKS-R39).
 import type { Course } from "@course-suite/format";
 import { expect, test } from "@playwright/test";
-import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
-import { runXapiPackage } from "../src/run-xapi.js";
-import type { ScormCall } from "../src/test-lms.js";
+import { createMemoryLrs } from "../src/memory-lrs.js";
+import { closeSco, relaunchCmi, relaunchCmi2004, runPackage } from "../src/run-package.js";
+import { runXapiPackage, TEST_LAUNCH } from "../src/run-xapi.js";
+import { type ScormCall, TEST_CMI5_AUTH } from "../src/test-lms.js";
 import { statementProblems } from "../src/xapi-statement.js";
 import { cmi5Package, scorm12Package, scorm2004Package, xapiPackage } from "../test/blocks.js";
 import {
@@ -17,11 +20,15 @@ import {
   expectNoWayOn,
   FALLING,
   failThrice,
+  frozenClock,
   ids,
   openQuiz,
   passOnce,
   pond,
   start,
+  timedEnd,
+  timedPond,
+  timedStart,
 } from "../test/pond.js";
 
 const sets = (trace: ScormCall[], element: string) =>
@@ -141,6 +148,39 @@ test.describe("SCORM 1.2", () => {
     });
     expect(interactions(run.trace, "result")).toEqual(["correct", "correct", "correct", "correct"]);
   });
+
+  test("[rise:R15] [rise:R10] [rise:R11] [standards:R11] UI-BLOCKS-R39, BLK-07: a timed attempt closed after one answer resumes with its answer and the time used; at zero the unanswered questions are reported wrong with the score", async ({
+    browser,
+  }) => {
+    const pkg = await scorm12Package(timedPond("scorm12"));
+    const first = await runPackage(pkg, {
+      browser,
+      prepare: frozenClock,
+      drive: async (sco, host) => {
+        await timedStart(sco, host);
+        await closeSco(host);
+      },
+    });
+    expect(first.pageErrors).toEqual([]);
+    const second = await runPackage(pkg, {
+      browser,
+      cmi: relaunchCmi(first.cmi),
+      prepare: frozenClock,
+      drive: async (sco, host) => {
+        await timedEnd(sco, host);
+        await closeSco(host);
+      },
+    });
+    expect(second.pageErrors).toEqual([]);
+    expect(second.cmi.core).toMatchObject({
+      lesson_status: "failed",
+      score: { raw: "25", min: "0", max: "100" },
+    });
+    expect(interactions(first.trace, "id")).toEqual(ids(1).slice(0, 1));
+    expect(interactions(first.trace, "result")).toEqual(["correct"]);
+    expect(interactions(second.trace, "id")).toEqual(ids(1).slice(1));
+    expect(interactions(second.trace, "result")).toEqual(["wrong", "wrong", "wrong"]);
+  });
 });
 
 test.describe("SCORM 2004", () => {
@@ -188,6 +228,42 @@ test.describe("SCORM 2004", () => {
       completion_status: "completed",
       score: { scaled: "1", raw: "100" },
     });
+  });
+
+  test("[rise:R15] [rise:R10] [standards:R12] UI-BLOCKS-R39, BLK-07: a timed attempt closed after one answer resumes with its answer and the time used; at zero the unanswered questions are reported incorrect with the scaled score", async ({
+    browser,
+  }) => {
+    const pkg = await scorm2004Package(timedPond("scorm2004"));
+    const first = await runPackage(pkg, {
+      browser,
+      prepare: frozenClock,
+      drive: async (sco, host) => {
+        await timedStart(sco, host);
+        await closeSco(host);
+      },
+    });
+    expect(first.pageErrors).toEqual([]);
+    const second = await runPackage(pkg, {
+      browser,
+      cmi: relaunchCmi2004(first.cmi),
+      prepare: frozenClock,
+      drive: async (sco, host) => {
+        await timedEnd(sco, host);
+        await closeSco(host);
+      },
+    });
+    expect(second.pageErrors).toEqual([]);
+    expect(second.cmi).toMatchObject({
+      success_status: "failed",
+      score: { scaled: "0.25", raw: "25", min: "0", max: "100" },
+    });
+    expect([...interactions(first.trace, "id"), ...interactions(second.trace, "id")]).toEqual(
+      ids(1),
+    );
+    expect([
+      ...interactions(first.trace, "result"),
+      ...interactions(second.trace, "result"),
+    ]).toEqual(["correct", "incorrect", "incorrect", "incorrect"]);
   });
 });
 
@@ -242,6 +318,46 @@ for (const standard of ["xapi", "cmi5"] as const) {
       expect(passed.pageErrors).toEqual([]);
       const won = verbs(passed.lrs.statements, "passed");
       expect(won.map((s) => s.result?.score?.scaled)).toEqual(standard === "xapi" ? [1, 1] : [1]);
+    });
+
+    test(`[rise:R15] [rise:R10] [standards:X-2] [standards:X-4] [standards:C-6] UI-BLOCKS-R39, BLK-07: ${standard}: a timed attempt closed after one answer resumes from the LRS state with its answer and the time used; at zero the unanswered questions are answered statements, not successful, and the course fails with the score`, async ({
+      browser,
+    }) => {
+      const pkg = await build(timedPond(standard));
+      const lrs = createMemoryLrs({
+        auth: standard === "xapi" ? TEST_LAUNCH.auth : TEST_CMI5_AUTH,
+      });
+      const first = await runXapiPackage(pkg, {
+        browser,
+        lrs,
+        prepare: frozenClock,
+        drive: (page) => timedStart(page, page),
+      });
+      expect(first.pageErrors).toEqual([]);
+      const firstCount = lrs.statements.length;
+      expect(verbs(lrs.statements, "answered").map((s) => s.result?.success)).toEqual([true]);
+      const second = await runXapiPackage(pkg, {
+        browser,
+        lrs,
+        prepare: frozenClock,
+        drive: (page) => timedEnd(page, page),
+      });
+      expect(second.pageErrors).toEqual([]);
+      const later = lrs.statements.slice(firstCount);
+      for (const statement of later) expect(statementProblems(statement, "1.0")).toEqual([]);
+      const answered = verbs(later, "answered");
+      expect(answered.map((s) => s.object.id.split("/").at(-1))).toEqual([
+        "qqzmulti01",
+        "qqzfill001",
+        "qqzmatch01",
+      ]);
+      expect(answered.map((s) => s.result?.success)).toEqual([false, false, false]);
+      const course = verbs(later, "failed").filter((s) => !s.object.id.endsWith("/quizpond01"));
+      expect(course.at(-1)?.result?.score?.scaled).toBe(0.25);
+      if (standard === "xapi") {
+        const quiz = verbs(later, "failed").filter((s) => s.object.id.endsWith("/quizpond01"));
+        expect(quiz.map((s) => s.result?.score?.scaled)).toEqual([0.25]);
+      }
     });
   });
 }

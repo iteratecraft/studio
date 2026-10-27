@@ -47,10 +47,14 @@ async function answer(fieldset: Locator, questions: readonly Question[], right: 
     return;
   }
 
+  // Matching, by its drop-down lists rather than by dragging (UI-BLOCKS-R28).
+  const lists = fieldset.getByRole("button", { name: label["question.useLists"] });
+  if ((await lists.count()) > 0) await lists.click();
   const selects = fieldset.locator("select");
   const rows = await selects.count();
   if (rows > 0) {
-    // One drop-down per pair, in the question's order; each option's value is a pair id.
+    // One drop-down per pair, labelled by its item, in a shuffled order; each option's value is a
+    // pair id.
     const offered = await selects
       .first()
       .locator("option")
@@ -65,7 +69,13 @@ async function answer(fieldset: Locator, questions: readonly Question[], right: 
     );
     if (question?.kind !== "matching") throw new Error(`No matching question offers ${offered}`);
     for (let i = 0; i < rows; i++) {
-      const pair = question.pairs[right ? i : (i + 1) % rows];
+      const item = await selects
+        .nth(i)
+        .evaluate((select) => (select as HTMLSelectElement).labels[0]?.textContent ?? "");
+      const at = question.pairs.findIndex(
+        (pair) => squash(plainText(pair.prompt)) === squash(item),
+      );
+      const pair = question.pairs[right ? at : (at + 1) % rows];
       await selects.nth(i).selectOption(pair?.id ?? "");
     }
     return;

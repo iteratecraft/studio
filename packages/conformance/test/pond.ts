@@ -44,13 +44,13 @@ export const ANSWERS: ((learner: Learner, right: boolean) => Promise<void>)[] = 
     }
   },
   (l, right) => l.getByRole("textbox").fill(right ? "Lily pad" : "reed"),
+  // Matching on the board: an item picked, then its match (UI-BLOCKS-R28).
   async (l, right) => {
-    await l
-      .getByRole("combobox", { name: "Tadpole" })
-      .selectOption({ label: right ? "Frog" : "Dragonfly" });
-    await l
-      .getByRole("combobox", { name: "Nymph" })
-      .selectOption({ label: right ? "Dragonfly" : "Frog" });
+    const matches = right ? ["Frog", "Dragonfly"] : ["Dragonfly", "Frog"];
+    for (const [i, item] of ["Tadpole", "Nymph"].entries()) {
+      await l.getByRole("button", { name: new RegExp(`^${item} `) }).click();
+      await l.getByRole("button", { name: matches[i] as string, exact: true }).click();
+    }
   },
 ];
 
@@ -119,3 +119,48 @@ export const ids = (attempt: number) => [
   `Pond_quiz_Name_the_plant_that_floats_with_round_leaves._${attempt}`,
   `Pond_quiz_Match_the_young_with_the_adult._${attempt}`,
 ];
+
+/**
+ * The quiz course with a one-minute quiz timer (rise.md rule 15, UI-BLOCKS-R39): the timed path
+ * runs out of time with three questions unanswered.
+ */
+export function timedPond(standard: Exclude<PublishSettings["standard"], "web">): Course {
+  const course = pond(standard);
+  const quiz = course.entries[1] as QuizEntry;
+  quiz.settings = { ...quiz.settings, timer: { minutes: 1 } };
+  return course;
+}
+
+/** Freezes the page clock: the quiz timer moves only when the test moves it. */
+export async function frozenClock(page: Page) {
+  const start = Date.parse("2026-10-27T09:00:00Z");
+  await page.clock.install({ time: start });
+  await page.clock.pauseAt(start + 1_000);
+}
+
+/** A first visit to the timed quiz: the first question answered right, 20 s used, then closed. */
+export async function timedStart(learner: Learner, page: Page) {
+  await learner.getByRole("link", { name: "Begin course" }).click();
+  await openQuiz(learner);
+  await start(learner);
+  await ANSWERS[0]?.(learner, true);
+  await learner.getByRole("button", { name: "Submit" }).click();
+  await page.clock.runFor(20_000);
+  await expect(learner.getByRole("timer")).toHaveText("Time left: 0:40");
+}
+
+/**
+ * The next visit: the attempt resumes at its second question with 40 s left, and the time runs
+ * out. The time-up dialog submits the attempt with the three unanswered questions wrong: 25 %.
+ */
+export async function timedEnd(learner: Learner, page: Page) {
+  await learner.getByRole("link", { name: "Resume where you stopped" }).click();
+  await expect(learner.getByRole("heading", { level: 2 })).toHaveText("Question 2 of 4");
+  await expect(learner.getByRole("timer")).toHaveText("Time left: 0:40");
+  await page.clock.runFor(40_000);
+  const up = learner.getByRole("dialog", { name: "Time is up. Your answers were submitted." });
+  await expect(up).toBeVisible();
+  await up.getByRole("button", { name: "See your result" }).click();
+  await expect(learner.locator(".quiz-score")).toHaveText("Your score: 25%");
+  await expect(learner.getByText("Attempts left: 2")).toBeVisible();
+}

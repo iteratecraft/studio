@@ -870,7 +870,14 @@
         },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
-        "media": { "$ref": "#/$defs/MediaRef" },
+        "media": {
+          "description": "A picture, audio or video under the prompt.",
+          "$ref": "#/$defs/MediaRef"
+        },
+        "audio": {
+          "description": "Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12).",
+          "$ref": "#/$defs/MediaRef"
+        },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "prompt", "answers"],
@@ -894,7 +901,14 @@
         },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
-        "media": { "$ref": "#/$defs/MediaRef" },
+        "media": {
+          "description": "A picture, audio or video under the prompt.",
+          "$ref": "#/$defs/MediaRef"
+        },
+        "audio": {
+          "description": "Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12).",
+          "$ref": "#/$defs/MediaRef"
+        },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "prompt", "answers"],
@@ -909,6 +923,7 @@
         "acceptedAnswers": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 10,
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
@@ -923,7 +938,14 @@
         },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
-        "media": { "$ref": "#/$defs/MediaRef" },
+        "media": {
+          "description": "A picture, audio or video under the prompt.",
+          "$ref": "#/$defs/MediaRef"
+        },
+        "audio": {
+          "description": "Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12).",
+          "$ref": "#/$defs/MediaRef"
+        },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "prompt", "acceptedAnswers"],
@@ -938,7 +960,12 @@
         "pairs": {
           "type": "array",
           "minItems": 2,
+          "maxItems": 10,
           "items": { "$ref": "#/$defs/MatchPair" }
+        },
+        "freezeColumn": {
+          "description": "The column learners see in the authored order; the other is shuffled. Default: both shuffled (blocks-interactions.md 2.12).",
+          "enum": ["prompts", "matches"]
         },
         "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
         "feedback": {
@@ -947,7 +974,14 @@
         },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
-        "media": { "$ref": "#/$defs/MediaRef" },
+        "media": {
+          "description": "A picture, audio or video under the prompt.",
+          "$ref": "#/$defs/MediaRef"
+        },
+        "audio": {
+          "description": "Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12).",
+          "$ref": "#/$defs/MediaRef"
+        },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "prompt", "pairs"],

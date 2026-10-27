@@ -61,6 +61,14 @@ export const english = {
     "question.mustAnswer": "Answer this question correctly to see the rest of the lesson",
     // Knowledge-check retry limit (M2-15).
     "question.noTriesLeft": "You have no tries left for this question",
+    // Matching by dragging, with the drop-down lists as the other way (M2-15, UI-BLOCKS-R28).
+    "question.matchDrag": "Drag each match onto its item, or pick an item and then its match",
+    "question.items": "Items",
+    "question.matches": "Matches",
+    "question.matchedWith": "Matched with {match}",
+    "question.notMatched": "Not matched yet",
+    "question.useLists": "Answer with drop-down lists",
+    "question.useDrag": "Answer by dragging",
 
     "quiz.begin": "Begin quiz",
     "quiz.position": "Question {current} of {total}",
@@ -139,6 +147,9 @@ export const english = {
     "sr.answerCorrect": "Your answer is correct",
     "sr.answerIncorrect": "Your answer is incorrect",
     "sr.timeUp": "Time is up. Your answers were submitted.",
+    // Said once when a timed quiz starts, not every second (M2-15, UI-BLOCKS-R59).
+    "sr.timerStarted": "The quiz timer has started. Time limit: {minutes} min",
+    "sr.matched": "{item} matched with {match}",
     "sr.newTab": "opens in a new tab",
 
     "quote.previous": "Previous quote",

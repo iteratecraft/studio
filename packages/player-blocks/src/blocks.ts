@@ -224,7 +224,7 @@ function check(block: Block, context: StaticContext): HTMLElement | undefined {
   const question = block.question;
   if (!question || block.variant !== question.kind) return undefined;
   const settings = variantSettings<CheckSettings>(block);
-  const view = questionView(question, labels, { media: questionMedia(question.media, context) });
+  const view = questionView(question, labels, { media: questionMedia(question, context) });
   const result = h("div", { class: "feedback", tabindex: -1, hidden: true });
   const submit = h("button", { type: "submit", class: "button" }, labels["question.check"]);
   const retry = h(

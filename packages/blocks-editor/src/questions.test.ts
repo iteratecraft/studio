@@ -75,6 +75,19 @@ describe("question types (M2-15)", () => {
     ]);
   });
 
+  test("blocks-interactions 2.12: a switch keeps the audio beside the picture; the matching column order goes with matching", () => {
+    const course = quizCourse();
+    const matching = {
+      ...(checks()[3]?.question as Question),
+      audio: { key: "croak.mp3" },
+      freezeColumn: "matches",
+    } as Question;
+    const single = convertQuestion(matching, "single-choice", idMaker(course), t);
+    expect(single.audio).toEqual({ key: "croak.mp3" });
+    expect(single).not.toHaveProperty("freezeColumn");
+    expect(withQuestion(course, { ...single, id: "qqzsingle1" }).ok).toBe(true);
+  });
+
   test("per-answer feedback belongs to single choice and is dropped on a switch to another type", () => {
     const course = quizCourse();
     const single = checks()[0]?.question as Question;

@@ -1,14 +1,16 @@
 // The question editor shared by knowledge-check blocks and quiz lessons (M2-15, BLK-07;
-// blocks-interactions.md 2.12, A15, A17, W10, W11): the question type, the prompt with a picture,
-// audio or video, the answer choices and which are right, a fill-in's accepted answers and case
-// sensitivity, a matching question's pairs, and the feedback by any response, by correct or
-// incorrect, or by answer choice. A knowledge check's options sit in its format menu. Every change
-// is one doc-ops command list, so one undo step.
+// blocks-interactions.md 2.12, A15, A17, W10, W11): the question type, the prompt with a picture
+// or video and audio beside it, the answer choices (pasted several at once) and which are right, a
+// fill-in's accepted answers and case sensitivity, a matching question's pairs and which column
+// keeps its order, and the feedback by any response, by correct or incorrect, or by answer choice.
+// A knowledge check's options sit in its format menu. Every change is one doc-ops command list, so
+// one undo step.
 import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type Answer,
   accentReadable,
   type FeedbackMode,
+  type MatchingQuestion,
   type MatchPair,
   type MediaRef,
   nearestReadable,
@@ -98,8 +100,8 @@ export function QuestionEditor({ question, editor, switchTo }: QuestionEditorPro
 }
 
 /**
- * The question's picture, audio or video (rise.md 3C, 2.12 "prompt + media + audio"): one at a
- * time; a new one takes the place of the old.
+ * The question's picture or video, and audio beside either (rise.md 3C, 2.12 "prompt + media +
+ * audio"): a new picture or video takes the place of the old, and so does new audio.
  */
 function QuestionMedia({ question, editor }: { question: Question; editor: Editor }) {
   const t = useStrings();
@@ -113,7 +115,13 @@ function QuestionMedia({ question, editor }: { question: Question; editor: Edito
     <MediaDrop
       kind={kind}
       label={t(kind === "audio" ? "media.chooseAudio" : "media.chooseVideo")}
-      onAdded={([added]) => added && editor.dispatch([...added.commands, set({ key: added.key })])}
+      onAdded={([added]) =>
+        added &&
+        editor.dispatch([
+          ...added.commands,
+          update(question, { [kind === "audio" ? "audio" : "media"]: { key: added.key } }),
+        ])
+      }
     />
   );
   return (
@@ -138,8 +146,20 @@ function QuestionMedia({ question, editor }: { question: Question; editor: Edito
           </Button>
         </>
       )}
-      {take("audio")}
       {take("video")}
+      {question.audio && (
+        <>
+          <p className="be-note">
+            {t("question.audioFile", {
+              name: intake.name(question.audio.key) ?? question.audio.key,
+            })}
+          </p>
+          <Button variant="quiet" onPress={() => editor.dispatch(update(question, {}, ["audio"]))}>
+            {t("question.removeAudio")}
+          </Button>
+        </>
+      )}
+      {take("audio")}
     </div>
   );
 }
@@ -214,6 +234,7 @@ function Choices({
   const answers = question.answers;
   return (
     <>
+      <p className="be-note">{t("question.pasteHelp")}</p>
       {answers.map((answer, i) => {
         const name = t("field.answer", { number: i + 1 });
         return (
@@ -242,6 +263,23 @@ function Choices({
                   ? { type: "updateAnswer", id: answer.id, set: { text: inlineHtml(text) } }
                   : undefined
               }
+              // Bulk paste (2.12): the first line is this answer, each other line a new one after it.
+              pasteLines={(lines) => {
+                const id = idMaker(editor.document);
+                return [
+                  {
+                    type: "updateAnswer",
+                    id: answer.id,
+                    set: { text: inlineHtml(lines[0] ?? "") },
+                  },
+                  ...lines.slice(1).map((line, n) => ({
+                    type: "insertAnswer" as const,
+                    parent: question.id,
+                    index: i + 1 + n,
+                    value: { id: id(), text: inlineHtml(line), correct: false },
+                  })),
+                ];
+              }}
             />
             <Checkbox
               isSelected={answer.correct}
@@ -340,14 +378,20 @@ function Accepted({
   );
 }
 
-/** A matching question's pairs: an item and its match each, 2 to 10 (2.12). */
-function Pairs({
-  question,
-  editor,
-}: {
-  question: Extract<Question, { kind: "matching" }>;
-  editor: Editor;
-}) {
+const FREEZE: readonly (readonly [
+  NonNullable<MatchingQuestion["freezeColumn"]> | "none",
+  StringKey,
+])[] = [
+  ["none", "question.freezeNone"],
+  ["prompts", "question.freezePrompts"],
+  ["matches", "question.freezeMatches"],
+];
+
+/**
+ * A matching question's pairs: an item and its match each, 2 to 10, and the column learners see in
+ * the author's order; the others are shuffled (2.12, A17).
+ */
+function Pairs({ question, editor }: { question: MatchingQuestion; editor: Editor }) {
   const t = useStrings();
   const pairs = question.pairs;
   const text = (pair: MatchPair, side: "prompt" | "match", number: number) => (
@@ -398,6 +442,23 @@ function Pairs({
       >
         {t("items.add", { name: t("question.pair", { number: pairs.length + 1 }) })}
       </Button>
+      <Select
+        label={t("question.freeze")}
+        selectedKey={question.freezeColumn ?? "none"}
+        onSelectionChange={(key) =>
+          editor.dispatch(
+            key === "none"
+              ? update(question, {}, ["freezeColumn"])
+              : update(question, { freezeColumn: key }),
+          )
+        }
+      >
+        {FREEZE.map(([value, label]) => (
+          <ListBoxItem key={value} id={value}>
+            {t(label)}
+          </ListBoxItem>
+        ))}
+      </Select>
     </>
   );
 }

@@ -322,7 +322,8 @@ export function startShell(
         runtime,
         next,
         refresh,
-        media: (ref) => questionMedia(ref, { course, mediaUrl }),
+        media: (question) => questionMedia(question, { course, mediaUrl }),
+        announce,
       });
       leave = quiz.stop;
       body = quiz.element;

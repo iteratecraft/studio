@@ -491,7 +491,10 @@ export interface SingleChoiceQuestion {
   feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -505,7 +508,10 @@ export interface MultipleResponseQuestion {
   feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -521,7 +527,10 @@ export interface FillInQuestion {
   feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -530,12 +539,17 @@ export interface MatchingQuestion {
   kind: "matching";
   prompt: RichText;
   pairs: MatchPair[];
+  /** The column learners see in the authored order; the other is shuffled. Default: both shuffled (blocks-interactions.md 2.12). */
+  freezeColumn?: "prompts" | "matches";
   feedbackMode?: FeedbackMode;
   /** The one message for any response (feedbackMode any). */
   feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 

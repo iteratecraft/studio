@@ -957,6 +957,103 @@ h3.block-heading {
   border: 2px solid var(--wrong);
 }
 
+/* Matching by dragging (UI-BLOCKS-R28): items beside the matches; the drop-downs on request. */
+.match-board {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 0 16px;
+  align-items: start;
+}
+
+.match-board.is-lists {
+  display: block;
+}
+
+.match-item,
+.match-tile {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--button-radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+}
+
+.match-item {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  border-style: dashed;
+}
+
+.match-item.is-matched {
+  border-style: solid;
+}
+
+.match-board:not(.is-lists) .match {
+  padding: 0;
+  border: 0;
+}
+
+.match-slot {
+  color: var(--muted);
+  font-size: 0.875em;
+}
+
+.match-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.match-item[aria-pressed="true"],
+.match-tile[aria-pressed="true"] {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.match-item:disabled,
+.match-tile:disabled {
+  cursor: default;
+}
+
+.match-mode {
+  min-height: 44px;
+  margin: 4px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.match-board:not(.is-lists) .match > label,
+.match-board:not(.is-lists) .match > select,
+.match-board.is-lists .match-item,
+.match-board.is-lists .match-tiles {
+  display: none;
+}
+
+.match-board:not(.is-lists) .match.is-correct .match-item {
+  border: 2px solid var(--correct);
+}
+
+.match-board:not(.is-lists) .match.is-wrong .match-item {
+  border: 2px solid var(--wrong);
+}
+
+@media (max-width: 599px) {
+  .match-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .accepted-title {
   margin-bottom: 0;
   font-weight: 600;

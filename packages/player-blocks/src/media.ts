@@ -9,6 +9,7 @@ import {
   type ContentItem,
   embedProvider,
   type MediaRef,
+  type Question,
   textOn,
   variantSettings,
 } from "@course-suite/format";
@@ -314,11 +315,23 @@ export function codeSnippetBlock(block: Block, { labels }: MediaContext): HTMLEl
 }
 
 /**
- * A question's picture, audio or video (M2-15; rise.md 3C "questions can carry audio and other
- * media"), by its file's type: the browser's own players, a video with its caption tracks; a
+ * A question's picture, audio or video, and its audio beside a picture or video (M2-15; rise.md
+ * 3C "questions can carry audio and other media"; blocks-interactions.md 2.12 "prompt + media +
+ * audio"), each by its file's type: the browser's own players, a video with its caption tracks; a
  * picture with its alt text, empty for a decorative one.
  */
 export function questionMedia(
+  question: Pick<Question, "media" | "audio">,
+  context: Pick<MediaContext, "course" | "mediaUrl">,
+): HTMLElement | undefined {
+  const shown = [question.media, question.audio].flatMap((ref) => {
+    const element = mediaElement(ref, context);
+    return element ? [element] : [];
+  });
+  return shown.length > 0 ? h("div", { class: "question-media" }, ...shown) : undefined;
+}
+
+function mediaElement(
   ref: MediaRef | undefined,
   context: Pick<MediaContext, "course" | "mediaUrl">,
 ): HTMLElement | undefined {
@@ -327,11 +340,7 @@ export function questionMedia(
   const type = file.entry.mimeType ?? "";
   const { width, height } = file.entry;
   if (type.startsWith("audio/")) {
-    return h(
-      "div",
-      { class: "question-media" },
-      h("audio", { controls: true, preload: "metadata", src: file.src }),
-    );
+    return h("audio", { controls: true, preload: "metadata", src: file.src });
   }
   if (type.startsWith("video/")) {
     const video = h("video", {
@@ -355,13 +364,9 @@ export function questionMedia(
         );
       }
     }
-    return h("div", { class: "question-media" }, video);
+    return video;
   }
-  return h(
-    "div",
-    { class: "question-media" },
-    h("img", { src: file.src, alt: ref.alt ?? "", width, height, loading: "lazy" }),
-  );
+  return h("img", { src: file.src, alt: ref.alt ?? "", width, height, loading: "lazy" });
 }
 
 /**
