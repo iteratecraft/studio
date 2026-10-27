@@ -317,6 +317,7 @@ const RECORD = new Set([
   "Id",
   "StorageKey",
   "MediaKeyRef",
+  "ItemEmbed",
   ...Object.keys(TARGETS),
   ...Object.keys(CORRECT_ANSWERS),
 ]);
@@ -376,6 +377,19 @@ export function validateCourse(
     }
   }
   for (const { def, value, path } of found) {
+    // D-44: an item's embed frames a player of its provider, as an embed block's does.
+    const embed = value as { embedUrl?: unknown; provider?: unknown };
+    if (
+      def === "ItemEmbed" &&
+      typeof embed.embedUrl === "string" &&
+      typeof embed.provider === "string" &&
+      !embedProvider(embed.embedUrl, embed.provider)
+    ) {
+      errors.push({
+        path: pointer(path, "embedUrl"),
+        message: `is not a player address of ${embed.provider}`,
+      });
+    }
     const rule = CORRECT_ANSWERS[def];
     const answers = (value as { answers?: { correct: boolean }[] }).answers ?? [];
     if (rule && !rule.ok(answers.filter((answer) => answer.correct).length)) {
@@ -469,6 +483,30 @@ function variantErrors(
             path: `${path}/items/${i}/role`,
             message: "an introduction must be the first card and a summary the last",
           });
+        }
+        // An item shows one picture, video or embed; embeds and audio belong to the items of
+        // interactive blocks (blocks-interactions.md 2.1 to 2.4, 2.8, A10, A11).
+        for (const [where, part] of item.kind === "flashcard"
+          ? [
+              [`${path}/items/${i}/front`, item.front],
+              [`${path}/items/${i}/back`, item.back],
+            ]
+          : [[`${path}/items/${i}`, item]]) {
+          if (!isObject(part)) continue;
+          if (part.media !== undefined && part.embed !== undefined) {
+            errors.push({
+              path: `${where}/embed`,
+              message: "must not be set with media: an item shows one picture, video or embed",
+            });
+          }
+          for (const field of ["embed", "audio"]) {
+            if (part[field] !== undefined && block.category !== "interactive") {
+              errors.push({
+                path: `${where}/${field}`,
+                message: "is kept only on the items of interactive blocks",
+              });
+            }
+          }
         }
         const icon = item.kind === "marker" ? item.icon : undefined;
         if (icon !== undefined && !(MARKER_ICONS as readonly unknown[]).includes(icon)) {

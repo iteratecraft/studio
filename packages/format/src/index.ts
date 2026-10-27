@@ -22,10 +22,14 @@ export {
   toInteraction,
 } from "./quiz.js";
 export {
+  EMAIL_PATTERN,
+  isEmail,
   isLessonLink,
+  isRelativeLink,
   isSafeLink,
   LINK_PATTERN,
   lessonLink,
+  RELATIVE_URL_PATTERN,
   RICH_TEXT_ATTRIBUTES,
   RICH_TEXT_DROPPED,
   RICH_TEXT_ELEMENTS,

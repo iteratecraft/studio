@@ -90,6 +90,11 @@ export type Timestamp = string;
 
 export type Url = string;
 
+/** An address relative to the course's page: no scheme, not starting with // or a query or fragment, no spaces or backslashes. */
+export type RelativeUrl = string;
+
+export type Email = string;
+
 export type Percent = number;
 
 /** Key of a media file in the project container. */
@@ -376,6 +381,15 @@ export interface Narration {
   position?: "top" | "bottom";
 }
 
+/** A web embed of an interactive block's item: a player of a listed provider, loaded only when the learner asks for it. */
+export interface ItemEmbed {
+  /** What the author pasted, to edit it again. */
+  url?: string;
+  embedUrl: string;
+  /** The listed provider named on the button that loads it; embedUrl is one of its players. */
+  provider: string;
+}
+
 /** One record inside a block. */
 export type Item =
   | ContentItem
@@ -393,6 +407,8 @@ export interface ContentItem {
   title?: RichText;
   text?: RichText;
   media?: MediaRef;
+  embed?: ItemEmbed;
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -406,6 +422,8 @@ export interface MarkerItem {
   title?: RichText;
   text?: RichText;
   media?: MediaRef;
+  embed?: ItemEmbed;
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -418,6 +436,8 @@ export interface StepItem {
   title?: RichText;
   text?: RichText;
   media?: MediaRef;
+  embed?: ItemEmbed;
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -432,12 +452,18 @@ export interface FlashcardItem {
 export interface CardSide {
   text?: RichText;
   media?: MediaRef;
+  embed?: ItemEmbed;
+  audio?: MediaRef;
+  /** The side's picture centred above its text with a frame, or filling the side. Default centred. */
+  imageStyle?: "centered" | "full";
 }
 
 export interface ButtonItem {
   id: Id;
   kind: "button";
   label: string;
+  /** Heading shown with the button and its description. */
+  title?: RichText;
   description?: RichText;
   destination: Destination;
   ext?: Ext;
@@ -451,6 +477,14 @@ export type Destination =
   | {
       kind: "url";
       url: Url;
+    }
+  | {
+      kind: "relative";
+      path: RelativeUrl;
+    }
+  | {
+      kind: "email";
+      addresses: Email[];
     }
   | {
       kind: "exit";

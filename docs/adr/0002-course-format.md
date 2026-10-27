@@ -36,6 +36,11 @@ valid in every standard.
   (`INTERACTIVE_ITEMS`: sections, markers, process cards, flashcards or buttons), a process keeps its
   introduction first and its summary last, and a marker's icon is one of `MARKER_ICONS`. Interactive
   variants of later epics (scenario, sorting, timeline, slides) are listed as `OPEN` and stay open.
+  Items of interactive blocks alone may hold a web embed (`ItemEmbed`, a player of a listed provider,
+  checked as an embed block's is) and audio; an item shows one picture, video or embed. A button may
+  also go to an address relative to the course (`RelativeUrl`) or open an email (`Email`), and
+  carries an optional heading (`title`); each flashcard side has its own picture style. All of these
+  are optional fields.
 - JSON Schema cannot check cross-references, so `packages/format` runs a second validation pass in code
   (reference integrity, below). Both passes report errors with a JSON Pointer path.
 

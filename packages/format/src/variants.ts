@@ -116,12 +116,15 @@ const GALLERY: Record<string, Setting> = {
 
 /** Level of the heading element of the item titles; unset, the deepest the lesson allows there. */
 const ITEM_HEADING: Setting = { schema: int(2, 6) };
+/** Where an item's audio player sits: above its text and media, or below them (2.1). */
+const AUDIO_POSITION: Setting = { schema: choice("top", "bottom"), default: "bottom" };
 
 const SECTIONS: Record<string, Setting> = {
   // Accordion: opening a section closes the others (UI-BLOCKS-R1). Tabs show one at a time anyway.
   oneAtATime: { schema: FLAG, default: false },
   zoom: { schema: FLAG, default: true },
   headingLevel: ITEM_HEADING,
+  audioPosition: AUDIO_POSITION,
 };
 
 /**
@@ -138,6 +141,7 @@ const LABELED_GRAPHIC: Record<string, Setting> = {
   // Pictures in the markers' cards enlarge.
   zoom: { schema: FLAG, default: true },
   headingLevel: ITEM_HEADING,
+  audioPosition: AUDIO_POSITION,
 };
 
 const PROCESS: Record<string, Setting> = {
@@ -147,21 +151,22 @@ const PROCESS: Record<string, Setting> = {
   stepWord: { schema: { type: "string", maxLength: 40 } },
   zoom: { schema: FLAG, default: true },
   headingLevel: ITEM_HEADING,
+  audioPosition: AUDIO_POSITION,
 };
 
 const FLASHCARDS: Record<string, Setting> = {
   // A hint on each card that it turns over; cards sized to their content, or all `cardHeight`
-  // pixels high; a side's picture centred above its text or filling the side (2.8).
+  // pixels high (2.8). Each side's picture style is the side's own (CardSide.imageStyle).
   flipHint: { schema: FLAG, default: true },
   autosize: { schema: FLAG, default: true },
   cardHeight: { schema: int(120, 600), default: 240 },
-  imageStyle: { schema: choice("centered", "full"), default: "centered" },
 };
 
 const BUTTONS: Record<string, Setting> = {
   // Each button's description beside it; the buttons' alignment and width (fit their label,
   // wide, or the full column); their corners (unset: the theme's), fill (unset: the theme's
-  // button colour) and text on it; the space between the buttons of a stack (2.10).
+  // button colour) and text on it; the space between the buttons of a stack; the level of each
+  // button's heading (2.10).
   showDescription: { schema: FLAG, default: true },
   align: { schema: choice("left", "center", "right"), default: "left" },
   width: { schema: choice("fit", "wide", "full"), default: "fit" },
@@ -169,6 +174,7 @@ const BUTTONS: Record<string, Setting> = {
   buttonColor: { schema: COLOR },
   buttonContrast: { schema: CONTRAST, default: "auto" },
   spacing: { schema: int(0, 48), default: 12 },
+  headingLevel: ITEM_HEADING,
 };
 
 /** The one kind of item each interactive variant defined here holds (rise.md §4 "Item"). */
