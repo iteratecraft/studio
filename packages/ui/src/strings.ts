@@ -627,7 +627,7 @@ export const english = {
   "interactive.iconEye": "Eye",
   "interactive.buttonLabel": "Label",
   "interactive.labelError": "A button needs a label.",
-  "interactive.description": "Description",
+  "interactive.description": "Text beside the button",
   "interactive.destination": "Goes to",
   "interactive.toLesson": "Another lesson",
   "interactive.toUrl": "A web address",
