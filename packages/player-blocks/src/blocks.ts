@@ -123,7 +123,9 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.backgroundImage = `linear-gradient(${tint}, ${tint}), url("${url}")`;
     frame.style.backgroundSize = "cover";
     frame.style.backgroundPosition = "center";
-    frame.classList.add("has-background", dark ? "text-light" : "text-dark");
+    // On a picture, buttons are black or white and process controls take the theme colour
+    // (UI-BLOCKS-EDITOR-R23, player.css).
+    frame.classList.add("has-background", "background-image", dark ? "text-light" : "text-dark");
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
   // Theme colour and tint follow the course theme, with its contrast (UI-BLOCKS-EDITOR-R45).

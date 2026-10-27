@@ -1526,6 +1526,36 @@ h3.block-heading {
     0 0 0 7px rgb(255 255 255 / 0.85);
 }
 
+/* A marker not opened yet pulses, and only when the learner has no reduced-motion preference
+   (UI-BLOCKS-R5, UI-ACCESSIBILITY-R40): a ring in the marker's colour grows and fades. */
+.marker::after {
+  position: absolute;
+  inset: -2px;
+  border: 3px solid var(--marker, var(--accent));
+  border-radius: 50%;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .marker:not([data-viewed])::after {
+    animation: marker-pulse 2s ease-out infinite;
+  }
+}
+
+@keyframes marker-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
 .marker[aria-expanded="true"] {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
@@ -1752,6 +1782,58 @@ h3.block-heading {
 .buttons-full .button-row {
   flex-direction: column;
   align-items: stretch;
+}
+
+.button-heading {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+/* An item's video or embed fills its card's width, as a media block's does (A10). */
+.item-video video {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000000;
+}
+
+.accordion-panel audio,
+.tab-panel audio,
+.marker-card audio,
+.process-card audio,
+.card-side audio {
+  display: block;
+  width: 100%;
+}
+
+/* On a picture (UI-BLOCKS-EDITOR-R23): buttons are white or black, whichever the overlay keeps
+   readable, whatever colour the block or the author gave them; the process controls take the
+   theme colour, filled with it and with the theme's text on it, the chosen one the other way round. */
+.background-image.text-light .block-button {
+  --button: #ffffff;
+  --button-text: #000000;
+}
+
+.background-image.text-dark .block-button {
+  --button: #000000;
+  --button-text: #ffffff;
+}
+
+.background-image .process-controls .carousel-button,
+.background-image .process-strip-button {
+  border-color: var(--theme-accent, #1f5fbf);
+  background: var(--theme-accent, #1f5fbf);
+  color: var(--theme-accent-text, #ffffff);
+}
+
+.background-image .process-strip-button[aria-current="step"] {
+  background: var(--theme-accent-text, #ffffff);
+  color: var(--theme-accent, #1f5fbf);
+}
+
+.background-image .process-controls .carousel-button[aria-disabled="true"] {
+  opacity: 0.6;
 }
 
 .list {

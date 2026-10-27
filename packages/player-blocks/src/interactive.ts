@@ -5,10 +5,27 @@
 // (shownSections, shownMarkers, shownSteps, flashcards) and tells the lesson as each is opened,
 // shown or turned over. What the learner opened belongs to the page and starts again on a return
 // (UI-BLOCKS-R5); progress keeps what was done. Buttons never count as required (UI-BLOCKS-R19).
-import type { Block, ButtonItem, ContentItem, FlashcardItem, MediaRef } from "@course-suite/format";
-import { deepestHeadingLevel, isSafeLink, textOn, variantSettings } from "@course-suite/format";
+// An item's media is a picture, a video or a web embed, and it may have audio (2.1 to 2.4, 2.8,
+// A10, A11), drawn as the media blocks draw theirs (media.ts).
+import type {
+  Block,
+  ButtonItem,
+  CardSide,
+  ContentItem,
+  FlashcardItem,
+  ItemEmbed,
+  MediaRef,
+} from "@course-suite/format";
+import {
+  deepestHeadingLevel,
+  isRelativeLink,
+  isSafeLink,
+  textOn,
+  variantSettings,
+} from "@course-suite/format";
 import { formatLabel, type LabelKey } from "@course-suite/labels";
 import { h, linkOut, richText, uid } from "./dom.js";
+import { audioOf, embedFrame, isVideo, itemVideo } from "./media.js";
 import { flashcards, shownMarkers, shownSections, shownSteps } from "./progress.js";
 import { pageHash, pagesOf } from "./route.js";
 import {
@@ -81,16 +98,61 @@ const title = (html: string | undefined, context: StaticContext) =>
 const plain = (html: string | undefined, context: StaticContext) =>
   (h("span", {}, title(html, context)).textContent ?? "").trim();
 
-/** An item's picture, which may enlarge, and its text. */
-function body(
-  item: { text?: string; media?: MediaRef },
+/** What an item may show besides its title (ContentItem, MarkerItem, StepItem, CardSide). */
+interface ItemParts {
+  text?: string;
+  media?: MediaRef;
+  embed?: ItemEmbed;
+  audio?: MediaRef;
+}
+
+type AudioPosition = "top" | "bottom";
+
+/**
+ * An item's media (A10): its web embed, loaded only when the learner asks; its video; or its
+ * picture with class `image`, which may enlarge.
+ */
+function itemMedia(
+  item: ItemParts,
   context: StaticContext,
   zoom: boolean,
+  image = "image",
+): HTMLElement | undefined {
+  if (item.embed) {
+    const { embedUrl, provider } = item.embed;
+    return h("div", { class: "item-embed" }, embedFrame(embedUrl, provider, context.labels));
+  }
+  if (item.media && isVideo(item.media, context)) {
+    const video = itemVideo(item.media, context);
+    return video && h("div", { class: "item-video" }, video);
+  }
+  const shown = picture(item.media, context, image);
+  return shown && zoomable(shown, context.labels, zoom);
+}
+
+/**
+ * An item's media, its text and its audio player (A11), the player above or below the rest
+ * (2.1 "audio position"); `name` is what the item is called, which names its player.
+ */
+function body(
+  item: ItemParts,
+  name: string,
+  context: StaticContext,
+  zoom: boolean,
+  at: AudioPosition = "bottom",
+  image = "image",
 ): (HTMLElement | undefined)[] {
-  const image = picture(item.media, context, "image");
+  const { labels } = context;
+  const audio = audioOf(
+    item.audio,
+    name ? formatLabel(labels, "item.audio", { title: name }) : labels["narration.label"],
+    context,
+  );
   return [
-    image && zoomable(image, context.labels, zoom),
-    item.text ? h("div", { class: "text-body" }, richText(item.text, context.labels)) : undefined,
+    at === "top" ? audio : undefined,
+    itemMedia(item, context, zoom, image),
+    item.text ? h("div", { class: "text-body" }, richText(item.text, labels)) : undefined,
+    at === "bottom" ? audio : undefined,
   ];
 }
 
@@ -101,7 +163,9 @@ function body(
 const accordion: Renderer = (block, context) => {
   const sections = shownSections(block);
   if (sections.length === 0) return undefined;
-  const s = variantSettings<{ oneAtATime: boolean; zoom: boolean }>(block);
+  const s = variantSettings<{ oneAtATime: boolean; zoom: boolean; audioPosition: AudioPosition }>(
+    block,
+  );
   const level = itemLevel(block, context);
   const parts: [HTMLButtonElement, HTMLElement][] = [];
   const set = ([button, panel]: [HTMLButtonElement, HTMLElement], open: boolean) => {
@@ -126,7 +190,7 @@ const accordion: Renderer = (block, context) => {
     const panel = h(
       "div",
       { class: "accordion-panel", id: panelId, role: "region", "aria-labelledby": buttonId },
-      ...body(item, context, s.zoom),
+      ...body(item, plain(item.title, context), context, s.zoom, s.audioPosition),
     );
     panel.hidden = true;
     const part: [HTMLButtonElement, HTMLElement] = [button, panel];
@@ -155,7 +219,7 @@ const accordion: Renderer = (block, context) => {
 const tabs: Renderer = (block, context) => {
   const sections = shownSections(block);
   if (sections.length === 0) return undefined;
-  const s = variantSettings<{ zoom: boolean }>(block);
+  const s = variantSettings<{ zoom: boolean; audioPosition: AudioPosition }>(block);
   const parts = sections.map((item) => {
     const tabId = uid("tab");
     const panelId = uid("tabpanel");
@@ -173,7 +237,7 @@ const tabs: Renderer = (block, context) => {
         "aria-labelledby": tabId,
         tabindex: 0,
       },
-      ...body(item, context, s.zoom),
+      ...body(item, plain(item.title, context), context, s.zoom, s.audioPosition),
     );
     return { item, tab, panel };
   });
@@ -240,6 +304,7 @@ const labeledGraphic: Renderer = (block, context) => {
     markerColor?: string;
     markerContrast: "auto" | "light" | "dark";
     zoom: boolean;
+    audioPosition: AudioPosition;
   }>(block);
   image.style.borderRadius = px(s.cornerRadius);
   const level = itemLevel(block, context);
@@ -259,14 +324,23 @@ const labeledGraphic: Renderer = (block, context) => {
     const name = markers[i]?.icon;
     return name && name !== "number" ? MARKER_GLYPHS[name] : undefined;
   };
+  // Each part of a marker's name is a label template, so a translation sets the words, their
+  // order and the punctuation: "Marker 2 (star): Saddle, not viewed".
+  const markerName = (i: number) => {
+    const name = formatLabel(labels, "marker.name", { number: i + 1 });
+    const found = glyph(i);
+    return found
+      ? formatLabel(labels, "marker.withIcon", { marker: name, icon: labels[found[1]] })
+      : name;
+  };
   const nameOf = (i: number) => {
     const marker = markers[i];
-    const found = glyph(i);
-    const words = [formatLabel(labels, "marker.name", { number: i + 1 })];
-    if (found) words.push(`(${labels[found[1]]})`);
     const text = plain(marker?.title, context);
+    const named = text
+      ? formatLabel(labels, "marker.withTitle", { marker: markerName(i), title: text })
+      : markerName(i);
     const state = labels[viewed.has(marker?.id ?? "") ? "marker.viewed" : "marker.notViewed"];
-    return `${words.join(" ")}${text ? `: ${text}` : ""}, ${state}`;
+    return formatLabel(labels, "marker.state", { marker: named, state });
   };
   const buttons = markers.map((marker, i) => {
     const found = glyph(i);
@@ -304,7 +378,7 @@ const labeledGraphic: Renderer = (block, context) => {
     viewed.add(marker.id);
     itemDone(context, block, marker.id);
     const heading = h(`h${level}` as "h2", { class: "marker-title", id: cardTitleId });
-    heading.append(marker.title ? title(marker.title, context) : (nameOf(i).split(",")[0] ?? ""));
+    heading.append(marker.title ? title(marker.title, context) : markerName(i));
     const step = (path: string, label: LabelKey, to: number) => {
       const button = h(
         "button",
@@ -330,7 +404,13 @@ const labeledGraphic: Renderer = (block, context) => {
     card.replaceChildren(
       closer,
       heading,
-      ...body(marker, context, s.zoom).filter((part) => part !== undefined),
+      ...body(
+        marker,
+        plain(marker.title, context) || markerName(i),
+        context,
+        s.zoom,
+        s.audioPosition,
+      ).filter((part) => part !== undefined),
       h(
         "div",
         { class: "carousel-controls" },
@@ -386,7 +466,12 @@ const process: Renderer = (block, context) => {
   const { labels } = context;
   const cards = shownSteps(block);
   if (cards.length === 0) return undefined;
-  const s = variantSettings<{ stepLabel: boolean; stepWord?: string; zoom: boolean }>(block);
+  const s = variantSettings<{
+    stepLabel: boolean;
+    stepWord?: string;
+    zoom: boolean;
+    audioPosition: AudioPosition;
+  }>(block);
   const level = itemLevel(block, context);
   const word = s.stepWord?.trim() || labels["process.step"];
   const total = cards.length;
@@ -398,7 +483,7 @@ const process: Renderer = (block, context) => {
         ? labels["process.intro"]
         : card.role === "summary"
           ? labels["process.summary"]
-          : `${word} ${step}`;
+          : formatLabel(labels, "process.stepName", { word, number: step ?? 0 });
     const strip = h(
       "button",
       { type: "button", class: "process-strip-button", "aria-label": name },
@@ -426,7 +511,7 @@ const process: Renderer = (block, context) => {
       card.title
         ? h(`h${level}` as "h2", { class: "process-title" }, title(card.title, context))
         : undefined,
-      ...body(card, context, s.zoom),
+      ...body(card, plain(card.title, context) || name, context, s.zoom, s.audioPosition),
       action ? h("div", { class: "actions" }, action) : undefined,
     );
     if (step !== undefined && !s.stepLabel) strip.setAttribute("aria-label", String(step));
@@ -498,13 +583,17 @@ interface CardSettings {
   flipHint: boolean;
   autosize: boolean;
   cardHeight: number;
-  imageStyle: string;
 }
+
+/** Controls a learner can press or play inside a card side. */
+const CONTROLS = "a, button, audio, video, iframe";
 
 /**
  * A flashcard (2.8, UI-BLOCKS-R12): its front, then its back once turned over by its round button
- * or by a press anywhere on it; both sides stay in the accessibility tree as groups. A card turned
- * over is done, and turning it back does not undo that (UI-BLOCKS-R13, R56).
+ * or by a press anywhere on it but its controls; both sides stay in the accessibility tree as
+ * groups, and the controls of the side turned away leave the tab order. Each side has its own
+ * picture style, media and audio. A card turned over is done, and turning it back does not undo
+ * that (UI-BLOCKS-R13, R56).
  */
 function flashcard(
   block: Block,
@@ -514,18 +603,30 @@ function flashcard(
 ): HTMLElement {
   const { labels } = context;
   const side = (which: "front" | "back") => {
-    const part = card[which];
-    const image = picture(part.media, context, "card-image");
+    const part: CardSide = card[which];
+    const name = labels[which === "front" ? "flashcard.front" : "flashcard.back"];
     return h(
       "div",
       {
-        class: `card-side card-${which} image-${s.imageStyle}`,
+        class: `card-side card-${which} image-${part.imageStyle ?? "centered"}`,
         role: "group",
-        "aria-label": labels[which === "front" ? "flashcard.front" : "flashcard.back"],
+        "aria-label": name,
       },
-      image,
-      part.text ? h("div", { class: "text-body" }, richText(part.text, labels)) : undefined,
+      ...body(part, name, context, false, "bottom", "card-image"),
     );
+  };
+  const front = side("front");
+  const back = side("back");
+  const reachable = (turned: boolean) => {
+    for (const [face, shown] of [
+      [front, !turned],
+      [back, turned],
+    ] as const) {
+      for (const control of face.querySelectorAll<HTMLElement>(CONTROLS)) {
+        if (shown) control.removeAttribute("tabindex");
+        else control.tabIndex = -1;
+      }
+    }
   };
   const turn = h(
     "button",
@@ -533,7 +634,7 @@ function flashcard(
     icon(TURN, "icon"),
     h("span", { class: "visually-hidden" }, labels["flashcard.turn"]),
   );
-  const faces = h("div", { class: "card-faces" }, side("front"), side("back"));
+  const faces = h("div", { class: "card-faces" }, front, back);
   if (!s.autosize) faces.style.minHeight = px(s.cardHeight);
   const element = h(
     "div",
@@ -547,15 +648,17 @@ function flashcard(
     ),
   );
   const flip = () => {
-    const back = turn.getAttribute("aria-pressed") !== "true";
-    turn.setAttribute("aria-pressed", String(back));
-    element.classList.toggle("is-turned", back);
+    const turned = turn.getAttribute("aria-pressed") !== "true";
+    turn.setAttribute("aria-pressed", String(turned));
+    element.classList.toggle("is-turned", turned);
+    reachable(turned);
     itemDone(context, block, card.id);
   };
   turn.addEventListener("click", flip);
   element.addEventListener("click", (event) => {
-    if (!(event.target as Element).closest("button, a")) flip();
+    if (!(event.target as Element).closest(`${CONTROLS}, .embed-frame`)) flip();
   });
+  reachable(false);
   return element;
 }
 
@@ -596,35 +699,49 @@ const flashcardStack: Renderer = (block, context) => {
   );
 };
 
+/** A mail address as a mailto address part: what RFC 6068 wants escaped, escaped. */
+const mailbox = (address: string) => encodeURIComponent(address).replace("%40", "@");
+
 /**
- * A button's control (2.10, UI-BLOCKS-R18): a lesson of the course opens in the same window, a web
- * page in a new tab, and exit ends the course through the LMS connection (the runtime's exit, as
- * the outline's exit link does); none for a destination this course cannot reach.
+ * A button's control (2.10, UI-BLOCKS-R18): a lesson of the course opens in the same window; a web
+ * page, or a page next to the course by its relative address, in a new tab; an email destination
+ * opens a new message to its addresses with the course title as its subject; and exit ends the
+ * course through the LMS connection (the runtime's exit, as the outline's exit link does), so it
+ * shows only where the lesson can exit, in a learning-system package (`LessonHooks.exit`), and in
+ * the editor's drawing of the block, which has no lesson. None for a destination this course
+ * cannot reach.
  */
 function control(item: ButtonItem, { course, labels, lesson }: StaticContext) {
   const { destination } = item;
-  if (destination.kind === "lesson") {
-    const known = pagesOf(course).some((page) => page.id === destination.entry);
-    return known
-      ? h("a", { class: "button block-button", href: pageHash(destination.entry) }, item.label)
-      : undefined;
+  const link = (href: string) => h("a", { class: "button block-button", href }, item.label);
+  switch (destination.kind) {
+    case "lesson":
+      return pagesOf(course).some((page) => page.id === destination.entry)
+        ? link(pageHash(destination.entry))
+        : undefined;
+    case "url":
+      return isSafeLink(destination.url) ? linkOut(link(destination.url), labels) : undefined;
+    case "relative":
+      return isRelativeLink(destination.path) ? linkOut(link(destination.path), labels) : undefined;
+    case "email": {
+      const to = destination.addresses.map(mailbox).join(",");
+      return link(`mailto:${to}?subject=${encodeURIComponent(course.title)}`);
+    }
+    case "exit": {
+      if (lesson && !lesson.exit) return undefined;
+      const exit = h("button", { type: "button", class: "button block-button" }, item.label);
+      exit.addEventListener("click", () => lesson?.exit?.());
+      return exit;
+    }
   }
-  if (destination.kind === "url") {
-    if (!isSafeLink(destination.url)) return undefined;
-    return linkOut(
-      h("a", { class: "button block-button", href: destination.url }, item.label),
-      labels,
-    );
-  }
-  const exit = h("button", { type: "button", class: "button block-button" }, item.label);
-  exit.addEventListener("click", () => lesson?.exit?.());
-  return exit;
 }
 
 /**
- * Button and button stack (2.10, W8): each button with its description beside it, aligned and as
- * wide as the author chose, in the theme's button colour or the author's with the text that keeps
- * 4.5:1 on it. A single button shows the first of the buttons a stack switched to it kept.
+ * Button and button stack (2.10, L10, W8): each button with its heading and description beside it,
+ * aligned and as wide as the author chose, in the theme's button colour or the author's with the
+ * text that keeps 4.5:1 on it; on an image background, black or white by contrast instead
+ * (UI-BLOCKS-EDITOR-R23, player.css). A single button shows the first of the buttons a stack
+ * switched to it kept.
  */
 const buttons: Renderer = (block, context) => {
   const all = (block.items ?? []).filter((item): item is ButtonItem => item.kind === "button");
@@ -638,14 +755,20 @@ const buttons: Renderer = (block, context) => {
     buttonContrast: "auto" | "light" | "dark";
     spacing: number;
   }>(block);
+  const level = itemLevel(block, context);
   const rows = shown.flatMap((item) => {
     const button = control(item, context);
     if (!button) return [];
     if (s.cornerRadius !== undefined) button.style.borderRadius = px(s.cornerRadius);
-    const words =
+    const heading = item.title
+      ? h(`h${level}` as "h2", { class: "button-heading" }, title(item.title, context))
+      : undefined;
+    const description =
       s.showDescription && item.description
-        ? h("div", { class: "text-body button-text" }, richText(item.description, context.labels))
+        ? h("div", { class: "text-body" }, richText(item.description, context.labels))
         : undefined;
+    const words =
+      heading || description ? h("div", { class: "button-text" }, heading, description) : undefined;
     return [h("div", { class: "button-row" }, button, words)];
   });
   if (rows.length === 0) return undefined;

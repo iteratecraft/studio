@@ -46,6 +46,9 @@ export const english = {
     "process.position": "Step {current} of {total}",
     // Interactive blocks (M2-14)
     "marker.name": "Marker {number}",
+    "marker.withIcon": "{marker} ({icon})",
+    "marker.withTitle": "{marker}: {title}",
+    "marker.state": "{marker}, {state}",
     "marker.viewed": "viewed",
     "marker.notViewed": "not viewed",
     "marker.previous": "Previous marker",
@@ -59,6 +62,8 @@ export const english = {
     "process.intro": "Introduction",
     "process.summary": "Summary",
     "process.step": "Step",
+    "process.stepName": "{word} {number}",
+    "item.audio": "Audio: {title}",
     "process.steps": "Steps",
     "process.card": "{current} of {total}",
     "flashcard.hint": "Turn the card over to see the other side",
