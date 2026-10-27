@@ -3,11 +3,12 @@
 // menu; and the caption editor, where each caption's text and times are edited, split with Enter
 // and joined with Backspace at its start or Delete at its end. Saving stores the edited track as a
 // new WebVTT file, in one undo step, so the preview and the published package show it at once.
-import type { Command } from "@course-suite/doc-ops";
+import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type CaptionTrack,
   type Cue,
   formatVttTime,
+  type MediaRef,
   parseVtt,
   parseVttTime,
   serializeVtt,
@@ -23,7 +24,6 @@ import {
   useStrings,
 } from "@course-suite/ui";
 import { type KeyboardEvent, useContext, useEffect, useRef, useState } from "react";
-import type { FieldsProps } from "./blocks.js";
 import { languageCode } from "./course.js";
 import { DraftSession } from "./fields.js";
 import { idMaker } from "./ids.js";
@@ -39,12 +39,23 @@ function languageName(code: string, locale: string): string {
   }
 }
 
-export function CaptionTracks({ block, editor }: FieldsProps) {
+/**
+ * The caption tracks of `media`, a video of a video block or of an item (blocks-interactions.md
+ * A10); `command` is the edit that gives the video its new tracks.
+ */
+export function CaptionTracks({
+  media,
+  editor,
+  command,
+}: {
+  media: MediaRef | undefined;
+  editor: Editor;
+  command: (media: MediaRef) => Command;
+}) {
   const t = useStrings();
   const { locale } = useLocale();
   const session = useContext(DraftSession);
   const intake = useMediaIntake();
-  const media = block.media?.[0];
   const [typed, setTyped] = useState("");
   const [editing, setEditing] = useState<CaptionTrack>();
   if (!media) return null;
@@ -54,14 +65,7 @@ export function CaptionTracks({ block, editor }: FieldsProps) {
   /** The command that gives the video these tracks; `extra` goes first in the same list. */
   const withTracks = (next: CaptionTrack[], extra: Command[] = []): Command[] => {
     const { captions: _, ...rest } = media;
-    return [
-      ...extra,
-      {
-        type: "updateBlock",
-        id: block.id,
-        set: { media: [next.length > 0 ? { ...rest, captions: next } : rest] },
-      },
-    ];
+    return [...extra, command(next.length > 0 ? { ...rest, captions: next } : rest)];
   };
   return (
     // biome-ignore lint/a11y/useSemanticElements: a fieldset would add its own frame and legend layout.

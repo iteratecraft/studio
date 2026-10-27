@@ -193,7 +193,11 @@ export function VideoFields({ block, editor }: FieldsProps) {
         value={items(block)[0]?.text ?? ""}
         command={(html) => setContent(block, newId, "text", html)}
       />
-      {media && <CaptionTracks block={block} editor={editor} />}
+      <CaptionTracks
+        media={media}
+        editor={editor}
+        command={(next) => ({ type: "updateBlock", id: block.id, set: { media: [next] } })}
+      />
       <Transcript block={block} editor={editor} />
       <Thumbnail block={block} editor={editor} />
       <Seeking block={block} editor={editor} />

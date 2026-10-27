@@ -839,6 +839,19 @@ body,
   align-self: stretch;
 }
 
+/* Interactive blocks (M2-14): an item's media and audio, one control under another. */
+.be-item-media {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-item-media > .cs-Field,
+.be-item-media > .be-image-slot {
+  align-self: stretch;
+}
+
 /* Interactive blocks (M2-14): a labeled graphic's picture with its markers, placed by percentage. */
 .be-marker-place {
   display: flex;

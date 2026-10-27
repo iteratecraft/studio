@@ -53,6 +53,7 @@ const SHORTCUTS = [
   "text/paragraph-with-heading",
   // Interactive shortcuts the spec names (blocks-interactions.md A3, M2-14).
   "interactive/labeled-graphic",
+  "interactive/process",
   "interactive/flashcard-grid",
   "divider/continue",
 ].flatMap((key) => BLOCK_TYPES.find((type) => `${type.group}/${type.variant}` === key) ?? []);

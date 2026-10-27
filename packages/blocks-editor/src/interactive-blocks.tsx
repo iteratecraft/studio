@@ -2,8 +2,9 @@
 // 2.10, A4, A6, A7, W1 to W3, W6, W8): accordion, tabs, labeled graphic, process, flashcard grid and
 // stack, button and button stack. Each brings sample content (`create`), its items edited in place
 // with add, move and remove (`Fields`) and its own format options (`Format`); every change is one
-// undo step. Pictures come in through the media intake (ImageSlot). A labeled graphic's markers are
-// placed on its picture by pointer (click to add, drag to move) and by keyboard (arrow keys).
+// undo step. An item's picture, video, web embed and audio come in through the media intake (A10,
+// A11). A labeled graphic's markers are placed on its picture by pointer (click to add, drag to
+// move) and by keyboard (arrow keys).
 import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type Block,
@@ -13,6 +14,8 @@ import {
   deepestHeadingLevel,
   type FlashcardItem,
   type Item,
+  isEmail,
+  isRelativeLink,
   type LessonEntry,
   MARKER_ICONS,
   type MarkerItem,
@@ -41,8 +44,11 @@ import {
   useState,
 } from "react";
 import type { BlockType, FieldsProps } from "./blocks.js";
+import { CaptionTracks } from "./captions.js";
+import { embedFor, PROVIDER_NAMES } from "./embed.js";
 import { DraftField, DraftSession, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
+import { MediaDrop, useMediaIntake } from "./intake.js";
 import { CONTRASTS, Controls, ImageSlot, withVariantSettings } from "./static-blocks.js";
 import { usePictureUrl } from "./theme-images.js";
 
@@ -167,30 +173,161 @@ function BodyField({
   );
 }
 
-/** An item's own picture, which may be taken away. */
-function ItemPicture({
-  item,
+/** The same object, where a part left undefined is one to unset. */
+type Loose<T> = { [K in keyof T]?: T[K] | undefined };
+/** An item's media and audio (ContentItem, MarkerItem, StepItem, CardSide). */
+type MediaParts = Loose<Pick<ContentItem, "media" | "embed" | "audio">>;
+type MediaKind = "none" | "picture" | "video" | "embed";
+const MEDIA_FIELDS = ["media", "embed", "audio"] as const;
+
+/** The edit that gives item `id` these media parts, unsetting the ones left out. */
+const itemMedia =
+  (id: string) =>
+  (next: MediaParts): Command => ({
+    type: "updateItem",
+    id,
+    set: Object.fromEntries(
+      MEDIA_FIELDS.flatMap((name) => (next[name] ? [[name, next[name]]] : [])),
+    ),
+    unset: MEDIA_FIELDS.filter((name) => !next[name]),
+  });
+
+/** What an item shows now: its embed, its video or its picture (by the file's type), or nothing. */
+function kindOf({ media, embed }: MediaParts, editor: Editor): MediaKind {
+  if (embed) return "embed";
+  if (!media) return "none";
+  const entry = editor.document.media.find((file) => file.key === media.key);
+  return entry?.mimeType?.startsWith("video/") ? "video" : "picture";
+}
+
+/**
+ * An item's media (blocks-interactions.md 2.1 to 2.4, 2.8, A10): none, a picture with its alt text,
+ * a video with its caption tracks, or a web embed from a listed provider, one at a time; and its
+ * audio (A11). `change` is the edit that gives the item its new parts, with what a new file needs
+ * in the media index first, so each change is one undo step.
+ */
+function ItemMedia({
+  parts,
   editor,
   label,
+  change,
 }: {
-  item: { id: string; media?: ContentItem["media"] };
+  parts: MediaParts;
   editor: Editor;
   label: string;
+  change: (next: MediaParts) => Command;
 }) {
   const t = useStrings();
+  const intake = useMediaIntake();
+  const shown = kindOf(parts, editor);
+  const [kind, setKind] = useState<MediaKind>(shown);
+  useEffect(() => setKind(shown), [shown]);
+  const { media: _, embed: __, ...without } = parts;
+  const name = (key: string) => t("media.file", { name: intake.name(key) ?? key });
   return (
-    <ImageSlot
-      label={label}
-      image={item.media}
-      editor={editor}
-      command={(media) => ({ type: "updateItem", id: item.id, set: { media } })}
-      remove={{
-        label: t("media.removeImageFile"),
-        command: { type: "updateItem", id: item.id, unset: ["media"] },
-      }}
-    />
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset would add its own frame and legend layout.
+    <div role="group" aria-label={label} className="be-item-media">
+      <Select
+        label={t("interactive.mediaShows")}
+        selectedKey={kind}
+        onSelectionChange={(key) => {
+          const next = key as MediaKind;
+          setKind(next);
+          if (next === "none" && shown !== "none") editor.dispatch(change(without));
+        }}
+      >
+        <ListBoxItem id="none">{t("interactive.mediaNone")}</ListBoxItem>
+        <ListBoxItem id="picture">{t("interactive.mediaPicture")}</ListBoxItem>
+        <ListBoxItem id="video">{t("interactive.mediaVideo")}</ListBoxItem>
+        <ListBoxItem id="embed">{t("interactive.mediaEmbed")}</ListBoxItem>
+      </Select>
+      {kind === "picture" && (
+        <ImageSlot
+          label={t("image.image")}
+          image={shown === "picture" ? parts.media : undefined}
+          editor={editor}
+          command={(media) => change({ ...without, media })}
+          remove={{ label: t("media.removeImageFile"), command: change(without) }}
+        />
+      )}
+      {kind === "video" && (
+        <>
+          <MediaDrop
+            kind="video"
+            label={t(shown === "video" ? "media.replaceVideo" : "media.chooseVideo")}
+            onAdded={([added]) =>
+              added &&
+              editor.dispatch([
+                ...added.commands,
+                change({ ...without, media: { key: added.key } }),
+              ])
+            }
+          />
+          {shown === "video" && parts.media && (
+            <>
+              <p className="be-note">{name(parts.media.key)}</p>
+              <CaptionTracks
+                media={parts.media}
+                editor={editor}
+                command={(media) => change({ ...parts, media })}
+              />
+            </>
+          )}
+        </>
+      )}
+      {kind === "embed" && (
+        <>
+          <DraftField
+            label={t("media.embedAddress")}
+            description={t("media.embedHelp", { providers: PROVIDER_NAMES.join(", ") })}
+            errorMessage={t("media.embedUnknown", { providers: PROVIDER_NAMES.join(", ") })}
+            value={parts.embed?.url ?? parts.embed?.embedUrl ?? ""}
+            command={(text) => {
+              if (!text.trim()) return change(without);
+              const embed = embedFor(text);
+              return embed && change({ ...without, embed });
+            }}
+          />
+          <p className="be-note">
+            {parts.embed
+              ? t("media.embedFrom", { provider: parts.embed.provider })
+              : t("media.embedNone")}
+          </p>
+        </>
+      )}
+      <MediaDrop
+        kind="audio"
+        label={t(parts.audio ? "interactive.replaceAudio" : "interactive.addAudio")}
+        onAdded={([added]) =>
+          added &&
+          editor.dispatch([...added.commands, change({ ...parts, audio: { key: added.key } })])
+        }
+      />
+      {parts.audio && (
+        <>
+          <p className="be-note">{name(parts.audio.key)}</p>
+          <Button
+            variant="quiet"
+            onPress={() => editor.dispatch(change({ ...parts, audio: undefined }))}
+          >
+            {t("interactive.removeAudio")}
+          </Button>
+        </>
+      )}
+    </div>
   );
 }
+
+/** Where the items' audio players sit (2.1 "audio position"): below their text, or above it. */
+const AUDIO_POSITION = {
+  name: "audioPosition",
+  label: "interactive.audioPosition",
+  kind: "choice",
+  options: [
+    ["bottom", "interactive.audioBottom"],
+    ["top", "interactive.audioTop"],
+  ],
+} as const;
 
 /** The lesson that holds `block`. */
 const lessonOf = (editor: Editor, block: Block) =>
@@ -259,7 +396,12 @@ function SectionFields({ block, editor }: FieldsProps) {
         <>
           <TitleField item={item} label={t("field.title")} />
           <BodyField id={item.id} value={item.text} label={t("field.text")} />
-          <ItemPicture item={item} editor={editor} label={t("image.image")} />
+          <ItemMedia
+            parts={item}
+            editor={editor}
+            label={t("interactive.itemMedia")}
+            change={itemMedia(item.id)}
+          />
         </>
       )}
     </ItemList>
@@ -279,6 +421,7 @@ function SectionFormat(props: FieldsProps) {
             show: props.block.variant === "accordion",
           },
           { name: "zoom", label: "blockFormat.zoom", kind: "switch" },
+          AUDIO_POSITION,
         ]}
       />
       {props.block.variant === "accordion" && <ItemHeadingLevel {...props} />}
@@ -468,7 +611,12 @@ function LabeledGraphicFields({ block, editor }: FieldsProps) {
                 </ListBoxItem>
               ))}
             </Select>
-            <ItemPicture item={marker} editor={editor} label={t("image.image")} />
+            <ItemMedia
+              parts={marker}
+              editor={editor}
+              label={t("interactive.itemMedia")}
+              change={itemMedia(marker.id)}
+            />
           </>
         )}
       </ItemList>
@@ -504,6 +652,7 @@ function LabeledGraphicFormat(props: FieldsProps) {
             max: 30,
           },
           { name: "zoom", label: "blockFormat.zoom", kind: "switch" },
+          AUDIO_POSITION,
         ]}
       />
       <ItemHeadingLevel {...props} />
@@ -514,7 +663,7 @@ function LabeledGraphicFormat(props: FieldsProps) {
 // ---------------------------------------------------------------------------------------------
 // Process (2.5, W3)
 
-/** A process card's title, text, picture, and whether learners see it (UI-BLOCKS-R7). */
+/** A process card's title, text, media, and whether learners see it (UI-BLOCKS-R7). */
 function StepParts({ step, editor }: { step: StepItem; editor: Editor }) {
   const t = useStrings();
   return (
@@ -533,7 +682,12 @@ function StepParts({ step, editor }: { step: StepItem; editor: Editor }) {
       </Switch>
       <TitleField item={step} label={t("field.title")} />
       <BodyField id={step.id} value={step.text} label={t("field.text")} />
-      <ItemPicture item={step} editor={editor} label={t("image.image")} />
+      <ItemMedia
+        parts={step}
+        editor={editor}
+        label={t("interactive.itemMedia")}
+        change={itemMedia(step.id)}
+      />
     </>
   );
 }
@@ -622,6 +776,7 @@ function ProcessFormat(props: FieldsProps) {
         controls={[
           { name: "stepLabel", label: "interactive.stepLabel", kind: "switch" },
           { name: "zoom", label: "blockFormat.zoom", kind: "switch" },
+          AUDIO_POSITION,
         ]}
       />
       {s.stepLabel && (
@@ -640,7 +795,14 @@ function ProcessFormat(props: FieldsProps) {
 // ---------------------------------------------------------------------------------------------
 // Flashcards (2.8, W6)
 
-/** One side of a card: its text and its picture. */
+/** A card side without the parts left undefined, which JSON cannot hold. */
+const defined = (side: Loose<CardSide>): CardSide =>
+  Object.fromEntries(Object.entries(side).filter(([, value]) => value !== undefined));
+
+/**
+ * One side of a card (2.8, W6): its text, its media and audio, and its own picture style, centred
+ * with a frame or across the whole side ("per side").
+ */
 function CardSideFields({
   card,
   side,
@@ -652,24 +814,34 @@ function CardSideFields({
 }) {
   const t = useStrings();
   const part = card[side];
-  const set = (next: CardSide): Command =>
-    ({ type: "updateItem", id: card.id, set: { [side]: next } }) as Command;
-  const { media: _, ...words } = part;
-  const { text: __, ...picture } = part;
+  const set = (next: Loose<CardSide>): Command =>
+    ({ type: "updateItem", id: card.id, set: { [side]: defined(next) } }) as Command;
+  const { media, embed, audio, ...rest } = part;
   return (
     <>
       <RichDraftField
         label={t(side === "front" ? "interactive.front" : "interactive.back")}
         value={part.text ?? ""}
-        command={(html) => set(html ? { ...part, text: html } : picture)}
+        command={(html) => set({ ...part, text: html || undefined })}
       />
-      <ImageSlot
-        label={t(side === "front" ? "interactive.frontPicture" : "interactive.backPicture")}
-        image={part.media}
+      <ItemMedia
+        parts={{ media, embed, audio }}
         editor={editor}
-        command={(media) => set({ ...part, media })}
-        remove={{ label: t("media.removeImageFile"), command: set(words) }}
+        label={t(side === "front" ? "interactive.frontMedia" : "interactive.backMedia")}
+        change={(next) => set({ ...rest, ...next })}
       />
+      {kindOf(part, editor) === "picture" && (
+        <Select
+          label={t(side === "front" ? "interactive.frontStyle" : "interactive.backStyle")}
+          selectedKey={part.imageStyle ?? "centered"}
+          onSelectionChange={(key) =>
+            editor.dispatch(set({ ...part, imageStyle: key === "full" ? "full" : undefined }))
+          }
+        >
+          <ListBoxItem id="centered">{t("interactive.imageCentered")}</ListBoxItem>
+          <ListBoxItem id="full">{t("interactive.imageFull")}</ListBoxItem>
+        </Select>
+      )}
     </>
   );
 }
@@ -705,15 +877,6 @@ function FlashcardFormat(props: FieldsProps) {
       {...props}
       controls={[
         { name: "flipHint", label: "interactive.flipHint", kind: "switch" },
-        {
-          name: "imageStyle",
-          label: "interactive.imageStyle",
-          kind: "choice",
-          options: [
-            ["centered", "interactive.imageCentered"],
-            ["full", "interactive.imageFull"],
-          ],
-        },
         { name: "autosize", label: "interactive.autosize", kind: "switch" },
         {
           name: "cardHeight",
@@ -731,7 +894,11 @@ function FlashcardFormat(props: FieldsProps) {
 // ---------------------------------------------------------------------------------------------
 // Button and button stack (2.10, W8)
 
-/** Where a button goes: another lesson, a web address (checked as typed), or the end of the course. */
+/**
+ * Where a button goes (2.10, W8): another lesson, a web address or an address relative to the
+ * course (each checked as typed), a new email to one or more addresses, or the end of the course,
+ * which learning-system packages alone show.
+ */
 function DestinationFields({ item, editor }: { item: ButtonItem; editor: Editor }) {
   const t = useStrings();
   const pages = editor.document.entries.filter((entry) => entry.kind !== "section");
@@ -751,11 +918,17 @@ function DestinationFields({ item, editor }: { item: ButtonItem; editor: Editor 
           if (key === destination.kind) return;
           if (key === "lesson" && first) editor.dispatch(go({ kind: "lesson", entry: first.id }));
           else if (key === "url") editor.dispatch(go({ kind: "url", url: "https://example.org/" }));
-          else if (key === "exit") editor.dispatch(go({ kind: "exit" }));
+          // shortcut: like the web address, a placeholder the author replaces.
+          else if (key === "relative") editor.dispatch(go({ kind: "relative", path: "page.html" }));
+          else if (key === "email") {
+            editor.dispatch(go({ kind: "email", addresses: ["someone@example.org"] }));
+          } else if (key === "exit") editor.dispatch(go({ kind: "exit" }));
         }}
       >
         <ListBoxItem id="lesson">{t("interactive.toLesson")}</ListBoxItem>
         <ListBoxItem id="url">{t("interactive.toUrl")}</ListBoxItem>
+        <ListBoxItem id="relative">{t("interactive.toRelative")}</ListBoxItem>
+        <ListBoxItem id="email">{t("interactive.toEmail")}</ListBoxItem>
         <ListBoxItem id="exit">{t("interactive.toExit")}</ListBoxItem>
       </Select>
       {destination.kind === "lesson" && (
@@ -783,6 +956,35 @@ function DestinationFields({ item, editor }: { item: ButtonItem; editor: Editor 
           }
         />
       )}
+      {destination.kind === "relative" && (
+        <DraftField
+          label={t("interactive.relative")}
+          description={t("interactive.relativeHelp")}
+          errorMessage={t("interactive.relativeError")}
+          maxLength={2048}
+          value={destination.path}
+          command={(text) =>
+            isRelativeLink(text.trim()) ? go({ kind: "relative", path: text.trim() }) : undefined
+          }
+        />
+      )}
+      {destination.kind === "email" && (
+        <DraftField
+          label={t("interactive.email")}
+          description={t("interactive.emailHelp")}
+          errorMessage={t("interactive.emailError")}
+          value={destination.addresses.join(", ")}
+          command={(text) => {
+            const addresses = text
+              .split(",")
+              .map((address) => address.trim())
+              .filter(Boolean);
+            return addresses.length > 0 && addresses.length <= 50 && addresses.every(isEmail)
+              ? go({ kind: "email", addresses })
+              : undefined;
+          }}
+        />
+      )}
       {destination.kind === "exit" && <p className="be-note">{t("interactive.exitHelp")}</p>}
     </>
   );
@@ -794,6 +996,7 @@ function ButtonFields({ block, editor }: FieldsProps) {
   const stack = block.variant === "button-stack";
   const parts = (item: ButtonItem) => (
     <>
+      <TitleField item={item} label={t("interactive.heading")} />
       <DraftField
         label={t("interactive.buttonLabel")}
         errorMessage={t("interactive.labelError")}
@@ -813,7 +1016,24 @@ function ButtonFields({ block, editor }: FieldsProps) {
   );
   if (!stack) {
     const item = all[0];
-    return item ? parts(item) : <p className="be-note">{t("field.noFields")}</p>;
+    if (item) return parts(item);
+    // A button whose lesson was deleted goes with it (D-36): the block offers a new one.
+    return (
+      <>
+        <p className="be-note">{t("interactive.noButton")}</p>
+        <Button
+          onPress={() =>
+            editor.dispatch({
+              type: "insertItem",
+              parent: block.id,
+              value: { ...sampleButton(t), id: idMaker(editor.document)() },
+            })
+          }
+        >
+          {t("interactive.addButton")}
+        </Button>
+      </>
+    );
   }
   return (
     <ItemList
@@ -882,6 +1102,7 @@ function ButtonFormat(props: FieldsProps) {
           },
         ]}
       />
+      <ItemHeadingLevel {...props} />
       <Controls
         {...props}
         block={shown}
