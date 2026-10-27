@@ -860,6 +860,8 @@ body {
 }
 
 .cs-RichText-editor a {
+  /* A link alone on its line, such as a table cell's, still offers a 24 px target (WCAG 2.5.8). */
+  padding-block: 2px;
   color: var(--cs-accent);
 }
 

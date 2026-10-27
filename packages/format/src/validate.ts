@@ -7,6 +7,7 @@
 // strict content security policy), and it needs two things libraries do not give: unknown
 // properties tolerated for a newer MINOR, and the ids and references it saw for the integrity pass.
 import courseSchemaJson from "./course.schema.json" with { type: "json" };
+import { type Setting, VARIANTS } from "./variants.js";
 
 /** One problem in a document. `path` is a JSON Pointer (RFC 6901) into it; "" is the root. */
 export interface ValidationError {
@@ -374,5 +375,67 @@ export function validateCourse(
       errors.push({ path: pointer(path, "answers"), message: rule.message });
     }
   }
+  const reported = new Set(errors.map((error) => error.path));
+  errors.push(...variantErrors(document, options.allowUnknown === true, reported));
+  return errors;
+}
+
+const compiledTables = new Map<Record<string, Setting>, CompiledSchema>();
+/** A setting table of variants.ts as a closed object schema, with the course's definitions. */
+function compiledTable(table: Record<string, Setting>): CompiledSchema {
+  let compiled = compiledTables.get(table);
+  if (!compiled) {
+    compiled = compileSchema({
+      type: "object",
+      properties: Object.fromEntries(Object.entries(table).map(([name, s]) => [name, s.schema])),
+      unevaluatedProperties: false,
+      $defs: courseSchema.$defs,
+    });
+    compiledTables.set(table, compiled);
+  }
+  return compiled;
+}
+
+/**
+ * The blocks of the categories whose variants variants.ts defines: a known variant, its
+ * `variantSettings` as its table allows, and content items only (except dividers, which hold none).
+ */
+function variantErrors(
+  document: unknown,
+  allowUnknown: boolean,
+  reported: ReadonlySet<string>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const list = (value: unknown, key: string) =>
+    isObject(value) && Array.isArray(value[key]) ? (value[key] as unknown[]) : [];
+  list(document, "entries").forEach((entry, e) => {
+    list(entry, "blocks").forEach((block, b) => {
+      if (!isObject(block) || typeof block.category !== "string") return;
+      const variants = VARIANTS[block.category];
+      if (!variants) return;
+      const path = `/entries/${e}/blocks/${b}`;
+      const table = variants[String(block.variant)];
+      if (!table) {
+        if (!allowUnknown && !reported.has(`${path}/variant`)) {
+          errors.push({ path: `${path}/variant`, message: `is not a ${block.category} variant` });
+        }
+        return;
+      }
+      const settings = block.variantSettings ?? {};
+      if (isObject(settings) && !reported.has(`${path}/variantSettings`)) {
+        const found = checkSchema(compiledTable(table), settings, { allowUnknown }).errors;
+        for (const error of found) {
+          const at = `${path}/variantSettings${error.path}`;
+          if (!reported.has(at)) errors.push({ ...error, path: at });
+        }
+      }
+      if (block.category === "divider") return;
+      list(block, "items").forEach((item, i) => {
+        if (isObject(item) && item.kind !== "content") {
+          errors.push({ path: `${path}/items/${i}/kind`, message: 'must be "content"' });
+        }
+      });
+    });
+  });
   return errors;
 }

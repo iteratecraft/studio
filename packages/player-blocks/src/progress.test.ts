@@ -12,7 +12,13 @@ import {
   quiz,
   text,
 } from "../test/courses.js";
-import { createProgress, ESTIMATED_ATTEMPTS, largestResume, requirement } from "./progress.js";
+import {
+  createProgress,
+  ESTIMATED_ATTEMPTS,
+  largestResume,
+  requirement,
+  shownItems,
+} from "./progress.js";
 
 const texts = (count: number) => Array.from({ length: count }, text);
 
@@ -126,7 +132,12 @@ describe("continue blocks", () => {
     });
     const accordion = lesson(interactive("accordion"), continueBlock("block-above"));
     const checklist = lesson(
-      { id: newId("x"), category: "list", variant: "checkbox" },
+      {
+        id: newId("x"),
+        category: "list",
+        variant: "checkbox",
+        items: [{ id: newId("i"), kind: "content", text: "<p>Pack a torch</p>" }],
+      },
       continueBlock("all-above"),
     );
     // UI-BLOCKS-R19: a button can never be a requirement.
@@ -451,5 +462,127 @@ describe("largest saved state", () => {
       return encoded.ok ? encoded.payload.length : Number.POSITIVE_INFINITY;
     };
     expect(size(progress.snapshot())).toBeLessThanOrEqual(size(largest));
+  });
+});
+
+describe("blocks finished item by item (BLK-04)", () => {
+  const items = (n: number) =>
+    Array.from({ length: n }, () => ({
+      id: newId("i"),
+      kind: "content" as const,
+      text: "<p>x</p>",
+    }));
+  const checklist = (): Block => ({
+    id: newId("l"),
+    category: "list",
+    variant: "checkbox",
+    items: items(2),
+  });
+  const carousel = (): Block => ({
+    id: newId("g"),
+    category: "gallery",
+    variant: "carousel",
+    items: items(3),
+  });
+
+  test("[rise:3C] UI-BLOCKS-R45, R51: a checklist is done once every box is ticked, and a continue block below it waits for that", () => {
+    const list = checklist();
+    const gate = continueBlock("block-above");
+    const page = lesson(list, gate);
+    const progress = createProgress(course([page]));
+    progress.view(page);
+    const [first, second] = list.items ?? [];
+    expect(progress.continueReady(page, gate)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "");
+    expect(progress.isDone(first?.id ?? "")).toBe(true);
+    expect(progress.continueReady(page, gate)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "", false);
+    progress.itemDone(page, list, second?.id ?? "");
+    expect(progress.isDone(list.id)).toBe(false);
+    progress.itemDone(page, list, first?.id ?? "");
+    expect(progress.isDone(list.id)).toBe(true);
+    expect(progress.continueReady(page, gate)).toBe(true);
+    // Clearing a box afterwards keeps the block done.
+    progress.itemDone(page, list, first?.id ?? "", false);
+    expect(progress.isDone(list.id)).toBe(true);
+  });
+
+  test("[rise:3C] UI-BLOCKS-R52: a carousel is done once every slide has been shown; ticks and slides resume", () => {
+    const slides = carousel();
+    const page = lesson(slides, continueBlock("all-above"));
+    const progress = createProgress(course([page]));
+    for (const item of slides.items ?? []) progress.itemDone(page, slides, item.id);
+    expect(progress.isDone(slides.id)).toBe(true);
+    // Once done, only the block's id is kept.
+    expect(progress.snapshot().done).toEqual([slides.id]);
+    const resumed = createProgress(course([page]), progress.snapshot());
+    expect(resumed.isDone(slides.id)).toBe(true);
+    // Only items of the block count, and only for blocks finished item by item.
+    const plain = text();
+    resumed.itemDone(page, plain, "nothing00");
+    expect(resumed.isDone("nothing00")).toBe(false);
+  });
+
+  test("standards.md §4.2: the largest saved state counts all items but one of a checklist or carousel in progress", () => {
+    const list = checklist();
+    const slides = carousel();
+    const largest = largestResume(course([lesson(list, slides, text())]));
+    expect(largest.done).toContain(list.id);
+    expect(largest.done).toEqual(
+      expect.arrayContaining((slides.items ?? []).slice(1).map((item) => item.id)),
+    );
+    const progress = createProgress(course([lesson(list, slides, text())]));
+    progress.itemDone(progress.pages[0] as LessonEntry, slides, slides.items?.[0]?.id ?? "");
+    progress.itemDone(progress.pages[0] as LessonEntry, slides, slides.items?.[1]?.id ?? "");
+    expect(progress.snapshot().done?.length).toBeLessThanOrEqual((largest.done ?? []).length);
+  });
+
+  test("[rise:3C] UI-BLOCKS-R45, R51: a point or quote whose text was cleared neither shows nor holds the block back", () => {
+    // The editor removes an item's text when it is cleared (setItem unsets it).
+    const list = checklist();
+    const [first, second] = list.items ?? [];
+    if (second?.kind === "content") delete second.text;
+    const quotes: Block = {
+      id: newId("q"),
+      category: "quote",
+      variant: "carousel",
+      items: [...items(1), { id: newId("i"), kind: "content", title: "<p>Name only</p>" }],
+    };
+    const gate = continueBlock("all-above");
+    const page = lesson(list, quotes, gate);
+    const progress = createProgress(course([page]));
+    progress.view(page);
+    // The renderer and progress read the same items.
+    expect(shownItems(list).map((item) => item.id)).toEqual([first?.id]);
+    expect(shownItems(quotes)).toHaveLength(1);
+    progress.itemDone(page, list, first?.id ?? "");
+    expect(progress.isDone(list.id)).toBe(true);
+    progress.itemDone(page, quotes, quotes.items?.[0]?.id ?? "");
+    expect(progress.continueReady(page, gate)).toBe(true);
+    // An item that is not shown cannot be done.
+    expect(progress.isDone(second?.id ?? "")).toBe(false);
+  });
+
+  test("[rise:3C] UI-BLOCKS-R45: a checklist with no point left to show leaves its continue block free", () => {
+    const list = checklist();
+    for (const item of list.items ?? []) if (item.kind === "content") delete item.text;
+    const gate = continueBlock("block-above");
+    const page = lesson(list, gate);
+    const progress = createProgress(course([page]));
+    progress.view(page);
+    expect(progress.continueReady(page, gate)).toBe(true);
+  });
+
+  test("[rise:3C] UI-BLOCKS-R51: ticks saved before a point was cleared finish the block on return", () => {
+    const list = checklist();
+    const page = lesson(list, continueBlock("block-above"));
+    const progress = createProgress(course([page]));
+    progress.view(page);
+    progress.itemDone(page, list, list.items?.[0]?.id ?? "");
+    // The author clears the other point and publishes again; the learner comes back.
+    const second = list.items?.[1];
+    if (second?.kind === "content") delete second.text;
+    const resumed = createProgress(course([page]), progress.snapshot());
+    expect(resumed.continueReady(page, page.blocks[1] as Block)).toBe(true);
   });
 });

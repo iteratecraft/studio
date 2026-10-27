@@ -1,5 +1,5 @@
 // Course documents for tests, written by hand for this package.
-import type { Course } from "../src/course.js";
+import type { Block, ContentItem, Course } from "../src/course.js";
 
 export const PROJECT_ID = "3f1c2a4b-5d6e-4f70-8a9b-0c1d2e3f4a5b";
 export const LIBRARY_ID = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
@@ -461,6 +461,243 @@ export function sampleCourse(): Course {
         width: 640,
         height: 360,
       },
+    ],
+  };
+}
+
+/**
+ * Every text and static block variant (BLK-04) with most of their settings, on two lessons, some on
+ * a dark block colour; its media are SVG drawings.
+ */
+export function staticBlocksCourse(): Course {
+  const text = (id: string, html: string, more: Partial<ContentItem> = {}): ContentItem => ({
+    id,
+    kind: "content",
+    text: html,
+    ...more,
+  });
+  const block = (
+    id: string,
+    category: Block["category"],
+    variant: string,
+    items: ContentItem[] = [],
+    more: Partial<Block> = {},
+  ): Block => ({ id, category, variant, ...(items.length > 0 && { items }), ...more });
+  const dark = { background: { kind: "color" as const, color: "#2b3038" } };
+  const svg = (id: string, key: string, width: number, height: number) => ({
+    id,
+    key,
+    source: "upload" as const,
+    mimeType: "image/svg+xml",
+    width,
+    height,
+  });
+  const quote = (n: number) =>
+    text(`stquoitm0${n}`, `<p>Quote ${n}: look a little to the side of a faint star.</p>`, {
+      title: `Observer ${n}`,
+      media: { key: "observer.svg", alt: "" },
+    });
+  const shot = (n: number) =>
+    text(`stgalitm0${n}`, `<p>Night ${n} from the garden.</p>`, {
+      media: { key: "sky.svg", alt: `The sky on night ${n}, with the moon low in the east.` },
+    });
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "Watching the night sky",
+    entries: [
+      {
+        id: "stlessread",
+        kind: "lesson",
+        title: "Reading blocks",
+        blocks: [
+          block(
+            "sttextcol1",
+            "text",
+            "paragraph-with-heading",
+            [
+              text(
+                "sttextitm1",
+                "<p>Find a dark place away from street lights and let your eyes adjust for twenty minutes before you start looking.</p>",
+                { title: "Before you look up" },
+              ),
+            ],
+            { variantSettings: { columns: 2 } },
+          ),
+          block(
+            "sttexthead",
+            "text",
+            "paragraph-with-heading",
+            [
+              text("sttextitm2", "<p>Red light keeps your eyes used to the dark.</p>", {
+                title: "Keep a red torch",
+              }),
+            ],
+            { variantSettings: { headingLevel: 3, headingSpace: 24 } },
+          ),
+          block(
+            "sttextcols",
+            "text",
+            "columns",
+            [
+              text("stcolsitm1", "<p>Binoculars show far more than your eyes.</p>", {
+                media: { key: "sky.svg", alt: "" },
+              }),
+              text("stcolsitm2", "<p>A chair saves your neck.</p>", {
+                media: { key: "sky.svg", alt: "" },
+              }),
+              text("stcolsitm3", "<p>A notebook keeps what you saw.</p>", {
+                media: { key: "sky.svg", alt: "" },
+              }),
+            ],
+            { variantSettings: { columns: 3, images: true } },
+          ),
+          block(
+            "sttexttabl",
+            "text",
+            "table",
+            [
+              text(
+                "sttablitm1",
+                '<table><thead><tr><th>Object</th><th>Best month</th></tr></thead><tbody><tr><td><strong>Orion</strong></td><td>January</td></tr><tr><td>Lyra</td><td><a href="#/lessons/stlesspics">August</a></td></tr></tbody></table>',
+              ),
+            ],
+            { variantSettings: { cellPadding: "large" }, settings: { accentColor: "#1f5fbf" } },
+          ),
+          ...(["statement-a", "statement-b", "statement-c", "statement-d"] as const).map(
+            (variant, i) =>
+              block(
+                `ststatem0${i + 1}`,
+                "statement",
+                variant,
+                [
+                  text(
+                    `ststatitm${i + 1}`,
+                    `<p>Patience shows you more stars than any lens. (${variant})</p>`,
+                  ),
+                ],
+                i === 3 ? { settings: dark } : {},
+              ),
+          ),
+          block(
+            "ststatnote",
+            "statement",
+            "note",
+            [text("ststatnot1", "<p>Check the weather and the moon before you set out.</p>")],
+            { variantSettings: { noteColor: "#fde7a9", noteSize: "large" } },
+          ),
+          ...(["quote-a", "quote-b", "quote-c", "quote-d"] as const).map((variant, i) =>
+            block(
+              `stquotesa${i + 1}`,
+              "quote",
+              variant,
+              [
+                text(`stquoteit${i + 1}`, "<p>The sky rewards the people who wait.</p>", {
+                  title: "A club member",
+                }),
+              ],
+              i === 1 ? { settings: dark, variantSettings: { divider: true, dividerSize: 5 } } : {},
+            ),
+          ),
+          block(
+            "stquoteimg",
+            "quote",
+            "on-image",
+            [
+              text("stquoimit1", "<p>Every clear night is a new map.</p>", {
+                title: "A club member",
+              }),
+            ],
+            { media: [{ key: "sky.svg", alt: "" }], variantSettings: { align: "left" } },
+          ),
+          block("stquotecar", "quote", "carousel", [quote(1), quote(2), quote(3)]),
+          block(
+            "stlistnumb",
+            "list",
+            "numbered",
+            [
+              text("stlistnum1", "<p>Find the Plough.</p>"),
+              text("stlistnum2", "<p>Follow its last two stars upward.</p>"),
+            ],
+            { variantSettings: { start: 3, markerColor: "#7a2e8f" } },
+          ),
+          block(
+            "stlistbull",
+            "list",
+            "bulleted",
+            [
+              text("stlistbul1", "<p>Warm clothes</p>"),
+              text("stlistbul2", "<p>A flask of tea</p>"),
+            ],
+            { settings: dark },
+          ),
+          block("stlistchek", "list", "checkbox", [
+            text("stlistchk1", "<p>I let my eyes adjust.</p>"),
+            text("stlistchk2", "<p>I found the Pole Star.</p>"),
+          ]),
+          block("stdivline1", "divider", "line"),
+          block("stdivnum01", "divider", "numbered"),
+          block("stdivspace", "divider", "spacer"),
+          block("stdivnum02", "divider", "numbered"),
+          block("stdivnum03", "divider", "numbered", [], {
+            variantSettings: { restart: true, start: 5 },
+          }),
+        ],
+      },
+      {
+        id: "stlesspics",
+        kind: "lesson",
+        title: "Pictures",
+        blocks: [
+          block(
+            "stimgcentr",
+            "image",
+            "centered",
+            [text("stimgcapt1", "<p>The moon at first quarter.</p>")],
+            {
+              media: [{ key: "moon.svg", alt: "The moon, half lit, over a roof." }],
+              variantSettings: { cornerRadius: 12 },
+            },
+          ),
+          // Decorative and linked to the first lesson, so the link is named by that lesson.
+          block("stimgfullw", "image", "full-width", [], {
+            media: [{ key: "sky.svg", alt: "" }],
+            variantSettings: { link: "#/lessons/stlessread" },
+          }),
+          block(
+            "stimgtext1",
+            "image",
+            "image-text",
+            [text("stimgtxt01", "<p>Craters show best along the line between light and dark.</p>")],
+            {
+              media: [
+                { key: "moon.svg", alt: "Craters near the edge of the lit half of the moon." },
+              ],
+              variantSettings: { position: "right", size: "large" },
+            },
+          ),
+          block("stimgonimg", "image", "text-on-image", [text("stimgtxt02", "<p>Look up.</p>")], {
+            media: [{ key: "sky.svg", alt: "" }],
+            variantSettings: { overlayOpacity: 70 },
+          }),
+          block("stimgbannr", "image", "banner", [], { media: [{ key: "sky.svg", alt: "" }] }),
+          block("stgalcarou", "gallery", "carousel", [shot(1), shot(2), shot(3)]),
+          block("stgalgrid2", "gallery", "grid-2", [shot(4), shot(5)]),
+          block("stgalgrid3", "gallery", "grid-3", [shot(6), shot(7), shot(8)], {
+            variantSettings: { cornerRadius: 8 },
+          }),
+          block("stgalgrid4", "gallery", "grid-4", [
+            shot(9),
+            text("stgalitm10", "<p>A cloudy night.</p>"),
+          ]),
+        ],
+      },
+    ],
+    media: [
+      svg("stmediasky", "sky.svg", 960, 480),
+      svg("stmediamon", "moon.svg", 480, 480),
+      svg("stmediaobs", "observer.svg", 120, 120),
     ],
   };
 }

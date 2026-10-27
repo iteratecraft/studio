@@ -6,7 +6,12 @@
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { type Course, openCourse } from "@course-suite/format";
-import { fullCourse, minimalCourse, sampleCourse } from "@course-suite/format/test/courses";
+import {
+  fullCourse,
+  minimalCourse,
+  sampleCourse,
+  staticBlocksCourse,
+} from "@course-suite/format/test/courses";
 import type { Locator, Page } from "@playwright/test";
 import { expectAccessible, violations } from "./axe.ts";
 import { continueBlock, course, everyBlockCourse, lesson, paragraph, quiz } from "./courses.ts";
@@ -111,6 +116,7 @@ const fixtures: [string, () => Course][] = [
   ["minimal", minimalCourse],
   ["every block", () => everyBlockCourse()],
   ["must pass", mustPass],
+  ["text and static blocks", staticBlocksCourse],
 ];
 
 test.describe("WCAG 2.2 A and AA on every page", () => {
@@ -152,7 +158,7 @@ test("the checks catch a violation: an image that lost its alt text", async ({
   await write();
   await open("#/lessons/lessonwhat");
   await page.locator("img.image").evaluate((image) => image.removeAttribute("alt"));
-  expect(await violations(page)).toEqual(["image-alt (Images must have alternative text): img"]);
+  expect(await violations(page)).toEqual(["image-alt (Images must have alternative text): .image"]);
 });
 
 test("[rise:R20] the error screen when the course data is missing", async ({

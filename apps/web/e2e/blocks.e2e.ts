@@ -182,11 +182,11 @@ test.describe("block library", () => {
     await expect(search).toBeFocused();
     // Every type is listed; those the player cannot show yet are there but unavailable.
     const types = library.getByRole("listbox", { name: "Block library" });
-    await expect(types.getByRole("option", { name: /^Columns/ })).toHaveAttribute(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(types.getByRole("option", { name: /^Columns/ })).toContainText(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toContainText(
       "Not available yet",
     );
     await expect(types.getByRole("option", { name: "Single choice" })).not.toHaveAttribute(
@@ -1347,7 +1347,9 @@ test.describe("block previews and appearance", () => {
       blockRow(page, "Planning", "Heading: Find the sun").locator(".be-block-preview h2"),
     ).toHaveText("Find the sun");
     // The image from the course file, as an in-memory address.
-    const image = blockRow(page, "Planning", "Centred image").locator(".be-block-preview img");
+    const image = blockRow(page, "Planning", "Centred image").locator(
+      ".be-block-preview img.image",
+    );
     await expect(image).toHaveAttribute("src", /^blob:/);
     await expect
       .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))

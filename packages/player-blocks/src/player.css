@@ -3,7 +3,8 @@
    UI-BLOCKS-EDITOR-R53 and R55). Colours keep 4.5:1 for text and 3:1 for controls (WCAG 2.2 AA).
    A white card on a block's own colour takes these colours back (.cards-white). */
 :root,
-.cards-white .check {
+.cards-white .check,
+.zoom-dialog {
   color-scheme: light;
   --text: #1d1f23;
   --muted: #545a63;
@@ -361,6 +362,19 @@ h2.block-heading {
 
 h3.block-heading {
   font-size: 1.5rem;
+}
+
+/* The text of the static blocks (static.ts) sits flush in its frame. */
+:where(.text-body, .statement-text, .note-text, .list-text, .quote blockquote, .caption)
+> :first-child,
+:where(.over-image-content) :first-child {
+  margin-top: 0;
+}
+
+:where(.text-body, .statement-text, .note-text, .list-text, .quote blockquote, .caption)
+  > :last-child,
+:where(.over-image-content) :last-child {
+  margin-bottom: 0;
 }
 
 .text > :last-child {
@@ -818,4 +832,600 @@ h3.block-heading {
   max-width: 640px;
   margin: 64px auto;
   text-align: center;
+}
+
+/* Text and static blocks (BLK-04; blocks-editor.md 2.5, 2.7 to 2.11, 2.14). Wide layouts start at the
+   player's breakpoints (UI-BLOCKS-EDITOR-R55); below them everything stacks in one column. */
+@media (min-width: 768px) {
+  .text-columns-2,
+  .text-columns-3 {
+    column-gap: 32px;
+  }
+
+  .text-columns-2 {
+    columns: 2;
+  }
+
+  .text-columns-3 {
+    columns: 3;
+  }
+
+  .columns-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .columns-3,
+  .columns-4 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 992px) {
+  .columns-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.columns {
+  display: grid;
+  gap: 24px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-wrap caption {
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.table-wrap th,
+.table-wrap td {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cells-small :is(th, td) {
+  padding: 6px 10px;
+}
+
+.cells-large :is(th, td) {
+  padding: 18px 24px;
+}
+
+/* Each fill takes its own text colour: --button-text on --button, --accent-text on --accent. The
+   button colour is the accent colour until a theme gives buttons one of their own. */
+.table-wrap thead th {
+  background: var(--button, var(--accent));
+  color: var(--button-text, var(--accent-text));
+}
+
+.table-wrap :is(th, td) > :first-child {
+  margin-top: 0;
+}
+
+.table-wrap :is(th, td) > :last-child {
+  margin-bottom: 0;
+}
+
+.statement {
+  text-align: center;
+}
+
+.statement-text {
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+.statement-b {
+  padding: 24px 32px;
+  border: 3px solid var(--accent);
+  border-radius: 8px;
+}
+
+.statement-rule {
+  width: 100%;
+  background: var(--accent);
+}
+
+.statement-d {
+  text-align: left;
+}
+
+.statement-d .statement-rule {
+  width: 64px;
+}
+
+.statement-d .statement-text {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.note {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.note-small {
+  padding: 12px 16px;
+  font-size: 0.9375rem;
+}
+
+.note-large {
+  padding: 24px 28px;
+  font-size: 1.25rem;
+}
+
+.note-icon {
+  flex: none;
+  width: 1.5em;
+  height: 1.5em;
+  fill: var(--note-icon, var(--accent));
+}
+
+.note.has-color .note-icon {
+  fill: var(--note-icon, currentColor);
+}
+
+.quote {
+  margin: 0;
+}
+
+.quote blockquote {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+.quote-mark {
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  fill: var(--accent);
+}
+
+.quote-caption {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.quote-avatar {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.quote-rule {
+  width: 48px;
+  margin-top: 16px;
+  background: var(--accent);
+}
+
+.quote-a {
+  text-align: center;
+}
+
+.quote-a .quote-mark,
+.quote-a .quote-rule {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.quote-a .quote-caption {
+  justify-content: center;
+}
+
+.quote-b .quote-body {
+  padding-left: 24px;
+  border-left: 4px solid var(--accent);
+}
+
+.quote-c {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.quote-d blockquote {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.quote-d .quote-mark {
+  width: 64px;
+  height: 64px;
+}
+
+/* Text over a picture: the picture, its overlay and the text share one grid cell. */
+.over-image {
+  display: grid;
+  min-height: 320px;
+  overflow: hidden;
+  color: var(--text);
+}
+
+.over-image > * {
+  grid-area: 1 / 1;
+}
+
+.over-image .cover-image {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+}
+
+.over-image-content {
+  position: relative;
+  align-self: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.text-on-image .over-image-content {
+  font-size: 1.5rem;
+}
+
+.align-left .over-image-content,
+.align-left .quote-a {
+  text-align: left;
+}
+
+.align-right .over-image-content,
+.align-right .quote-a {
+  text-align: right;
+}
+
+.align-left .quote-a .quote-mark {
+  margin-left: 0;
+}
+
+.align-right .quote-a .quote-mark {
+  margin-right: 0;
+}
+
+.align-left .quote-a .quote-caption {
+  justify-content: flex-start;
+}
+
+.align-right .quote-a .quote-caption {
+  justify-content: flex-end;
+}
+
+.carousel-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.carousel-button,
+.zoom-open {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.carousel-button[aria-disabled="true"] {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.carousel-button .icon,
+.zoom-open .icon {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.carousel-position {
+  min-width: 8em;
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list li {
+  display: flex;
+  gap: var(--marker-space, 12px);
+  align-items: flex-start;
+  margin: 0 0 12px;
+}
+
+.list li:last-child {
+  margin-bottom: 0;
+}
+
+.list-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-numbered {
+  counter-reset: item;
+}
+
+.list-numbered li::before {
+  content: counter(item);
+  counter-increment: item;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75em;
+  height: 1.75em;
+  padding: 0 0.25em;
+  border-radius: 999px;
+  background: var(--marker, var(--button, var(--accent)));
+  color: var(--marker-text, var(--button-text, var(--accent-text)));
+  font-size: 0.875em;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.list-bulleted li::before {
+  content: "";
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  margin-top: 0.6em;
+  border-radius: 50%;
+  background: var(--marker, var(--accent));
+}
+
+.checklist-item {
+  display: flex;
+  flex: 1;
+  gap: var(--marker-space, 12px);
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.checklist-item input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 2px 0 0;
+  accent-color: var(--marker, var(--accent));
+}
+
+.image-figure,
+.gallery-item {
+  margin: 0;
+}
+
+.caption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.zoom-frame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.width-full .zoom-frame,
+.image-side .zoom-frame,
+.column .zoom-frame,
+.gallery-item .zoom-frame {
+  width: auto;
+}
+
+.width-full .image,
+.image-side .image,
+.column .image {
+  width: 100%;
+}
+
+.zoomable {
+  cursor: zoom-in;
+}
+
+/* A picture that links somewhere (2.10): the link is the picture's box. */
+.image-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.width-full .image-link,
+.image-side .image-link {
+  width: auto;
+}
+
+.column .zoom-frame {
+  margin-bottom: 12px;
+}
+
+.zoom-open {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border-color: #ffffff;
+  background: rgb(0 0 0 / 0.7);
+  color: #ffffff;
+}
+
+.zoom-open:focus-visible {
+  outline-color: #ffffff;
+  box-shadow: 0 0 0 5px #000000;
+}
+
+.zoom-dialog {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  padding: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+.zoom-dialog::backdrop {
+  background: rgb(0 0 0 / 0.75);
+}
+
+.zoom-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 140px);
+  margin: 0 auto 12px;
+}
+
+.zoom-close {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 2px solid var(--button, var(--accent));
+  border-radius: 6px;
+  background: var(--button, var(--accent));
+  color: var(--button-text, var(--accent-text));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.banner {
+  width: 100%;
+  height: clamp(160px, 30vw, 320px);
+  object-fit: cover;
+}
+
+.image-text {
+  display: grid;
+  gap: 24px;
+  align-items: center;
+}
+
+.image-small {
+  --image-column: minmax(0, 1fr);
+  --text-column: minmax(0, 2fr);
+}
+
+.image-medium {
+  --image-column: minmax(0, 1fr);
+  --text-column: minmax(0, 1fr);
+}
+
+.image-large {
+  --image-column: minmax(0, 2fr);
+  --text-column: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+  .image-left {
+    grid-template-columns: var(--image-column) var(--text-column);
+  }
+
+  .image-right {
+    grid-template-columns: var(--text-column) var(--image-column);
+  }
+
+  .image-right .image-side {
+    order: 2;
+  }
+}
+
+.gallery {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 480px) {
+  .gallery-2,
+  .gallery-3,
+  .gallery-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .gallery-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gallery-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Every image but the centred one fills its frame (UI-BLOCKS-EDITOR-R27). */
+.gallery-item .image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.carousel .gallery-item .image {
+  aspect-ratio: 16 / 9;
+}
+
+.divider-line {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.divider-numbered {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.divider-numbered::before,
+.divider-numbered::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.divider-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5em;
+  height: 2.5em;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  font-weight: 700;
 }
