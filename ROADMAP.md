@@ -421,12 +421,12 @@ Wave G, editor core:
 
 Wave H, content (D-42: two halves, H1 = M2-12, M2-13, M2-17; H2 = M2-14, M2-15, M2-16):
 
-- [ ] **M2-12** Text and static content blocks (BLK-04)
-- [ ] **M2-13** Media intake, media blocks and VTT captions (ENG-14 basic, BLK-05, ENG-07 captions)
+- [x] **M2-12** Text and static content blocks (BLK-04)
+- [x] **M2-13** Media intake, media blocks and VTT captions (ENG-14 basic, BLK-05, ENG-07 captions)
 - [ ] **M2-14** Core interactive blocks (BLK-06)
 - [ ] **M2-15** Knowledge checks and quiz lessons (BLK-07)
 - [ ] **M2-16** Completion gating and navigation settings (BLK-08)
-- [ ] **M2-17** Theme, fonts and contrast (BLK-09, ENG-08)
+- [x] **M2-17** Theme, fonts and contrast (BLK-09, ENG-08)
 
 Wave I, release:
 
