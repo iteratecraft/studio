@@ -11,6 +11,8 @@ import { type Page, pageHash } from "./route.js";
 export interface OutlineLink {
   link: HTMLAnchorElement;
   status: HTMLElement;
+  /** The lesson's status mark, drawn by the circle and done/not-done progress indicators. */
+  mark?: HTMLElement;
 }
 
 export interface Outline {
@@ -25,11 +27,13 @@ export interface Outline {
 /**
  * The outline of the course menu: its pages in their section groups. A collapsible group's title is
  * a button that shows or hides its pages; groups start expanded unless the author chose collapsed
- * (blocks-editor.md 2.18; the overlay menu has no such option).
+ * (blocks-editor.md 2.18; the overlay menu has no such option). With `marks`, each page has a
+ * status mark beside it for the circle and done/not-done progress indicators; it is drawn only,
+ * as the status itself is read with the link.
  */
 export function outlineOf(
   entries: readonly Entry[],
-  { collapsible, closed }: { collapsible: boolean; closed: boolean },
+  { collapsible, closed, marks }: { collapsible: boolean; closed: boolean; marks: boolean },
 ): Outline {
   const top = h("ul", { class: "outline-list" });
   const links = new Map<string, OutlineLink>();
@@ -93,8 +97,9 @@ export function outlineOf(
       { id: uid("page"), href: pageHash(entry.id), "aria-describedby": statusId },
       entry.title,
     );
-    links.set(entry.id, { link, status });
-    const item = h("li", {}, link, status);
+    const mark = marks ? h("span", { class: "outline-mark", "aria-hidden": "true" }) : undefined;
+    links.set(entry.id, { link, status, ...(mark && { mark }) });
+    const item = h("li", {}, mark, link, status);
     items.set(entry.id, item);
     group?.ids.add(entry.id);
     list.append(item);
@@ -204,7 +209,7 @@ const ARROW_KEYS_OWNER =
  * step indicator (a plain bar or numbers, or none) whose buttons go straight to a step, a previous
  * arrow at the top, and a next arrow at the bottom that first shows the rest of a step taller than
  * the screen. The up and down arrow keys do the same. A step after an unpassed gate is locked.
- * Only the steps reached count as viewed.
+ * Only the steps shown count as viewed, not those jumped over.
  */
 export function stepper(
   page: LessonEntry,
@@ -236,6 +241,8 @@ export function stepper(
     );
   const locked = (i: number) => (steps[i]?.start ?? 0) >= progress.shownBlocks(page);
   let current = locked(stepOf(first)) ? 0 : stepOf(first);
+  // The steps shown so far; a step jumped over is not marked as seen (rule 16).
+  const seen = new Set([current]);
   const reasonId = uid("reason");
   const reason = h("p", { id: reasonId, hidden: true }, labels["steps.locked"]);
   const position = (i: number) =>
@@ -275,7 +282,8 @@ export function stepper(
   function go(i: number): void {
     if (!canGo(i)) return;
     current = i;
-    progress.reach(page, steps[i]?.end ?? 0);
+    seen.add(i);
+    progress.showStep(page, i);
     changed();
     window.scrollTo(0, 0);
     announce(position(i));
@@ -291,7 +299,7 @@ export function stepper(
     buttons.forEach((button, i) => {
       if (i === current) button.setAttribute("aria-current", "step");
       else button.removeAttribute("aria-current");
-      button.classList.toggle("is-done", i < current);
+      button.classList.toggle("is-done", i !== current && seen.has(i));
       if (locked(i)) {
         button.setAttribute("aria-disabled", "true");
         button.setAttribute("aria-describedby", reasonId);
@@ -328,7 +336,7 @@ export function stepper(
   document.addEventListener("keydown", onKey);
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll, { passive: true });
-  if (current > 0) progress.reach(page, steps[current]?.end ?? 0);
+  if (current > 0) progress.showStep(page, current);
 
   return {
     top: h(

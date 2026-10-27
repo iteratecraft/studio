@@ -1,10 +1,19 @@
 // Navigation settings in the player, from file:// (M2-16, BLK-08; rise.md 3F, rules 14, 16 and
 // 17; blocks-editor.md 2.18 navigation, UI-BLOCKS-EDITOR-R53; blocks-interactions.md GL9,
 // UI-BLOCKS-R58; accessibility.md D4, UI-ACCESSIBILITY-R37 to R39): the sidebar, compact and
-// overlay menus and navigation off, section groups, course search, lessons in order that nothing
-// bypasses, the previous and next lesson buttons, the continue button's look, and stepped
+// overlay menus and navigation off, section groups, the menu's colours, progress marks and the
+// compact card's lesson count, course search, lessons in order that nothing bypasses, the previous
+// and next lesson buttons (placements and colours), the continue button's look, and stepped
 // microlearning, by pointer and by keyboard, with axe at phone, tablet and desktop widths.
-import { type Block, type Course, contrastOf, type Theme, themeColors } from "@course-suite/format";
+import {
+  type Block,
+  type Course,
+  contrastOf,
+  type MenuStyle,
+  menuLook,
+  type Theme,
+  themeColors,
+} from "@course-suite/format";
 import type { Page } from "@playwright/test";
 import { expectAccessible } from "./axe.ts";
 import { check, continueBlock, course, lesson, paragraph, quiz } from "./courses.ts";
@@ -179,6 +188,177 @@ test.describe("section groups", () => {
   });
 });
 
+test.describe("menu look", () => {
+  const STYLES: MenuStyle[] = [
+    "light",
+    "gray",
+    "theme",
+    "tint",
+    "dark",
+    "dark-theme",
+    "image-light",
+    "image-dark",
+  ];
+  const outlineColors = (page: Page) =>
+    page.locator("#outline").evaluate((element) => {
+      const link = element.querySelector("a[href]") as HTMLElement;
+      return {
+        background: getComputedStyle(element).backgroundColor,
+        image: getComputedStyle(element).backgroundImage,
+        text: getComputedStyle(link).color,
+      };
+    });
+
+  for (const color of ["#ff631e", "#4baaf4"]) {
+    test(`[rise:R18] blocks-editor 2.18: every menu colour style fills the menu, its text reads at 4.5:1, and axe finds nothing, theme ${color}`, async ({
+      write,
+      open,
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      for (const [i, menuStyle] of STYLES.entries()) {
+        const styled = compost({ menuStyle }, { theme: { color } });
+        await write({ course: styled });
+        if (i === 0) await open("#/lessons/lessonbin1");
+        else await page.reload();
+        await expect(heading(page)).toHaveText("Choosing a bin");
+        await expect(contents(page)).toBeVisible();
+        const look = menuLook(styled);
+        const expected = look.fill
+          ? { background: rgb(look.fill.color), text: rgb(look.fill.text) }
+          : {
+              background: menuStyle === "light" ? "rgb(255, 255, 255)" : "rgb(244, 245, 247)",
+              text: "rgb(29, 31, 35)",
+            };
+        expect(await outlineColors(page), menuStyle).toMatchObject(expected);
+        if (look.fill) {
+          expect(contrastOf(look.fill.text, look.fill.color)).toBeGreaterThanOrEqual(4.5);
+        }
+        await expectAccessible(page, `${menuStyle} menu`, [1280]);
+      }
+    });
+  }
+
+  test("blocks-editor 2.18: an image menu lays the cover picture under an overlay that keeps the text readable, from the package", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const pictured = compost(
+      { menuStyle: "image-dark" },
+      {
+        cover: { key: "leaf.svg", alt: "" },
+        media: [
+          {
+            id: "medialeaf1",
+            key: "leaf.svg",
+            source: "upload",
+            mimeType: "image/svg+xml",
+            width: 640,
+            height: 360,
+          },
+        ],
+      },
+    );
+    await write({ course: pictured });
+    const visit = await open("#/lessons/lessonbin1");
+    await expect(contents(page)).toBeVisible();
+    const colors = await outlineColors(page);
+    const opacity = (menuLook(pictured).image?.opacity ?? 0) / 100;
+    expect(colors.image).toContain("media/leaf.svg");
+    expect(colors.image).toContain(`rgba(0, 0, 0, ${opacity})`);
+    expect(colors.text).toBe("rgb(255, 255, 255)");
+    expect(visit.errors).toEqual([]);
+    expect(visit.badRequests).toEqual([]);
+    await expectAccessible(page, "image menu", [1280]);
+  });
+
+  test("blocks-editor 2.18: the circle progress mark fills with the lesson's progress, the done/not-done mark ticks a done lesson, and the status is still read with the link", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const gated = (progressIndicator: "circle" | "check") =>
+      compost(
+        { progressIndicator },
+        {
+          entries: compost().entries.map((entry) =>
+            entry.id === "lessonbin1"
+              ? lesson(
+                  "lessonbin1",
+                  "Choosing a bin",
+                  paragraph("tbin000001", "A lid keeps pests out."),
+                  continueBlock("cgatebin01"),
+                  paragraph("tbin000002", "Air holes help."),
+                )
+              : entry,
+          ),
+        },
+      );
+    const link = (name: string) => contents(page).getByRole("link", { name });
+    const mark = (name: string) =>
+      link(name).locator("xpath=preceding-sibling::span[contains(@class, 'outline-mark')]");
+    const visit = async () => {
+      await open("#/lessons/lessonspot");
+      await expect(heading(page)).toHaveText("Where to put it");
+      await link("Choosing a bin").click();
+      await expect(heading(page)).toHaveText("Choosing a bin");
+    };
+
+    await write({ course: gated("circle") });
+    await visit();
+    // One of three blocks seen: a third of the circle.
+    await expect(mark("Choosing a bin")).toHaveAttribute("style", "--percent: 33;");
+    await expect(mark("Where to put it")).toHaveAttribute("style", "--percent: 100;");
+    await expect(link("Choosing a bin")).toHaveAccessibleDescription("33% done");
+    await expect(link("Where to put it")).toHaveAccessibleDescription("Done");
+    // The words are read, not shown; the mark is drawn only.
+    const words = await contents(page).getByText("33% done").boundingBox();
+    expect(words?.width).toBeLessThanOrEqual(1);
+    await expect(mark("Choosing a bin")).toHaveAttribute("aria-hidden", "true");
+    await expectAccessible(page, "circle marks", [320, 1280]);
+
+    await write({ course: gated("check") });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("about:blank");
+    await visit();
+    const accent = rgb(themeColors(undefined).accent);
+    await expect(mark("Where to put it")).toHaveCSS("background-color", accent);
+    await expect(mark("Choosing a bin")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expectAccessible(page, "done marks", [1280]);
+  });
+
+  test("blocks-editor 2.18: the compact card shows the open lesson's number, not on the cover, unless the author turns it off; it takes the menu's colours", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await write({ course: compost({ menu: "compact", menuStyle: "dark" }) });
+    await open();
+    const card = page.locator(".compact-card");
+    await expect(card.getByRole("button", { name: "Show contents" })).toBeVisible();
+    await expect(card.locator(".compact-count")).toBeHidden();
+    await page.getByRole("link", { name: "Begin course" }).click();
+    await expect(heading(page)).toHaveText("Choosing a bin");
+    await expect(card).toContainText("Lesson 1 of 5");
+    await toggle(page).click();
+    await contents(page).getByRole("link", { name: "Where to put it" }).click();
+    await expect(card).toContainText("Lesson 2 of 5");
+    await expect(card).toHaveCSS("background-color", "rgb(43, 48, 56)");
+    await expect(card.locator(".compact-count")).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expectAccessible(page, "compact card with its count", [320, 1280]);
+
+    await write({ course: compost({ menu: "compact", compactCount: false }) });
+    await page.reload();
+    await expect(heading(page)).toHaveText("Where to put it");
+    await expect(card.getByRole("button", { name: "Show contents" })).toBeVisible();
+    await expect(card.locator(".compact-count")).toHaveCount(0);
+  });
+});
+
 test.describe("course search", () => {
   test("[rise:3F] UI-ACCESSIBILITY-R38: search narrows the contents to the lessons whose title or content holds every word, by keyboard", async ({
     write,
@@ -326,6 +506,56 @@ test.describe("previous and next lesson buttons", () => {
     await expect(lessonNav(page)).toHaveCount(0);
     await expect(page.locator(".page-link")).toHaveCount(0);
   });
+
+  test("[rise:3F] blocks-editor 2.18: floating full width is a bar across the bottom of the screen that shows both lesson titles, by keyboard; there are none at the top", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await write({ course: long({ pageButtons: "floating-full-width" }) });
+    await open("#/lessons/lessonbin1");
+    await expect(heading(page)).toHaveText("Choosing a bin");
+    await expect(page.locator(".lesson-header .page-link")).toHaveCount(0);
+    const previous = lessonNav(page).getByRole("link", { name: "Previous lesson A long lesson" });
+    const next = lessonNav(page).getByRole("link", { name: "Next lesson Where to put it" });
+    await expect(previous.getByText("A long lesson")).toBeVisible();
+    await expect(next.getByText("Where to put it")).toBeVisible();
+    await page.goto(page.url().replace("lessonbin1", "lessonlong"));
+    await expect(heading(page)).toHaveText("A long lesson");
+    const bar = lessonNav(page);
+    await expect(bar).toBeInViewport();
+    const box = await bar.boundingBox();
+    const column = await page.locator(".lesson").boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(720 - 4);
+    expect(box?.width).toBeCloseTo(column?.width ?? 0, 0);
+    await expectAccessible(page, "floating full-width buttons", [320, 1280]);
+    const first = bar.getByRole("link", { name: "Next lesson Choosing a bin" });
+    await first.focus();
+    await page.keyboard.press("Enter");
+    await expect(heading(page)).toHaveText("Choosing a bin");
+  });
+
+  for (const color of ["#ff631e", "#285f9f"]) {
+    test(`[rise:R18] blocks-editor 2.18: theme tint buttons have the tint with its text at 4.5:1 and an edge at 3:1 on the page, theme ${color}`, async ({
+      write,
+      open,
+      page,
+    }) => {
+      const theme: Theme = { color };
+      const expected = themeColors(theme);
+      await write({ course: compost({ pageButtonColor: "theme-tint" }, { theme }) });
+      await open("#/lessons/lessonspot");
+      await expect(heading(page)).toHaveText("Where to put it");
+      const link = lessonNav(page).getByRole("link", { name: /Next lesson/ });
+      await expect(link).toHaveCSS("background-color", rgb(expected.tint));
+      await expect(link).toHaveCSS("color", rgb(expected.tintText));
+      await expect(link).toHaveCSS("border-top-color", "rgb(107, 114, 128)");
+      expect(contrastOf(expected.tintText, expected.tint)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastOf("#6b7280", "#ffffff")).toBeGreaterThanOrEqual(3);
+      await expectAccessible(page, "theme tint buttons", [320, 1280]);
+    });
+  }
 
   for (const color of ["#ff631e", "#25bb64", "#4baaf4", "#7837a8"]) {
     test(`[rise:R18] dark and theme buttons keep their text at 4.5:1 and theme buttons at 3:1 on the page, theme ${color}`, async ({
@@ -498,6 +728,33 @@ test.describe("stepped microlearning", () => {
       .poll(async () => (await playerEvents(page)).map((event) => event.type))
       .toContain("course-finished");
     await expect(nextArrow(page)).toBeDisabled();
+  });
+
+  test("[rise:R16] UI-BLOCKS-R46: jumping ahead with the step indicator does not count the steps jumped over", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await useHooks(page);
+    await write({ course: micro({ steps: true, stepIndicator: "numbers" }) });
+    await open("#/lessons/lessonmicr");
+    await expect(step(page, 1)).toHaveAttribute("aria-current", "step");
+    // From step 1 straight to step 3, past the tall step 2.
+    await step(page, 3).click();
+    await expect(step(page, 3)).toHaveAttribute("aria-current", "step");
+    await page.getByRole("radio", { name: "Yes" }).check();
+    await page.getByRole("button", { name: "Check answer" }).click();
+    await step(page, 4).click();
+    await expect(page.getByText("You made it to the end.")).toBeVisible();
+    // Step 2 was never shown: the microlearning is not finished, and step 2 is not marked seen.
+    await expect(step(page, 2)).not.toHaveClass(/is-done/);
+    await expect(step(page, 1)).toHaveClass(/is-done/);
+    expect((await playerEvents(page)).map((event) => event.type)).not.toContain("course-finished");
+    await step(page, 2).click();
+    await expect(page.getByText("Here is how it happens.")).toBeVisible();
+    await expect
+      .poll(async () => (await playerEvents(page)).map((event) => event.type))
+      .toContain("course-finished");
   });
 
   test("[rise:3F] the up and down arrow keys move between short steps; the plain bar names each step for screen readers", async ({

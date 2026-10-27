@@ -6,11 +6,14 @@ import {
   hasSearch,
   isRestricted,
   isStepped,
+  type MenuStyle,
+  menuLook,
   menuOf,
   pageButtonsOf,
   searchBlocked,
   skipAheadQuiz,
 } from "./navigation.js";
+import { contrastOf, THEME_COLORS } from "./theme.js";
 import { validateCourse } from "./validate.js";
 import { variantSettings } from "./variants.js";
 
@@ -45,6 +48,9 @@ describe("navigation settings", () => {
       search: false,
       pageButtons: "floating",
       pageButtonColor: "theme",
+      menuStyle: "dark-theme",
+      progressIndicator: "circle",
+      compactCount: false,
       steps: false,
       stepIndicator: "numbers",
     });
@@ -83,6 +89,63 @@ describe("navigation settings", () => {
     expect(isStepped(micro)).toBe(true);
     expect(isStepped(course({ steps: true }))).toBe(false);
     expect(pageButtonsOf(course({ pageButtons: "off" }))).toBeUndefined();
+  });
+});
+
+describe("menu look and lesson buttons", () => {
+  const STYLES: MenuStyle[] = [
+    "light",
+    "gray",
+    "theme",
+    "tint",
+    "dark",
+    "dark-theme",
+    "image-light",
+    "image-dark",
+  ];
+
+  test("blocks-editor 2.18: every menu colour style, progress indicator, placement and button colour is valid; light, theme default and the lesson count by default", () => {
+    for (const menuStyle of STYLES) expect(validateCourse(course({ menuStyle }))).toEqual([]);
+    for (const progressIndicator of ["theme", "circle", "check"] as const) {
+      expect(validateCourse(course({ progressIndicator }))).toEqual([]);
+    }
+    const tinted = course({ pageButtons: "floating-full-width", pageButtonColor: "theme-tint" });
+    expect(validateCourse(tinted)).toEqual([]);
+    expect(pageButtonsOf(tinted)).toBe("floating-full-width");
+    expect(menuLook(course())).toEqual({ style: "light" });
+    expect(validateCourse(course({ menuStyle: "neon" as MenuStyle })).map((e) => e.path)).toEqual([
+      "/navigation/menuStyle",
+    ]);
+  });
+
+  test("blocks-editor 2.18 [rise:R18]: a filled menu's text keeps 4.5:1 for every suggested theme colour, and an image menu's overlay keeps it over any picture", () => {
+    for (const color of THEME_COLORS) {
+      for (const menuStyle of STYLES) {
+        const look = menuLook(course({ menuStyle }, { theme: { color } }));
+        if (menuStyle === "light" || menuStyle === "gray") {
+          expect(look.fill, menuStyle).toBeUndefined();
+          continue;
+        }
+        const fill = look.fill as { color: string; text: string };
+        expect(
+          contrastOf(fill.text, fill.color),
+          `${menuStyle} on ${color}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // Without a cover picture an image style is its overlay colour alone.
+    expect(menuLook(course({ menuStyle: "image-dark" })).image).toBeUndefined();
+    const pictured = menuLook(
+      course({ menuStyle: "image-dark" }, { cover: { key: "cover.jpg", alt: "" } }),
+    );
+    expect(pictured.fill).toEqual({ color: "#000000", text: "#ffffff" });
+    const opacity = pictured.image?.opacity ?? 0;
+    // White text over a white picture under the black overlay at that strength.
+    const shade = Math.round(255 * (1 - opacity / 100));
+    const worst = `#${shade.toString(16).padStart(2, "0").repeat(3)}`;
+    expect(contrastOf("#ffffff", worst)).toBeGreaterThanOrEqual(4.4);
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(100);
   });
 });
 

@@ -151,9 +151,7 @@ const appHtml = (frame: Frame) =>
     const files = (window as { blocksPlayerHooks?: { files?: Record<string, string> } })
       .blocksPlayerHooks?.files;
     for (const [path, url] of Object.entries(files ?? {})) html = html.replaceAll(url, path);
-    // Chromium gives a text field of an http page, not of a file, an empty style attribute (the
-    // search field of M2-16); it carries nothing.
-    return html.replaceAll(' style=""', "");
+    return html;
   });
 
 /** Every call to the debug adapter, with the session time left out (it is the wall clock's). */
@@ -233,8 +231,12 @@ test.describe("the preview and the exported web package", () => {
             await expect.poll(() => appHtml(preview)).toBe(expected);
             await settled(preview);
             await settled(exported.mainFrame());
-            const shot = await frameElement.screenshot();
-            const reference = await exported.screenshot();
+            // The caret is left as it is. Playwright hides it by default by setting an inline
+            // caret style on every text field and then emptying it, which leaves `style=""` on the
+            // preview's search field (the frame stays; the package page is loaded afresh) for the
+            // next width's markup comparison. No field has the focus here, so no caret shows.
+            const shot = await frameElement.screenshot({ caret: "initial" });
+            const reference = await exported.screenshot({ caret: "initial" });
             if (!shot.equals(reference)) {
               await test
                 .info()

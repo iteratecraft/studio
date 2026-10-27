@@ -1,11 +1,13 @@
 // The navigation section of the theme panel (M2-16, BLK-08; blocks-editor.md T5, 2.18 navigation,
 // W2, W20; rise.md 3F, rule 14): for a course, the menu or none, how it starts, search, lessons in
-// order and learner mark-done, and a buttons tab for the previous and next lesson buttons; for a
+// order and learner mark-done, the menu's colours, the lesson progress mark and the compact card's
+// lesson count, and a buttons tab for the previous and next lesson buttons; for a
 // microlearning, continuous scroll or steps with the step indicator. Options that cannot apply say
 // why instead of vanishing.
 import {
   type Course,
   isRestricted,
+  type MenuStyle,
   type Navigation,
   searchBlocked,
   skipAheadQuiz,
@@ -168,6 +170,54 @@ export function NavigationFields({
                   {t("nav.sectionsOpen")}
                 </Switch>
               )}
+              {menu === "compact" && (
+                <Switch
+                  isSelected={draft.compactCount !== false}
+                  onChange={(on) => set({ compactCount: on ? undefined : false })}
+                >
+                  {t("nav.compactCount")}
+                </Switch>
+              )}
+              <Select
+                label={t("nav.menuStyle")}
+                description={t("nav.menuStyleHelp")}
+                selectedKey={draft.menuStyle ?? "light"}
+                onSelectionChange={(key) =>
+                  set({ menuStyle: key === "light" ? undefined : (key as MenuStyle) })
+                }
+              >
+                <ListBoxItem id="light">{t("style.light")}</ListBoxItem>
+                <ListBoxItem id="gray">{t("style.gray")}</ListBoxItem>
+                <ListBoxItem id="theme">{t("style.theme")}</ListBoxItem>
+                <ListBoxItem id="tint">{t("style.themeTint")}</ListBoxItem>
+                <ListBoxItem id="dark">{t("style.dark")}</ListBoxItem>
+                <ListBoxItem id="dark-theme">{t("nav.darkTheme")}</ListBoxItem>
+                <ListBoxItem id="image-light" description={t("nav.imageHelp")}>
+                  {t("nav.imageLight")}
+                </ListBoxItem>
+                <ListBoxItem id="image-dark" description={t("nav.imageHelp")}>
+                  {t("nav.imageDark")}
+                </ListBoxItem>
+              </Select>
+              <Select
+                label={t("nav.progress")}
+                selectedKey={draft.progressIndicator ?? "theme"}
+                onSelectionChange={(key) =>
+                  set({
+                    progressIndicator: key === "theme" ? undefined : (key as "circle" | "check"),
+                  })
+                }
+              >
+                <ListBoxItem id="theme" description={t("nav.progressThemeHelp")}>
+                  {t("nav.progressTheme")}
+                </ListBoxItem>
+                <ListBoxItem id="circle" description={t("nav.progressCircleHelp")}>
+                  {t("nav.progressCircle")}
+                </ListBoxItem>
+                <ListBoxItem id="check" description={t("nav.progressCheckHelp")}>
+                  {t("nav.progressCheck")}
+                </ListBoxItem>
+              </Select>
             </>
           )}
           {/* rise.md 3F: search only in the sidebar, and never while lessons open in order. */}
@@ -221,7 +271,12 @@ export function NavigationFields({
                 label={t("nav.placement")}
                 selectedKey={draft.pageButtons ?? "full-width"}
                 onSelectionChange={(key) =>
-                  set({ pageButtons: key === "floating" ? "floating" : undefined })
+                  set({
+                    pageButtons:
+                      key === "full-width"
+                        ? undefined
+                        : (key as "floating" | "floating-full-width"),
+                  })
                 }
               >
                 <ListBoxItem id="full-width" description={t("nav.fullWidthHelp")}>
@@ -230,18 +285,25 @@ export function NavigationFields({
                 <ListBoxItem id="floating" description={t("nav.floatingHelp")}>
                   {t("nav.floating")}
                 </ListBoxItem>
+                <ListBoxItem id="floating-full-width" description={t("nav.floatingFullHelp")}>
+                  {t("nav.floatingFull")}
+                </ListBoxItem>
               </Select>
               <Select
                 label={t("nav.buttonColor")}
                 description={t("nav.buttonColorHelp")}
                 selectedKey={draft.pageButtonColor ?? "white"}
                 onSelectionChange={(key) =>
-                  set({ pageButtonColor: key === "white" ? undefined : (key as "dark" | "theme") })
+                  set({
+                    pageButtonColor:
+                      key === "white" ? undefined : (key as "dark" | "theme" | "theme-tint"),
+                  })
                 }
               >
                 <ListBoxItem id="white">{t("nav.white")}</ListBoxItem>
                 <ListBoxItem id="dark">{t("style.dark")}</ListBoxItem>
                 <ListBoxItem id="theme">{t("style.theme")}</ListBoxItem>
+                <ListBoxItem id="theme-tint">{t("style.themeTint")}</ListBoxItem>
               </Select>
             </>
           )}

@@ -35,12 +35,26 @@ export interface Course {
     menuClosed?: boolean;
     /** Section groups of the sidebar and the compact menu start collapsed. Default false. */
     sectionsClosed?: boolean;
+    /** The look of the menu and the compact card: light, gray, the theme colour, its tint, dark, a dark shade of the theme colour, or the cover picture under a light or dark overlay. Its text keeps 4.5:1. Default light. */
+    menuStyle?:
+      | "light"
+      | "gray"
+      | "theme"
+      | "tint"
+      | "dark"
+      | "dark-theme"
+      | "image-light"
+      | "image-dark";
+    /** The status mark beside each lesson in the menu: the theme's (its status in words), a circle that fills with its progress, or a done or not-done mark. Default theme. */
+    progressIndicator?: "theme" | "circle" | "check";
+    /** The compact menu's card shows which lesson is open, as its number of the total. Default true. */
+    compactCount?: boolean;
     /** Course search in the sidebar; there is none with another menu, with navigation off or restricted. Default true. */
     search?: boolean;
-    /** Previous and next lesson buttons: full-width at the top and bottom of each lesson, floating at the bottom of the screen, or none (branching courses). Default full-width. */
-    pageButtons?: "full-width" | "floating" | "off";
-    /** Colour of the previous and next lesson buttons. Default white. */
-    pageButtonColor?: "white" | "dark" | "theme";
+    /** Previous and next lesson buttons: full-width at the top and bottom of each lesson, floating at the bottom of the screen, a floating bar across the bottom of the screen, or none (branching courses). Default full-width. */
+    pageButtons?: "full-width" | "floating" | "floating-full-width" | "off";
+    /** Colour of the previous and next lesson buttons: white, dark, the theme colour or its tint. Default white. */
+    pageButtonColor?: "white" | "dark" | "theme" | "theme-tint";
     /** Microlearning: one step at a time instead of one continuous page. Default false. */
     steps?: boolean;
     /** Stepped microlearning: the step indicator as a plain bar, numbered, or none. Default bar. */

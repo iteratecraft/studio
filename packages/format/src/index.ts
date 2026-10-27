@@ -5,11 +5,13 @@ export { mediaKeysIn, usedMediaKeys } from "./media.js";
 export type { JsonObject, MigrateResult, Migration } from "./migrate.js";
 export { compareVersions, MIGRATIONS, migrate, parseVersion, SCHEMA_VERSION } from "./migrate.js";
 // M2-16: navigation settings and their rules.
-export type { Navigation } from "./navigation.js";
+export type { MenuLook, MenuStyle, Navigation } from "./navigation.js";
 export {
+  DARK_MENU,
   hasSearch,
   isRestricted,
   isStepped,
+  menuLook,
   menuOf,
   pageButtonsOf,
   searchBlocked,

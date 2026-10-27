@@ -162,10 +162,11 @@ export interface Progress {
   /** The learner sees the page: its shown blocks count as viewed (UI-BLOCKS-R46). */
   view(page: Page): void;
   /**
-   * Stepped microlearning: the learner has reached the first `count` blocks of the lesson, and only
-   * those count as viewed (rule 16). Until then a stepped lesson's first step is reached.
+   * Stepped microlearning: step `step` of the lesson (an index into `stepsOf`) was shown. Only the
+   * blocks of steps shown count as viewed, so steps jumped over do not (rule 16, UI-BLOCKS-R46).
+   * Until another is shown, a stepped lesson shows its first step.
    */
-  reach(lesson: LessonEntry, count: number): void;
+  showStep(lesson: LessonEntry, step: number): void;
   /** A continue block was pressed. */
   pressContinue(lesson: LessonEntry, block: Block): void;
   /**
@@ -219,8 +220,8 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
   const pages = pagesOf(course);
   const restricted = isRestricted(course);
   const stepped = isStepped(course);
-  // Stepped microlearning: how many blocks of each lesson the learner has reached.
-  const reached = new Map<string, number>();
+  // Stepped microlearning: the steps of each lesson the learner was shown, by index.
+  const shownSteps = new Map<string, Set<number>>();
   const done = new Set(state.done);
   const viewed = new Map(
     Object.entries(state.visited ?? {}).map(([id, ids]) => [id, new Set(ids)]),
@@ -259,9 +260,16 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
   function view(page: Page): void {
     if (page.kind !== "lesson") return;
     const ids = viewed.get(page.id) ?? new Set<string>();
-    if (stepped && !reached.has(page.id)) reached.set(page.id, stepsOf(page.blocks)[0]?.end ?? 0);
-    const limit = Math.min(shownBlocks(page), reached.get(page.id) ?? page.blocks.length);
-    for (const block of page.blocks.slice(0, limit)) ids.add(block.id);
+    const limit = shownBlocks(page);
+    const ranges = stepped
+      ? [...(shownSteps.get(page.id) ?? [0])].map((step) => stepsOf(page.blocks)[step])
+      : [{ start: 0, end: page.blocks.length }];
+    for (const range of ranges) {
+      if (!range) continue;
+      for (const block of page.blocks.slice(range.start, Math.min(range.end, limit))) {
+        ids.add(block.id);
+      }
+    }
     viewed.set(page.id, ids);
     // A lesson without gates is done as soon as it is seen (rise.md §3 G).
     if (page.blocks.every((block) => counts(page, block))) done.add(page.id);
@@ -351,8 +359,10 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     shownBlocks,
     view,
 
-    reach(lesson, count) {
-      reached.set(lesson.id, Math.max(reached.get(lesson.id) ?? 0, count));
+    showStep(lesson, step) {
+      const shown = shownSteps.get(lesson.id) ?? new Set([0]);
+      shown.add(step);
+      shownSteps.set(lesson.id, shown);
       view(lesson);
     },
 

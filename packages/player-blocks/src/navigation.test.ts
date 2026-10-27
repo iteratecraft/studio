@@ -84,16 +84,33 @@ describe("stepped microlearning", () => {
     ]);
   });
 
-  test("[rise:R16] only the steps reached count as viewed, so the lesson is done at the last step", () => {
+  test("[rise:R16] UI-BLOCKS-R46: only the steps shown count as viewed, so the lesson is done once every step was shown", () => {
     const page = lesson(text(), connected(), text(), text());
     const micro = course([page], { kind: "microlearning", navigation: { steps: true } });
     const progress = createProgress(micro);
     progress.view(page);
     expect(progress.percent(page)).toBe(25);
-    progress.reach(page, 3);
+    progress.showStep(page, 1);
     expect(progress.percent(page)).toBe(75);
     expect(progress.isDone(page.id)).toBe(false);
-    progress.reach(page, 4);
+    progress.showStep(page, 2);
+    expect(progress.courseDone()).toBe(true);
+  });
+
+  test("[rise:R16] UI-BLOCKS-R46: jumping ahead to the last step does not count the steps jumped over", () => {
+    const page = lesson(text(), text(), connected(), text(), text());
+    const micro = course([page], { kind: "microlearning", navigation: { steps: true } });
+    const progress = createProgress(micro);
+    progress.view(page);
+    // Steps: [0], [1], [2, 3], [4]. From step 1 the learner presses the last step's button.
+    progress.showStep(page, 3);
+    expect(progress.percent(page)).toBe(40);
+    expect(progress.courseDone()).toBe(false);
+    expect(progress.status(page)).toBe("in-progress");
+    // Going back to the steps jumped over finishes the lesson.
+    progress.showStep(page, 2);
+    expect(progress.percent(page)).toBe(80);
+    progress.showStep(page, 1);
     expect(progress.courseDone()).toBe(true);
   });
 

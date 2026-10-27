@@ -2,7 +2,8 @@
 // in-memory host, under the desktop app's content security policy: the navigation section of the
 // theme panel beside the real player, lessons in order turning search and mark-done off, a quiz
 // with skip-ahead named as the cause, microlearning steps (UI-BLOCKS-EDITOR-R49), every menu in
-// the preview at phone and desktop widths, the bottom arrow of a tall step (rule 17), and the
+// the preview at phone and desktop widths, the menu's colours, progress marks and lesson count and
+// the floating full-width and theme tint buttons, the bottom arrow of a tall step (rule 17), and the
 // continue block's requirement, explanation and look, by pointer and by keyboard, with axe on every
 // new screen in both editor themes and on the player output in an exported web package.
 /// <reference types="node" />
@@ -187,7 +188,9 @@ async function tabTo(page: Page, target: Locator, key = "Tab"): Promise<void> {
 async function chooseByKeyboard(page: Page, label: string, option: string): Promise<void> {
   await tabTo(page, select(page, label));
   await page.keyboard.press("Enter");
-  const target = page.getByRole("option", { name: new RegExp(`^${option}`) });
+  const target = page.getByRole("option", { name: option, exact: true });
+  // The list takes the focus once open; keys pressed before that would go to the button.
+  await expect(page.locator("[role=option]:focus")).toHaveCount(1);
   await page.keyboard.press("Home");
   for (let i = 0; i < 12; i++) {
     if (await target.evaluate((element) => element === document.activeElement)) break;
@@ -289,6 +292,64 @@ test.describe("the navigation section", () => {
     expect((await saved(page)).navigation).toEqual({ learnerMarkDone: true });
   });
 
+  test("blocks-editor 2.18 BLK-08, keyboard only: the menu's colours, the lesson progress mark, the compact card's lesson count, floating full width and theme tint show in the player beside the panel and are saved", async ({
+    page,
+  }) => {
+    await launch(page);
+    await openFixture(page, FILE, compost());
+    await openNavigation(page);
+    const frame = await player(page);
+    const shell = frame.locator(".player");
+    await expect(shell).toHaveClass(/menu-light/);
+    await chooseByKeyboard(page, "Menu colours", "Dark theme colour");
+    await expect(shell).toHaveClass(/menu-dark-theme/);
+    await expect(shell).toHaveClass(/menu-filled/);
+    await chooseByKeyboard(page, "Lesson progress mark", "Circle that fills");
+    await expect(frame.locator(".outline-mark")).toHaveCount(4);
+    // The lesson count switch belongs to the compact menu.
+    await expect(switchOf(page, "Lesson count in the card")).toHaveCount(0);
+    await chooseByKeyboard(page, "Menu type", "Compact menu");
+    await expect(switchOf(page, "Lesson count in the card")).toBeChecked();
+    await tabTo(page, switchOf(page, "Lesson count in the card"));
+    await page.keyboard.press("Space");
+    await expect(switchOf(page, "Lesson count in the card")).not.toBeChecked();
+    await expect(frame.locator(".compact-count")).toHaveCount(0);
+
+    await tabTo(page, panel(page).getByRole("tab", { name: "Menu" }), "Shift+Tab");
+    await page.keyboard.press("ArrowRight");
+    await chooseByKeyboard(page, "Placement", "Floating full width");
+    await chooseByKeyboard(page, "Button colour", "Theme tint");
+    await expect(shell).toHaveClass(/page-buttons-floating-full-width/);
+    await expect(shell).toHaveClass(/page-buttons-theme-tint/);
+    await tabTo(page, panel(page).getByRole("button", { name: "Save", exact: true }), "Shift+Tab");
+    await page.keyboard.press("Enter");
+    expect((await saved(page)).navigation).toEqual({
+      menu: "compact",
+      menuStyle: "dark-theme",
+      progressIndicator: "circle",
+      compactCount: false,
+      pageButtons: "floating-full-width",
+      pageButtonColor: "theme-tint",
+    });
+  });
+
+  test("blocks-editor 2.18, by pointer: an image menu shows the cover picture's overlay in the player, and cancel puts the light menu back", async ({
+    page,
+  }) => {
+    await launch(page);
+    await openFixture(page, FILE, compost());
+    await openNavigation(page);
+    const frame = await player(page);
+    await select(page, "Menu colours").click();
+    await page.getByRole("option", { name: /^Cover picture, dark/ }).click();
+    // No cover picture here: the dark overlay alone, with light text.
+    await expect(frame.locator(".player")).toHaveClass(/menu-image-dark/);
+    await expect(frame.locator("#outline")).toHaveCSS("background-color", "rgb(0, 0, 0)");
+    await panel(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(frame.locator(".player")).toHaveClass(/menu-light/);
+    expect((await saved(page)).navigation).toBeUndefined();
+  });
+
   test("[rise:3F] BLK-08: navigation off hides every menu option, and cancel keeps the course as it was", async ({
     page,
   }) => {
@@ -384,6 +445,16 @@ test.describe("the preview", () => {
     ["compact", { menu: "compact" }],
     ["overlay", { menu: "overlay" }],
     ["off", { off: true }],
+    [
+      "compact, dark, with ticks and a floating full-width bar in theme tint",
+      {
+        menu: "compact",
+        menuStyle: "dark",
+        progressIndicator: "check",
+        pageButtons: "floating-full-width",
+        pageButtonColor: "theme-tint",
+      },
+    ],
   ];
   for (const [name, navigation] of menus) {
     test(`[rise:3F] BLK-08: the preview honours the ${name} menu at phone and computer widths`, async ({
@@ -413,7 +484,9 @@ test.describe("the preview", () => {
         // Behind the button, in the top bar or the compact card.
         await expect(contents).toBeHidden();
         await expect(
-          name === "compact" ? frame.locator(".compact-card") : frame.getByRole("banner"),
+          navigation.menu === "compact"
+            ? frame.locator(".compact-card")
+            : frame.getByRole("banner"),
         ).toContainText("Show contents");
         await toggle.click();
         await expect(contents).toBeVisible();
@@ -467,7 +540,7 @@ test.describe("continue blocks", () => {
     await expect(page.getByRole("heading", { level: 2, name: "Choosing a bin" })).toBeFocused();
   }
 
-  test("[rise:3G] UI-BLOCKS-R19 UI-BLOCKS-R45 BLK-08: a continue block below an attachment cannot wait for it and says why; below a checklist it can, the checklist shows it, and the blocks waited for are listed", async ({
+  test("[rise:3G] UI-BLOCKS-R19 UI-BLOCKS-R45 UI-BLOCKS-R55 BLK-08: a continue block below an attachment cannot wait for it and says why; below a checklist it can, the checklist shows it, and the blocks waited for are listed", async ({
     page,
   }) => {
     await openBin(page);
@@ -512,12 +585,16 @@ test.describe("continue blocks", () => {
     await button(page, "Preview").click();
     const frame = await player(page);
     await frame.getByRole("button", { name: "Continue" }).first().click();
+    // The hint stands in the button's place until the checklist is done (UI-BLOCKS-R55, GL7).
     const waiting = frame.locator("[data-block=cgatetwo01] .continue");
-    await expect(waiting).toHaveAttribute("aria-disabled", "true");
+    const hint = frame.locator("[data-block=cgatetwo01] .continue-hint");
+    await expect(hint).toBeVisible();
+    await expect(waiting).toBeHidden();
     await frame.getByRole("checkbox", { name: "The lid fits" }).check();
-    await expect(waiting).toHaveAttribute("aria-disabled", "true");
+    await expect(waiting).toBeHidden();
     await frame.getByRole("checkbox", { name: "The base drains" }).check();
-    await expect(waiting).not.toHaveAttribute("aria-disabled");
+    await expect(waiting).toBeVisible();
+    await expect(hint).toBeHidden();
   });
 
   test("blocks-interactions 2.11 W9 A13, keyboard only: the continue button's colour with a contrast check, width and corners, in the block's preview and the player", async ({
@@ -569,6 +646,10 @@ test.describe("continue blocks", () => {
       await page.keyboard.press("Escape");
       await openNavigation(page);
       await check("navigation, menu tab");
+      await select(page, "Menu type").click();
+      await page.getByRole("option", { name: /^Compact menu/ }).click();
+      await expect(switchOf(page, "Lesson count in the card")).toBeVisible();
+      await check("navigation, menu tab with the compact menu");
       await panel(page).getByRole("tab", { name: "Buttons" }).click();
       await check("navigation, buttons tab");
       await launch(page, `?theme=${editorTheme}`);
@@ -588,11 +669,14 @@ async function chooseIn(page: Page, scope: Locator, label: string, option: strin
   await scope.getByRole("button", { name: new RegExp(`${label}$`) }).focus();
   await page.keyboard.press("Enter");
   const target = page.getByRole("option", { name: option, exact: true });
+  // The list takes the focus once open; keys pressed before that would go to the button.
+  await expect(page.locator("[role=option]:focus")).toHaveCount(1);
   await page.keyboard.press("Home");
   for (let i = 0; i < 6; i++) {
     if (await target.evaluate((element) => element === document.activeElement)) break;
     await page.keyboard.press("ArrowDown");
   }
+  await expect(target).toBeFocused();
   await page.keyboard.press("Enter");
 }
 
@@ -641,6 +725,30 @@ test("[rise:3F] [rise:R18] BLK-08: an exported web package honours the menu, sea
     expect(await violations(page)).toEqual([]);
     await page.getByRole("button", { name: "Show contents" }).click();
     await expect(page.getByRole("searchbox")).toHaveCount(0);
+    expect(await violations(page)).toEqual([]);
+
+    // The menu's colours, progress marks and the floating full-width bar in theme tint.
+    await page.goto(
+      `${await exported(
+        compost({
+          navigation: {
+            menuStyle: "dark-theme",
+            progressIndicator: "circle",
+            pageButtons: "floating-full-width",
+            pageButtonColor: "theme-tint",
+          },
+          theme: { color: "#4baaf4" },
+        }),
+      )}#/lessons/lessonspot`,
+    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Where to put it");
+    await expect(page.locator(".player")).toHaveClass(/menu-dark-theme/);
+    await expect(page.locator(".outline-mark")).toHaveCount(4);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Previous and next lesson" })
+        .getByText("Greens and browns"),
+    ).toBeVisible();
     expect(await violations(page)).toEqual([]);
 
     await page.goto(await exported(micro({ steps: true, stepIndicator: "numbers" })));

@@ -23,7 +23,7 @@ const px = (value: unknown) => `${Number(value)}px`;
 
 const SVG = "http://www.w3.org/2000/svg";
 /** A decorative icon drawn from one SVG path on a 24-unit grid. */
-function icon(path: string, className: string): SVGSVGElement {
+export function icon(path: string, className: string): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("aria-hidden", "true");

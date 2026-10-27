@@ -9,6 +9,7 @@ import {
   DEFAULT_OVERLAY,
   hasSearch,
   isStepped,
+  menuLook,
   menuOf,
   overlayColors,
   pageButtonsOf,
@@ -54,11 +55,13 @@ export function startShell(
   // previous and next lesson buttons.
   const menu = menuOf(course);
   const buttons = pageButtonsOf(course);
+  const indicator = course.navigation?.progressIndicator ?? "theme";
   root.classList.add(
     `nav-${menu ?? "none"}`,
     `page-buttons-${buttons ?? "off"}`,
     `page-buttons-${course.navigation?.pageButtonColor ?? "white"}`,
   );
+  if (menu) styleMenu(root, course, indicator);
   const main = h("main", { id: "content", tabindex: -1, "aria-label": labels["sr.content"] });
   const exit = course.publish?.exitLink
     ? h("button", { type: "button", class: "outline-exit" }, labels["course.exit"])
@@ -72,7 +75,13 @@ export function startShell(
   const contents = outlineOf(course.entries, {
     collapsible: menu === "sidebar" || menu === "compact",
     closed: course.navigation?.sectionsClosed === true,
+    marks: indicator !== "theme",
   });
+  // The compact card names the open lesson by its number (blocks-editor.md 2.18), not on the cover.
+  const count =
+    menu === "compact" && course.navigation?.compactCount !== false
+      ? h("p", { class: "compact-count", hidden: true })
+      : undefined;
   const links = menu ? contents.links : new Map<string, OutlineLink>();
   const outline = menu
     ? h(
@@ -145,7 +154,12 @@ export function startShell(
     ),
     h("div", { class: "layout" }, outline, main),
     // The compact menu: a small card at the bottom left that opens the outline above it.
-    h("div", { class: "compact-card", hidden: menu !== "compact" }, menu === "compact" && toggle),
+    h(
+      "div",
+      { class: "compact-card", hidden: menu !== "compact" },
+      menu === "compact" && toggle,
+      count,
+    ),
     announcer,
   );
 
@@ -159,7 +173,8 @@ export function startShell(
       const state = progress.status(page);
       // A locked lesson stays in the outline as a disabled link whose name says why (UI-BLOCKS-R26,
       // UI-ACCESSIBILITY-R37); it has no address, so it is not a tab stop.
-      const { link, status } = entry;
+      const { link, status, mark } = entry;
+      mark?.style.setProperty("--percent", String(progress.percent(page)));
       if (state === "locked") {
         link.removeAttribute("href");
         link.removeAttribute("aria-describedby");
@@ -219,6 +234,11 @@ export function startShell(
       else link.removeAttribute("aria-current");
     }
     if (page) contents.reveal(page.id);
+    if (count) {
+      const number = page && lessonNumber(pages, page);
+      count.textContent = number ? formatLabel(labels, "lesson.position", number) : "";
+      count.hidden = !number;
+    }
     view = page ? lessonView(page, route.kind === "page" ? route.block : undefined) : coverView();
     main.replaceChildren(view.element);
     refresh();
@@ -631,6 +651,29 @@ export function startShell(
 
   window.addEventListener("hashchange", show);
   show();
+}
+
+/**
+ * The menu's colour style and progress indicator (blocks-editor.md 2.18): classes on the player
+ * for player.css, and the fill, its text and the picture from the format's `menuLook`.
+ */
+function styleMenu(root: HTMLElement, course: Course, indicator: string): void {
+  const look = menuLook(course);
+  root.classList.add(`menu-${look.style}`, `progress-${indicator}`);
+  if (!look.fill) return;
+  root.classList.add("menu-filled");
+  setVariables(root, { "--menu": look.fill.color, "--menu-text": look.fill.text });
+  const ref = look.image?.ref;
+  const entry = ref && course.media.find((media) => media.key === ref.key);
+  if (!look.image || !entry) return;
+  const [r, g, b] = [1, 3, 5].map((at) =>
+    Number.parseInt(look.fill?.color.slice(at, at + 2) ?? "0", 16),
+  );
+  root.classList.add("menu-image");
+  setVariables(root, {
+    "--menu-image": `url(${JSON.stringify(mediaUrl(entry.variantKey ?? entry.key))})`,
+    "--menu-shade": `rgb(${r} ${g} ${b} / ${look.image.opacity / 100})`,
+  });
 }
 
 /** What the outline says beside a page (rise.md §3 F, UI-BLOCKS-R26, R36). */

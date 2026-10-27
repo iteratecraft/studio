@@ -832,18 +832,29 @@ h3.block-heading {
   cursor: pointer;
 }
 
-.continue[aria-disabled="true"] {
-  border-color: var(--border);
-  background: var(--panel);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-.continue-hint,
 .check-notice {
   margin: 8px 0 0;
   color: var(--muted);
   text-align: center;
+}
+
+/* UI-BLOCKS-R55, GL7: the hint line stands where the button will be. */
+.continue-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  min-height: 44px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.continue-hint-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .check-notice {
@@ -896,7 +907,7 @@ h3.block-heading {
    and floating placement of the previous and next lesson buttons, and stepped microlearning
    (rise.md 3F, rule 17; blocks-editor.md 2.18 navigation). A bar or card fixed over the content
    keeps the focused control clear of it (WCAG 2.4.11). */
-html:has(.nav-compact, .page-buttons-floating) {
+html:has(.nav-compact, .page-buttons-floating, .page-buttons-floating-full-width) {
   scroll-padding-bottom: 96px;
 }
 
@@ -1033,9 +1044,149 @@ html:has(.stepped) {
   color: var(--button-text);
 }
 
+/* Theme tint: the light tint with its own text; the grey border keeps the button's edge at 3:1. */
+.page-buttons-theme-tint .page-link:not(.is-locked) {
+  background: var(--tint);
+  color: var(--tint-text);
+}
+
 .page-buttons-dark .page-link:not(.is-locked) .page-link-label,
-.page-buttons-theme .page-link:not(.is-locked) .page-link-label {
+.page-buttons-theme .page-link:not(.is-locked) .page-link-label,
+.page-buttons-theme-tint .page-link:not(.is-locked) .page-link-label {
   color: inherit;
+}
+
+/* Floating full width: a bar across the bottom of the screen, with both lesson titles shown. */
+.lesson-nav-floating-full-width {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  max-width: none;
+  padding: 8px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+}
+
+.lesson-nav-floating-full-width .page-link {
+  flex: 1 1 0;
+}
+
+.lesson-nav-floating-full-width .page-link-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The menu's colour style (blocks-editor.md 2.18). Light is white and gray the player's panel, on
+   which its own colours keep their ratios. A filled style draws every text, mark and focus ring in
+   the menu and the compact card in the one text colour chosen for it (format menuLook, 4.5:1);
+   status words still tell done from failed. An image style lays the cover picture under its
+   overlay. */
+.menu-light .outline,
+.menu-light .compact-card {
+  background: var(--surface);
+}
+
+.menu-filled .outline,
+.menu-filled .compact-card {
+  --text: var(--menu-text);
+  --muted: var(--menu-text);
+  --accent: var(--menu-text);
+  --accent-text: var(--menu);
+  --accent-soft: transparent;
+  --focus: var(--menu-text);
+  --correct: var(--menu-text);
+  --wrong: var(--menu-text);
+  --rule: var(--menu-text);
+  background: var(--menu);
+  color: var(--menu-text);
+}
+
+.menu-image .outline,
+.menu-image .compact-card {
+  background-image: linear-gradient(var(--menu-shade), var(--menu-shade)), var(--menu-image);
+  background-position: center;
+  background-size: cover;
+  background-attachment: local;
+}
+
+/* The search field and the exit button keep a light field of their own on any menu. */
+.menu-filled .search-input {
+  --text: #1d1f23;
+  --surface: #ffffff;
+  --border: #6b7280;
+}
+
+.menu-filled .outline-exit {
+  background: transparent;
+}
+
+/* The lesson count sits beside the contents button, so the card keeps its height. */
+.compact-card:has(.compact-count:not([hidden])) {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.compact-count {
+  margin: 0 8px 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* Progress indicator: a circle that fills with the lesson's progress, or a done/not-done mark.
+   The status in words is still read with the link; it shows only when locked or failed. */
+.outline-mark {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+[data-status="locked"] > .outline-mark {
+  display: none;
+}
+
+.progress-circle .outline-mark {
+  background: conic-gradient(var(--accent) calc(var(--percent, 0) * 1%), transparent 0);
+}
+
+.progress-check [data-status="done"] > .outline-mark {
+  background: var(--accent);
+}
+
+.progress-check [data-status="done"] > .outline-mark::after {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-text);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.progress-circle .outline-list a,
+.progress-check .outline-list a {
+  padding-right: 40px;
+}
+
+:is(.progress-circle, .progress-check)
+  :is([data-status="done"], [data-status="in-progress"])
+  > .outline-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .lesson-nav-floating {
