@@ -171,7 +171,7 @@ test.describe("keyboard-only journeys", () => {
     await expect(h1(page)).toBeFocused();
   });
 
-  test("UI-ACCESSIBILITY-R46: a continue gate, a knowledge check and its retry, all by keyboard", async ({
+  test("UI-ACCESSIBILITY-R46 UI-BLOCKS-R55: a continue gate, a knowledge check and its retry, all by keyboard", async ({
     write,
     open,
     page,
@@ -190,12 +190,13 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonone1");
     await expect(h1(page)).toHaveText("First");
     const gate = page.getByRole("button", { name: "Continue" });
-    await tabTo(page, gate);
-    await page.keyboard.press("Enter"); // inactive until the check is answered
+    // Until the check is answered the hint stands in the button's place: nothing to press.
+    await expect(page.getByText("Finish the activities above to go on")).toBeVisible();
+    await expect(gate).toHaveCount(0);
     await expect(page.getByText("Behind the gate")).toBeHidden();
 
     // Choices: Tab reaches the group, arrows choose, Enter checks.
-    await tabTo(page, page.getByRole("radio", { name: "Yes" }), "Shift+Tab");
+    await tabTo(page, page.getByRole("radio", { name: "Yes" }));
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("radio", { name: "No" })).toBeChecked();
     await page.keyboard.press("Enter");
@@ -292,7 +293,9 @@ test.describe("keyboard-only journeys", () => {
         const box = (document.activeElement as HTMLElement).getBoundingClientRect();
         return bar !== undefined && box.top < bar.bottom - 1 && box.bottom > bar.top;
       });
-    await tabTo(page, page.getByRole("button", { name: "Continue" }));
+    // From the last control of the lesson (the continue block shows its hint until the
+    // activities above are done).
+    await tabTo(page, page.locator(".blocks :is(a[href], button, input):visible").last());
     for (let i = 0; i < 20; i++) {
       await page.keyboard.press("Shift+Tab");
       if (await page.evaluate(() => document.activeElement?.closest(".topbar") !== null)) break;
@@ -358,7 +361,7 @@ test.describe("learner-side rules", () => {
     expect(await levels()).toEqual(["h1 Compost check"]);
 
     await open("#/lessons/lessonall1");
-    await page.getByRole("button", { name: "Continue" }).waitFor();
+    await page.locator("[data-block=cgateall01] .continue-hint").waitFor();
     expect(await levels()).toEqual([
       "h1 Every block",
       "h2 Before you start",
