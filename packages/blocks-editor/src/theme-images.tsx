@@ -26,7 +26,10 @@ const blobUrl = (data: Uint8Array, type?: string) =>
   URL.createObjectURL(new Blob([data as BlobPart], { ...(type && { type }) }));
 
 /** A blob address of a media file of the course, while the component shows it. */
-function usePictureUrl(session: CourseSession, entry: MediaEntry | undefined): string | undefined {
+export function usePictureUrl(
+  session: CourseSession,
+  entry: MediaEntry | undefined,
+): string | undefined {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     if (!entry) return;
