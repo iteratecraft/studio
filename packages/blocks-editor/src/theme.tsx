@@ -18,6 +18,7 @@ import {
   fontsOf,
   LAYOUT_STYLES,
   type MediaEntry,
+  type Navigation,
   nearestReadable,
   overlayColors,
   overlayFloor,
@@ -51,10 +52,16 @@ import {
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { FontManager } from "./font-manager.js";
 import { type FontLibrary, registerFont } from "./fonts.js";
+import {
+  cleanedNavigation,
+  type LooseNavigation,
+  NavigationFields,
+  navigationSummary,
+} from "./navigation.js";
 import type { CourseSession } from "./session.js";
 import { CropButton, ThemePictureField } from "./theme-images.js";
 
-type Section = "layout" | "cover" | "headers" | "colors" | "fonts" | "blocks";
+type Section = "layout" | "cover" | "navigation" | "headers" | "colors" | "fonts" | "blocks";
 const COLOR = /^#[0-9a-f]{6}$/;
 
 /** Settings where undefined leaves one out (back at its default); `cleaned` drops them. */
@@ -76,6 +83,8 @@ class DraftSource implements PreviewSource {
   readonly #session: CourseSession;
   #theme: Theme | undefined | null = null;
   #media: MediaEntry[] = [];
+  // The navigation being edited (M2-16); null: the course's own.
+  #navigation: Navigation | undefined | null = null;
   readonly #listeners = new Set<(event: { document: PreviewSource["document"] }) => void>();
 
   constructor(session: CourseSession) {
@@ -84,6 +93,10 @@ class DraftSource implements PreviewSource {
 
   get document(): Course {
     const course = this.#session.editor.document;
+    if (this.#navigation !== null) {
+      const { navigation: _, ...rest } = course;
+      return this.#navigation ? { ...rest, navigation: this.#navigation } : rest;
+    }
     if (this.#theme === null) return course;
     const { theme: _, ...rest } = course;
     const known = new Set(course.media.map((media) => media.key));
@@ -100,9 +113,19 @@ class DraftSource implements PreviewSource {
     const sameMedia =
       media.length === this.#media.length && media.every((entry, i) => entry === this.#media[i]);
     // A reload for nothing would swap the frame under the author (and under a test).
-    if (sameMedia && JSON.stringify(theme) === JSON.stringify(this.#theme)) return;
+    const same = sameMedia && JSON.stringify(theme) === JSON.stringify(this.#theme);
+    // `null` also puts back the course's own navigation (M2-16).
+    if (same && (theme !== null || this.#navigation === null)) return;
     this.#theme = theme;
     this.#media = media;
+    if (theme === null) this.#navigation = null;
+    this.refresh();
+  }
+
+  /** Shows the course with `navigation` in the preview (M2-16). */
+  showNavigation(navigation: Navigation | undefined) {
+    if (JSON.stringify(navigation) === JSON.stringify(this.#navigation)) return;
+    this.#navigation = navigation;
     this.refresh();
   }
 
@@ -161,6 +184,7 @@ export function ThemeView({
   const [source] = useState(() => new DraftSource(session));
   const [section, setSection] = useState<Section>();
   const [draft, setDraft] = useState<Theme>({});
+  const [navigation, setNavigation] = useState<Navigation>({});
   // Pictures chosen in this panel: their media index entries go in with the theme that uses them.
   const [added, setAdded] = useState<MediaEntry[]>([]);
   const { region, announce } = useAnnouncer();
@@ -203,8 +227,13 @@ export function ThemeView({
       ? undefined
       : (course.media.find((media) => media.key === key) ??
         added.find((media) => media.key === key));
+  const changeNavigation = (next: LooseNavigation) => {
+    setNavigation(next as Navigation);
+    source.showNavigation(cleanedNavigation(next));
+  };
   const open = (next: Section) => {
     setDraft(course.theme ?? {});
+    setNavigation(course.navigation ?? {});
     setSection(next);
   };
   const leave = () => {
@@ -213,6 +242,19 @@ export function ThemeView({
     setSection(undefined);
   };
   const save = () => {
+    if (section === "navigation") {
+      const next = cleanedNavigation(navigation);
+      if (JSON.stringify(next) !== JSON.stringify(course.navigation)) {
+        editor.dispatch(
+          next
+            ? { type: "updateCourse", set: { navigation: next } }
+            : { type: "updateCourse", unset: ["navigation"] },
+        );
+      }
+      announce(t("theme.saved", { section: t("theme.section.navigation") }));
+      leave();
+      return;
+    }
     const theme = cleaned(draft);
     const same = JSON.stringify(theme) === JSON.stringify(course.theme);
     if (!same) {
@@ -236,6 +278,7 @@ export function ThemeView({
   const sections: Section[] = [
     "layout",
     "cover",
+    "navigation",
     // Lesson headers belong to courses only (blocks-editor.md 2.18).
     ...(course.kind === "course" ? (["headers"] as const) : []),
     "colors",
@@ -253,6 +296,7 @@ export function ThemeView({
   const summary: Record<Section, string> = {
     layout: t(`theme.layout.${theme?.layout ?? "classic"}`),
     cover: t(`theme.cover.${theme?.cover?.layout ?? "split-left"}`),
+    navigation: navigationSummary(course, t),
     headers: theme?.headers?.hidden
       ? t("theme.off")
       : t(headerLabel(theme?.headers?.layout ?? "light")),
@@ -287,6 +331,9 @@ export function ThemeView({
               {section === "layout" && <LayoutFields draft={draft} change={change} />}
               {section === "cover" && (
                 <CoverFields draft={draft} change={change} session={session} entryOf={entryOf} />
+              )}
+              {section === "navigation" && (
+                <NavigationFields course={course} draft={navigation} change={changeNavigation} />
               )}
               {section === "headers" && (
                 <HeaderFields draft={draft} change={change} session={session} entryOf={entryOf} />

@@ -16,6 +16,17 @@ export const english = {
     "outline.lessonDone": "Done",
     "outline.lessonLocked": "Locked until the earlier lessons are done",
 
+    // M2-16: course search and stepped microlearning.
+    "search.label": "Search this course",
+    "search.found": "Lessons found: {count}",
+    "search.none": "No lesson matches your search",
+    "steps.label": "Steps",
+    "steps.position": "Step {current} of {total}",
+    "steps.locked": "Locked until the step before it is done",
+    "steps.previous": "Previous step",
+    "steps.next": "Next step",
+    "steps.more": "Show more of this step",
+
     "lesson.position": "Lesson {current} of {total}",
     "lesson.previous": "Previous lesson",
     "lesson.next": "Next lesson",

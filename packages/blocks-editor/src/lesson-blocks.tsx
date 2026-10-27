@@ -5,6 +5,7 @@
 // and the manage-blocks list for several blocks. Every change is one doc-ops command list, so one
 // undo step, and is announced to screen readers.
 import { type Block, type LessonEntry, lessonLink } from "@course-suite/format";
+import { canBeRequired } from "@course-suite/player-blocks";
 import {
   Button,
   EmptyState,
@@ -300,6 +301,10 @@ export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: Lesso
                         </Select>
                       ) : (
                         <span className="be-block-type">{typeName(block, t)}</span>
+                      )}
+                      {/* M2-16: blocks a continue block may wait for, as their types declare. */}
+                      {canBeRequired(editor.document, block) && (
+                        <span className="be-tag">{t("blocks.requirable")}</span>
                       )}
                       <Toolbar
                         aria-label={t("blocks.tools", { name: title })}

@@ -36,7 +36,7 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonwhat");
     await expect(h1(page)).toHaveText("What compost is");
     const order: string[] = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 12; i++) {
       await page.keyboard.press("Tab");
       order.push(
         await page.evaluate(() => {
@@ -55,8 +55,12 @@ test.describe("keyboard-only journeys", () => {
     expect(order).toEqual([
       "page: Skip to the course content",
       "header: Hide contents",
+      // M2-16: course search, then each section group's button before its lessons (D4).
+      "outline: ",
+      "outline: The basics",
       "outline: What compost is",
       "outline: Greens and browns",
+      "outline: In practice",
       "outline: Check what you know",
       "outline: Looking after the heap",
       // The lesson's image can be enlarged (blocks-editor.md 2.10: zoom on click, on by default).
@@ -84,9 +88,11 @@ test.describe("keyboard-only journeys", () => {
     await expect(outline(page)).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-    // Escape closes the contents and returns to the button.
+    // Escape closes the contents and returns to the button; course search comes first (M2-16).
     await page.keyboard.press("Tab");
-    await expect(outline(page).getByRole("link").first()).toBeFocused();
+    await expect(
+      outline(page).getByRole("searchbox", { name: "Search this course" }),
+    ).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(outline(page)).toBeHidden();
     await expect(toggle).toBeFocused();

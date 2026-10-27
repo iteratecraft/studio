@@ -15,7 +15,13 @@ import type {
   Response,
   Score,
 } from "@course-suite/format";
-import { drawAttempt, quizResult, scoreAttempt } from "@course-suite/format";
+import {
+  drawAttempt,
+  isRestricted,
+  isStepped,
+  quizResult,
+  scoreAttempt,
+} from "@course-suite/format";
 import type { ResumeState } from "@course-suite/tracking";
 import { type Page, pagesOf } from "./route.js";
 
@@ -103,6 +109,31 @@ const needsAction = (course: Course, block: Block) =>
   REQUIRABLE.has(`${block.category}/${block.variant}`) ||
   lockedMedia(course, block);
 
+/**
+ * Whether a continue block may wait for `block` (rise.md 3G, UI-BLOCKS-R19, R45): every block
+ * finished by an action, as its type declares above (REQUIRABLE, knowledge checks, locked media),
+ * and no other. Buttons, attachments and blocks finished by being seen never can. The editor reads
+ * this, so a block type is offered as soon as it is declared here.
+ */
+export const canBeRequired = (course: Course, block: Block) =>
+  !isContinue(block) && needsAction(course, block);
+
+/**
+ * The steps of a stepped microlearning lesson (rise.md 3D, 3F; UI-BLOCKS-R58): the index of each
+ * step's first block and the index after its last. A block connected to the next shows in one
+ * step with it.
+ */
+export function stepsOf(blocks: readonly Block[]): { start: number; end: number }[] {
+  const steps: { start: number; end: number }[] = [];
+  let start = 0;
+  blocks.forEach((block, i) => {
+    if (block.settings?.connectToNext === true && i < blocks.length - 1) return;
+    steps.push({ start, end: i + 1 });
+    start = i + 1;
+  });
+  return steps;
+}
+
 /** How a page shows in the outline. */
 export type PageStatus = "not-started" | "in-progress" | "done" | "failed" | "locked";
 
@@ -130,6 +161,11 @@ export interface Progress {
   shownBlocks(lesson: LessonEntry): number;
   /** The learner sees the page: its shown blocks count as viewed (UI-BLOCKS-R46). */
   view(page: Page): void;
+  /**
+   * Stepped microlearning: the learner has reached the first `count` blocks of the lesson, and only
+   * those count as viewed (rule 16). Until then a stepped lesson's first step is reached.
+   */
+  reach(lesson: LessonEntry, count: number): void;
   /** A continue block was pressed. */
   pressContinue(lesson: LessonEntry, block: Block): void;
   /**
@@ -181,9 +217,10 @@ export interface Progress {
 /** A progress engine for `course`, resumed from `state` (pruned of ids the course no longer has). */
 export function createProgress(course: Course, state: ResumeState = {}): Progress {
   const pages = pagesOf(course);
-  const restricted =
-    course.navigation?.restricted === true ||
-    pages.some((page) => page.kind === "quiz" && page.settings?.skipAhead !== undefined);
+  const restricted = isRestricted(course);
+  const stepped = isStepped(course);
+  // Stepped microlearning: how many blocks of each lesson the learner has reached.
+  const reached = new Map<string, number>();
   const done = new Set(state.done);
   const viewed = new Map(
     Object.entries(state.visited ?? {}).map(([id, ids]) => [id, new Set(ids)]),
@@ -222,7 +259,9 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
   function view(page: Page): void {
     if (page.kind !== "lesson") return;
     const ids = viewed.get(page.id) ?? new Set<string>();
-    for (const block of page.blocks.slice(0, shownBlocks(page))) ids.add(block.id);
+    if (stepped && !reached.has(page.id)) reached.set(page.id, stepsOf(page.blocks)[0]?.end ?? 0);
+    const limit = Math.min(shownBlocks(page), reached.get(page.id) ?? page.blocks.length);
+    for (const block of page.blocks.slice(0, limit)) ids.add(block.id);
     viewed.set(page.id, ids);
     // A lesson without gates is done as soon as it is seen (rise.md §3 G).
     if (page.blocks.every((block) => counts(page, block))) done.add(page.id);
@@ -311,6 +350,11 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     restricted,
     shownBlocks,
     view,
+
+    reach(lesson, count) {
+      reached.set(lesson.id, Math.max(reached.get(lesson.id) ?? 0, count));
+      view(lesson);
+    },
 
     pressContinue(lesson, block) {
       done.add(block.id);

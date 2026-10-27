@@ -122,6 +122,13 @@ const CONTINUE: Record<string, Setting> = {
   completionType: { schema: choice("none", "block-above", "all-above"), default: "none" },
   buttonLabel: { schema: { type: "string" } },
   hintText: { schema: { type: "string" } },
+  // M2-16 (blocks-interactions.md 2.11): the button's own colour (unset: the theme's button
+  // colour) and its text on it, its width in percent of the column, and the rounding of its
+  // corners in pixels (unset: the theme's button style).
+  color: { schema: COLOR },
+  contrast: { schema: CONTRAST, default: "auto" },
+  width: { schema: int(20, 100), default: 100 },
+  cornerRadius: { schema: int(0, 30) },
 };
 
 // Multimedia (M2-13, BLK-05; blocks-editor.md 2.5, 2.12). Each variant has a table of its own: the

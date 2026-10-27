@@ -3,7 +3,15 @@
 // its element, or undefined for a block it cannot show; other block families arrive with their own
 // epics.
 import type { Block, Course, Response } from "@course-suite/format";
-import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-suite/format";
+import {
+  accentReadable,
+  FULL_BLEED,
+  isCorrect,
+  SURFACE,
+  textColor,
+  textOn,
+  variantSettings,
+} from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
@@ -165,7 +173,8 @@ function authoredText(block: Block, name: string): string | undefined {
 /**
  * A continue block: holds back the blocks below until pressed, and stays inactive with a hint
  * while its requirement is not met (rise.md rule 13 and §3 G; UI-BLOCKS-R43, R44). The author's
- * button label and hint text win over the label set's.
+ * button label and hint text win over the label set's, and its own colour, with its text on it,
+ * width and corners over the theme's (blocks-interactions.md 2.11, M2-16).
  */
 function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElement {
   const hintId = uid("hint");
@@ -174,6 +183,18 @@ function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElem
     { type: "button", class: "continue" },
     authoredText(block, "buttonLabel") ?? labels["lesson.continue"],
   );
+  const { color, contrast, width, cornerRadius } = variantSettings<{
+    color?: string;
+    contrast: "auto" | "light" | "dark";
+    width: number;
+    cornerRadius?: number;
+  }>(block);
+  if (color) {
+    button.style.setProperty("--button", color);
+    button.style.setProperty("--button-text", textColor(color, contrast));
+  }
+  if (width < 100) button.style.width = `${width}%`;
+  if (cornerRadius !== undefined) button.style.setProperty("--button-radius", `${cornerRadius}px`);
   const hint = h(
     "p",
     { class: "continue-hint", id: hintId, hidden: true },

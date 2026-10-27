@@ -4,6 +4,17 @@ export { activityIri, newContentId, newProjectId, withNewProjectId } from "./ids
 export { mediaKeysIn, usedMediaKeys } from "./media.js";
 export type { JsonObject, MigrateResult, Migration } from "./migrate.js";
 export { compareVersions, MIGRATIONS, migrate, parseVersion, SCHEMA_VERSION } from "./migrate.js";
+// M2-16: navigation settings and their rules.
+export type { Navigation } from "./navigation.js";
+export {
+  hasSearch,
+  isRestricted,
+  isStepped,
+  menuOf,
+  pageButtonsOf,
+  searchBlocked,
+  skipAheadQuiz,
+} from "./navigation.js";
 export type { OpenResult } from "./open.js";
 export { openCourse, serializeCourse } from "./open.js";
 export type { AnswerIdOptions, Interaction, QuizResult, Response, Score } from "./quiz.js";

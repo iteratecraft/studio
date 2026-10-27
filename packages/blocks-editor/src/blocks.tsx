@@ -7,6 +7,7 @@ import type { Command, Editor } from "@course-suite/doc-ops";
 import type { Block, ContentItem, Question } from "@course-suite/format";
 import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import { type ComponentType, useId } from "react";
+import { ContinueFields, ContinueFormat } from "./continue.js";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
 import {
@@ -157,37 +158,6 @@ function textFields(title: StringKey | undefined, body: boolean): ComponentType<
       </>
     );
   };
-}
-
-/** Continue: its own button label and locked hint, empty for the defaults (blocks-interactions.md 2.11). */
-function ContinueFields({ block }: FieldsProps) {
-  const t = useStrings();
-  const settings = block.variantSettings ?? {};
-  const set = (name: "buttonLabel" | "hintText", value: string): Command => {
-    const { [name]: _, ...others } = settings;
-    const next = value.trim() ? { ...others, [name]: value.trim() } : others;
-    return Object.keys(next).length > 0
-      ? { type: "updateBlock", id: block.id, set: { variantSettings: next } }
-      : { type: "updateBlock", id: block.id, unset: ["variantSettings"] };
-  };
-  const text = (name: string) =>
-    typeof settings[name] === "string" ? (settings[name] as string) : "";
-  return (
-    <>
-      <DraftField
-        label={t("field.buttonLabel")}
-        description={t("field.buttonLabelHelp")}
-        value={text("buttonLabel")}
-        command={(text) => set("buttonLabel", text)}
-      />
-      <DraftField
-        label={t("field.hint")}
-        description={t("field.hintHelp")}
-        value={text("hintText")}
-        command={(text) => set("hintText", text)}
-      />
-    </>
-  );
 }
 
 /**
@@ -497,7 +467,9 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     variant: "continue",
     label: "variant.divider.continue",
     create: (id) => ({ id: id(), category: "divider", variant: "continue" }),
+    // M2-16: what it waits for, label and hint; colour, width and corners (continue.tsx).
     Fields: ContinueFields,
+    Format: ContinueFormat,
   },
   ...DIVIDER_TYPES,
   ...later("templates", ["saved"]),
