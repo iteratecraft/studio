@@ -1,5 +1,6 @@
 // The export job (M2-06, ENG-15) in Node.js with the build in-process, as the server will run it.
 
+import { createHash } from "node:crypto";
 import {
   blocksPlayer,
   buildPackage,
@@ -20,6 +21,7 @@ import {
   openJobRunner,
 } from "./index.js";
 
+const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
 const standIn = (key: string) => new TextEncoder().encode(`stand-in for ${key}\n`);
 
 async function setup(course: Course, media = standIn, load?: () => Promise<void>) {
@@ -69,7 +71,10 @@ describe("export job", () => {
       state: "succeeded",
       result: { output: input.output, size: expected.value.zip.length, warnings: [] },
     });
-    expect(files.files.get(input.output)).toEqual(expected.value.zip);
+    // By SHA-256: a deep equality walks the 200 KB package one index at a time, which took over 5 s
+    // on a busy CI runner.
+    const written = files.files.get(input.output);
+    expect(written && sha256(written)).toBe(sha256(expected.value.zip));
     expect([...files.files.keys()]).toEqual([input.output]);
     const steps = packagedMediaKeys(course).length + 2;
     expect(progress).toEqual(Array.from({ length: steps }, (_, i) => i + 1));

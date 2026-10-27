@@ -10,6 +10,7 @@ import { FRAME_SCRIPT, FRAME_SCRIPT_HASH, FRAME_URL, previewPackage } from "./in
 
 const svg = (text: string) =>
   new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg">${text}</svg>`);
+const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
 const media: Record<string, Uint8Array> = {
   "cover.svg": svg("cover"),
   "compost-bin.svg": svg("bin"),
@@ -37,15 +38,18 @@ describe("previewPackage", () => {
     if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
 
     const preview = await previewPackage(course, (key) => media[key], nodeFonts);
-    const exported = new Map<string, Uint8Array>();
+    // Each file by its SHA-256: a deep equality walks the player and font bytes one index at a
+    // time, which took seconds on a busy CI runner.
+    const exported = new Map<string, string>();
     for (const name of zip.value.names)
-      exported.set(name, (await zip.value.read(name)) as Uint8Array);
-    expect(new TextEncoder().encode(preview.index)).toEqual(exported.get("index.html"));
-    expect(new Map(preview.files.map(([path, data]) => [path, data]))).toEqual(
-      new Map([...exported].filter(([name]) => name !== "index.html")),
-    );
-    // It builds, zips and unzips the real player: about 0.3 s alone, over 5 s on a busy CI runner.
-  }, 30_000);
+      exported.set(name, sha256((await zip.value.read(name)) as Uint8Array));
+    expect(
+      new Map([
+        ["index.html", sha256(new TextEncoder().encode(preview.index))],
+        ...preview.files.map(([path, data]) => [path, sha256(data)] as const),
+      ]),
+    ).toEqual(exported);
+  });
 
   test("gives each file the type a web server would, SVG images and fonts included", async () => {
     const preview = await previewPackage(withFont(), (key) => media[key], nodeFonts);
