@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
   Button as AriaButton,
   Checkbox as AriaCheckbox,
@@ -146,6 +146,42 @@ export interface SelectProps<T extends object>
   className?: string;
 }
 
+/**
+ * Keeps focus on a select's button after its list closes. Inside a list row (the lesson's blocks,
+ * the outline: React Aria grid lists), focus coming back from the list's popover lands on the row
+ * instead of the button; in a menu opened from a row, on that row, outside the menu that is still
+ * open. So the first focus after the list closes decides: when it lands on the select's own row,
+ * or leaves the open menu around the select for a row or the page, it goes on to the button,
+ * through its row as the menus do (useReturnFocus in the blocks editor); anywhere else it stays.
+ * A key or a press first ends the watch. A select in neither a row nor a menu is left alone.
+ */
+function returnFocusTo(button: HTMLElement): void {
+  const row = button.closest<HTMLElement>("[role=row]");
+  const menu = button.closest<HTMLElement>("[role=dialog]");
+  if (!row && !menu) return;
+  const stop = () => {
+    document.removeEventListener("focusin", landed, true);
+    document.removeEventListener("keydown", stop, true);
+    document.removeEventListener("pointerdown", stop, true);
+  };
+  function landed(event: FocusEvent): void {
+    const target = event.target as HTMLElement;
+    stop();
+    const escaped =
+      menu?.isConnected === true &&
+      !menu.contains(target) &&
+      (target === document.body || target.getAttribute("role") === "row");
+    if (!button.isConnected || (target !== row && !escaped)) return;
+    queueMicrotask(() => {
+      row?.focus();
+      button.focus();
+    });
+  }
+  document.addEventListener("focusin", landed, true);
+  document.addEventListener("keydown", stop, true);
+  document.addEventListener("pointerdown", stop, true);
+}
+
 /** Picks one value from a list in a popover; type to jump to an option. */
 export function Select<T extends object>({
   label,
@@ -154,12 +190,21 @@ export function Select<T extends object>({
   items,
   children,
   className,
+  onOpenChange,
   ...props
 }: SelectProps<T>) {
+  const button = useRef<HTMLButtonElement>(null);
   return (
-    <AriaSelect {...props} className={cx("cs-Field", className)}>
+    <AriaSelect
+      {...props}
+      className={cx("cs-Field", className)}
+      onOpenChange={(open) => {
+        onOpenChange?.(open);
+        if (!open && button.current) returnFocusTo(button.current);
+      }}
+    >
       <Label className="cs-Label">{label}</Label>
-      <AriaButton className="cs-Button cs-Button--secondary cs-Select-button">
+      <AriaButton ref={button} className="cs-Button cs-Button--secondary cs-Select-button">
         <SelectValue className="cs-Select-value" />
         <Icon name="chevron-down" />
       </AriaButton>

@@ -550,6 +550,8 @@ async function choose(page: Page, select: Locator, name: string): Promise<void> 
   await page.keyboard.press("Enter");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await expect(select).toContainText(name);
+  // Focus comes back to the select, also inside a block's row.
+  await expect(select).toBeFocused();
 }
 
 test("[rise:3C] blocks-interactions 2.1 to 2.3, A10, A11, W1: by keyboard, sections get a video with captions, a web embed and audio, and the audio player goes above the text", async ({
@@ -807,12 +809,14 @@ for (const theme of ["light", "dark"] as const) {
 
     test("a marker's icon list, and a new labelled image without its picture", async ({ page }) => {
       await openBicycle(page, "Pictures and steps", `?theme=${theme}`);
-      await row(page, "Pictures and steps", /^Labelled image/)
+      const icons = row(page, "Pictures and steps", /^Labelled image/)
         .getByRole("group", { name: "Marker 1" })
-        .getByRole("button", { name: /Marker shows/ })
-        .click();
+        .getByRole("button", { name: /Marker shows/ });
+      await icons.click();
       await check(page, "the marker icons");
       await page.keyboard.press("Escape");
+      // Focus is back on the select before the next press, so it cannot close what that opens.
+      await expect(icons).toBeFocused();
       await insertByPointer(page, "Labelled image");
       await expect(
         page.getByText("Choose the picture first: the markers sit on it."),
