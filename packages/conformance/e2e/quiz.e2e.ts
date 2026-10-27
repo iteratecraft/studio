@@ -42,6 +42,8 @@ test.describe("SCORM 1.2", () => {
   test("[rise:R7] [rise:R8] [rise:R10] [rise:R11] [standards:R11] UI-BLOCKS-R38, BLK-07: three failed attempts with falling scores, over a closed and resumed visit: the LMS keeps the best score and failed, every answer is an interaction, and the course never completes", async ({
     browser,
   }) => {
+    // Two visits and three attempts take longer than the default budget on a slow runner.
+    test.slow();
     const pkg = await scorm12Package(pond("scorm12"));
     // First visit: attempt 1 at 50 %, then attempt 2 closed after its first answer.
     const first = await runPackage(pkg, {
@@ -142,11 +144,12 @@ test.describe("SCORM 1.2", () => {
 });
 
 test.describe("SCORM 2004", () => {
-  test("[rise:R8] [rise:R10] [standards:R10] [standards:R12] three failed attempts keep the best scaled score and failed, with an interaction per answer; a pass is passed and completed", async ({
+  test("[rise:R8] [rise:R10] [standards:R10] [standards:R12] three failed attempts keep the best scaled score and failed, with an interaction per answer", async ({
     browser,
   }) => {
-    const pkg = await scorm2004Package(pond("scorm2004"));
-    const failed = await runPackage(pkg, {
+    // Three attempts of four questions take longer than the default budget on a slow runner.
+    test.slow();
+    const failed = await runPackage(await scorm2004Package(pond("scorm2004")), {
       browser,
       drive: async (sco, host) => {
         await failThrice(sco);
@@ -167,14 +170,19 @@ test.describe("SCORM 2004", () => {
       "fill-in",
       "matching",
     ]);
+  });
 
-    const passed = await runPackage(pkg, {
+  test("[rise:R7] [standards:R10] [standards:R12] a pass is passed and completed with its scaled score", async ({
+    browser,
+  }) => {
+    const passed = await runPackage(await scorm2004Package(pond("scorm2004")), {
       browser,
       drive: async (sco, host) => {
         await passOnce(sco);
         await closeSco(host);
       },
     });
+    expect(passed.pageErrors).toEqual([]);
     expect(passed.cmi).toMatchObject({
       success_status: "passed",
       completion_status: "completed",
@@ -195,11 +203,15 @@ for (const standard of ["xapi", "cmi5"] as const) {
   const build = (course: Course) =>
     standard === "xapi" ? xapiPackage(course) : cmi5Package(course);
   test.describe(standard, () => {
-    test(`[rise:R8] [rise:R10] [standards:X-2] [standards:C-6] ${standard}: every answer is an answered statement${standard === "xapi" ? ", each attempt failed with its score" : ""}; the course failed with the best score; a pass is passed with its score`, async ({
+    test(`[rise:R8] [rise:R10] [standards:X-2] [standards:C-6] ${standard}: every answer is an answered statement${standard === "xapi" ? ", each attempt failed with its score" : ""}; the course failed with the best score`, async ({
       browser,
     }) => {
-      const pkg = await build(pond(standard));
-      const failed = await runXapiPackage(pkg, { browser, drive: failThrice });
+      // Three attempts of four questions take longer than the default budget on a slow runner.
+      test.slow();
+      const failed = await runXapiPackage(await build(pond(standard)), {
+        browser,
+        drive: failThrice,
+      });
       expect(failed.pageErrors).toEqual([]);
       const statements = failed.lrs.statements;
       for (const statement of statements) expect(statementProblems(statement, "1.0")).toEqual([]);
@@ -218,8 +230,15 @@ for (const standard of ["xapi", "cmi5"] as const) {
       expect(course.at(-1)?.result?.score?.scaled).toBe(0.5);
       expect(verbs(statements, "passed")).toEqual([]);
       expect(verbs(statements, "completed")).toEqual([]);
+    });
 
-      const passed = await runXapiPackage(pkg, { browser, drive: passOnce });
+    test(`[rise:R7] [standards:X-2] ${standard}: a pass is passed with its score`, async ({
+      browser,
+    }) => {
+      const passed = await runXapiPackage(await build(pond(standard)), {
+        browser,
+        drive: passOnce,
+      });
       expect(passed.pageErrors).toEqual([]);
       const won = verbs(passed.lrs.statements, "passed");
       expect(won.map((s) => s.result?.score?.scaled)).toEqual(standard === "xapi" ? [1, 1] : [1]);
