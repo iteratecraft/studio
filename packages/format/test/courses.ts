@@ -99,7 +99,8 @@ export function fullCourse(): Course {
           {
             id: "block00002",
             category: "interactive",
-            variant: "labeled-graphic",
+            // Every kind of item in one block: a variant whose items its own epic defines (BLK-11).
+            variant: "scenario",
             settings: {
               background: {
                 kind: "image",
@@ -715,6 +716,227 @@ export function staticBlocksCourse(): Course {
       svg("stmediamon", "moon.svg", 480, 480),
       svg("stmediaobs", "observer.svg", 120, 120),
     ],
+  };
+}
+
+/**
+ * Every interactive variant of M2-14 (BLK-06), with our own sample content: accordions (one on a
+ * dark colour that opens one section at a time), tabs enough to scroll sideways on a phone, a
+ * labeled graphic with a numbered and two icon markers, a process with a hidden step, flashcards
+ * as a grid and a stack, a button to a lesson and a button stack to a web page, a lesson and the
+ * end of the course.
+ */
+export function interactiveBlocksCourse(): Course {
+  const section = (id: string, title: string, text: string, more: Partial<ContentItem> = {}) => ({
+    id,
+    kind: "content" as const,
+    title,
+    text: `<p>${text}</p>`,
+    ...more,
+  });
+  const step = (id: string, role: "intro" | "step" | "summary", title: string, more = {}) => ({
+    id,
+    kind: "step" as const,
+    role,
+    title,
+    text: `<p>${title}: what to do and why.</p>`,
+    ...more,
+  });
+  const card = (id: string, front: string, back: string, media?: string) => ({
+    id,
+    kind: "flashcard" as const,
+    front: { text: `<p>${front}</p>` },
+    back: { text: `<p>${back}</p>`, ...(media && { media: { key: media, alt: "" } }) },
+  });
+  const svg = (id: string, key: string, width: number, height: number) => ({
+    id,
+    key,
+    source: "upload" as const,
+    mimeType: "image/svg+xml",
+    width,
+    height,
+  });
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "Looking after a bicycle",
+    entries: [
+      {
+        id: "ialessfold",
+        kind: "lesson",
+        title: "Sections and tabs",
+        blocks: [
+          {
+            id: "iaaccord01",
+            category: "interactive",
+            variant: "accordion",
+            items: [
+              section("iaaccsec01", "Tyres", "Pump them to the pressure printed on the side.", {
+                media: { key: "wheel.svg", alt: "A wheel seen from the side." },
+              }),
+              section("iaaccsec02", "Chain", "Wipe it, then oil each link lightly."),
+              section(
+                "iaaccsec03",
+                "Brakes",
+                "Squeeze each lever: it should stop short of the bar.",
+              ),
+            ],
+          },
+          {
+            id: "iaaccord02",
+            category: "interactive",
+            variant: "accordion",
+            settings: { background: { kind: "color", color: "#2b3038" } },
+            variantSettings: { oneAtATime: true, headingLevel: 2 },
+            items: [
+              section("iaaccsec04", "Before a ride", "Check the tyres and the brakes."),
+              section("iaaccsec05", "After a ride", "Wipe off mud before it dries."),
+            ],
+          },
+          {
+            id: "iatabs0001",
+            category: "interactive",
+            variant: "tabs",
+            items: [
+              section("iatabsec01", "Spring", "Check for rust after the winter."),
+              section("iatabsec02", "Summer", "Keep the chain oiled in the dust."),
+              section("iatabsec03", "Autumn", "Fit lights for the darker evenings."),
+              section("iatabsec04", "Winter", "Rinse off road salt after each ride."),
+              section("iatabsec05", "Every season", "Look the bicycle over once a month."),
+            ],
+          },
+        ],
+      },
+      {
+        id: "ialesspict",
+        kind: "lesson",
+        title: "Pictures and steps",
+        blocks: [
+          {
+            id: "ialabeled1",
+            category: "interactive",
+            variant: "labeled-graphic",
+            media: [{ key: "bike.svg", alt: "A bicycle seen from the side." }],
+            items: [
+              {
+                id: "iamarker01",
+                kind: "marker",
+                x: 20,
+                y: 70,
+                title: "Back wheel",
+                text: "<p>Its quick release opens with one hand.</p>",
+              },
+              {
+                id: "iamarker02",
+                kind: "marker",
+                x: 50.5,
+                y: 40,
+                icon: "star",
+                title: "Saddle",
+                text: "<p>Set it level with your hip.</p>",
+                media: { key: "wheel.svg", alt: "A saddle seen from above." },
+              },
+              {
+                id: "iamarker03",
+                kind: "marker",
+                x: 82,
+                y: 66,
+                icon: "info",
+                title: "Front wheel",
+                text: "<p>Spin it to check it runs true.</p>",
+              },
+            ],
+          },
+          {
+            id: "iaprocess1",
+            category: "interactive",
+            variant: "process",
+            items: [
+              step("iastepintr", "intro", "Fixing a puncture"),
+              step("iastep0001", "step", "Take the wheel off"),
+              step("iastep0002", "step", "Find the hole", {
+                media: { key: "wheel.svg", alt: "A tube in a bowl of water." },
+              }),
+              step("iastep0003", "step", "A step left out for now", { hidden: true }),
+              step("iastep0004", "step", "Patch and refit"),
+              step("iastepsumm", "summary", "Ready to ride"),
+            ],
+          },
+        ],
+      },
+      {
+        id: "ialesscard",
+        kind: "lesson",
+        title: "Cards and buttons",
+        blocks: [
+          {
+            id: "iacardgrid",
+            category: "interactive",
+            variant: "flashcard-grid",
+            items: [
+              card("iacardgr01", "Cassette", "The stack of gears on the back wheel.", "wheel.svg"),
+              card("iacardgr02", "Derailleur", "It moves the chain from gear to gear."),
+              card("iacardgr03", "Crank", "The arm that holds a pedal."),
+              card("iacardgr04", "Spoke", "A thin rod from the hub to the rim."),
+            ],
+          },
+          {
+            id: "iacardstak",
+            category: "interactive",
+            variant: "flashcard-stack",
+            variantSettings: { flipHint: false },
+            items: [
+              card("iacardst01", "How often to oil the chain?", "Every few weeks, and after rain."),
+              card("iacardst02", "What pressure for the tyres?", "The one on the tyre's side."),
+              card("iacardst03", "When to change brake pads?", "When the grooves are gone."),
+            ],
+          },
+          {
+            id: "iabutton01",
+            category: "interactive",
+            variant: "button",
+            items: [
+              {
+                id: "iabuttn001",
+                kind: "button",
+                label: "Back to the sections",
+                description: "<p>Read the sections again before the cards.</p>",
+                destination: { kind: "lesson", entry: "ialessfold" },
+              },
+            ],
+          },
+          {
+            id: "iabuttons1",
+            category: "interactive",
+            variant: "button-stack",
+            variantSettings: { align: "center", width: "wide" },
+            items: [
+              {
+                id: "iabuttn002",
+                kind: "button",
+                label: "A maintenance guide",
+                description: "<p>An outside page with more detail.</p>",
+                destination: { kind: "url", url: "https://example.org/bicycle-care" },
+              },
+              {
+                id: "iabuttn003",
+                kind: "button",
+                label: "See the steps again",
+                destination: { kind: "lesson", entry: "ialesspict" },
+              },
+              {
+                id: "iabuttn004",
+                kind: "button",
+                label: "Leave the course",
+                destination: { kind: "exit" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    media: [svg("iamediabik", "bike.svg", 960, 600), svg("iamediawhl", "wheel.svg", 480, 480)],
   };
 }
 

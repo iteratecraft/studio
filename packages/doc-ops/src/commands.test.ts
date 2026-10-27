@@ -179,7 +179,7 @@ describe("update", () => {
         {
           type: "updateBlock",
           id: "block00002",
-          set: { variant: "labeled-graphic" },
+          set: { variant: "scenario" },
           unset: ["createdAt"],
         },
       ]),

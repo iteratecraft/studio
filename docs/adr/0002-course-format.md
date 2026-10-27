@@ -32,6 +32,10 @@ valid in every standard.
   text and static blocks of BLK-04, and the continue block): each setting's schema and default.
   `validateCourse` checks those variants' `variantSettings` against it as a closed object, and the
   player and the editor read the defaults from it.
+  The interactive blocks of BLK-06 (M2-14) follow: each variant also holds one kind of item
+  (`INTERACTIVE_ITEMS`: sections, markers, process cards, flashcards or buttons), a process keeps its
+  introduction first and its summary last, and a marker's icon is one of `MARKER_ICONS`. Interactive
+  variants of later epics (scenario, sorting, timeline, slides) are listed as `OPEN` and stay open.
 - JSON Schema cannot check cross-references, so `packages/format` runs a second validation pass in code
   (reference integrity, below). Both passes report errors with a JSON Pointer path.
 

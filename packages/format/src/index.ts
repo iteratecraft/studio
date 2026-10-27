@@ -63,6 +63,8 @@ export {
   embedProvider,
   FULL_BLEED,
   headingLevel,
+  INTERACTIVE_ITEMS,
+  MARKER_ICONS,
   settingsTable,
   VARIANTS,
   variantSettings,

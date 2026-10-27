@@ -110,6 +110,79 @@ const GALLERY: Record<string, Setting> = {
   cornerRadius: { schema: int(0, 30), default: 0 },
 };
 
+// Interactive blocks (M2-14, BLK-06; rise.md 3C; blocks-interactions.md 2.1 to 2.5, 2.8, 2.10).
+// Siblings the editor switches between share a table: accordion and tabs, the two flashcard
+// layouts, the button and the button stack. Interactive variants other epics bring stay open.
+
+/** Level of the heading element of the item titles; unset, the deepest the lesson allows there. */
+const ITEM_HEADING: Setting = { schema: int(2, 6) };
+
+const SECTIONS: Record<string, Setting> = {
+  // Accordion: opening a section closes the others (UI-BLOCKS-R1). Tabs show one at a time anyway.
+  oneAtATime: { schema: FLAG, default: false },
+  zoom: { schema: FLAG, default: true },
+  headingLevel: ITEM_HEADING,
+};
+
+/**
+ * The glyphs a labeled-graphic marker can show (blocks-interactions.md 2.4 "marker style"): its
+ * number in the marker list, or one of our own icons. A marker without `icon` shows its number.
+ */
+export const MARKER_ICONS = ["number", "plus", "info", "question", "star", "pin", "eye"] as const;
+
+const LABELED_GRAPHIC: Record<string, Setting> = {
+  // The picture's corners, in pixels; the markers' fill (unset: the accent) and the glyph on it.
+  cornerRadius: { schema: int(0, 30), default: 0 },
+  markerColor: { schema: COLOR },
+  markerContrast: { schema: CONTRAST, default: "auto" },
+  // Pictures in the markers' cards enlarge.
+  zoom: { schema: FLAG, default: true },
+  headingLevel: ITEM_HEADING,
+};
+
+const PROCESS: Record<string, Setting> = {
+  // A word before each step's number, the label set's unless the author gives one; off, the
+  // number alone (blocks-interactions.md 2.5 "step label").
+  stepLabel: { schema: FLAG, default: true },
+  stepWord: { schema: { type: "string", maxLength: 40 } },
+  zoom: { schema: FLAG, default: true },
+  headingLevel: ITEM_HEADING,
+};
+
+const FLASHCARDS: Record<string, Setting> = {
+  // A hint on each card that it turns over; cards sized to their content, or all `cardHeight`
+  // pixels high; a side's picture centred above its text or filling the side (2.8).
+  flipHint: { schema: FLAG, default: true },
+  autosize: { schema: FLAG, default: true },
+  cardHeight: { schema: int(120, 600), default: 240 },
+  imageStyle: { schema: choice("centered", "full"), default: "centered" },
+};
+
+const BUTTONS: Record<string, Setting> = {
+  // Each button's description beside it; the buttons' alignment and width (fit their label,
+  // wide, or the full column); their corners (unset: the theme's), fill (unset: the theme's
+  // button colour) and text on it; the space between the buttons of a stack (2.10).
+  showDescription: { schema: FLAG, default: true },
+  align: { schema: choice("left", "center", "right"), default: "left" },
+  width: { schema: choice("fit", "wide", "full"), default: "fit" },
+  cornerRadius: { schema: int(0, 30) },
+  buttonColor: { schema: COLOR },
+  buttonContrast: { schema: CONTRAST, default: "auto" },
+  spacing: { schema: int(0, 48), default: 12 },
+};
+
+/** The one kind of item each interactive variant defined here holds (rise.md §4 "Item"). */
+export const INTERACTIVE_ITEMS: Readonly<Record<string, string>> = {
+  accordion: "content",
+  tabs: "content",
+  "labeled-graphic": "marker",
+  process: "step",
+  "flashcard-grid": "flashcard",
+  "flashcard-stack": "flashcard",
+  button: "button",
+  "button-stack": "button",
+};
+
 const DIVIDER: Record<string, Setting> = {
   // A numbered divider counts on from the one above it, or starts again at its own number.
   restart: { schema: FLAG, default: false },
@@ -234,8 +307,14 @@ const each = (table: Record<string, Setting>, ...variants: string[]) =>
   Object.fromEntries(variants.map((variant) => [variant, table]));
 
 /**
+ * The settings of an interactive variant that is known but whose settings and items its own epic
+ * defines (BLK-11, BLK-12): left open, as categories not listed here are.
+ */
+export const OPEN: Record<string, Setting> = {};
+
+/**
  * The variants of each category whose settings are defined, by category and variant. A category
- * listed here has no other variants.
+ * listed here has no other variants; a variant whose table is `OPEN` is known but left open.
  */
 export const VARIANTS: Readonly<Record<string, Readonly<Record<string, Record<string, Setting>>>>> =
   {
@@ -256,6 +335,15 @@ export const VARIANTS: Readonly<Record<string, Readonly<Record<string, Record<st
     list: each(LIST, "numbered", "bulleted", "checkbox"),
     image: each(IMAGE, "centered", "full-width", "image-text", "text-on-image", "banner"),
     gallery: each(GALLERY, "carousel", "grid-2", "grid-3", "grid-4"),
+    // Interactive blocks (M2-14); scenario, sorting, timeline and slide projects come later.
+    interactive: {
+      ...each(SECTIONS, "accordion", "tabs"),
+      "labeled-graphic": LABELED_GRAPHIC,
+      process: PROCESS,
+      ...each(FLASHCARDS, "flashcard-grid", "flashcard-stack"),
+      ...each(BUTTONS, "button", "button-stack"),
+      ...each(OPEN, "scenario", "sorting", "timeline", "slides"),
+    },
     divider: { ...each(DIVIDER, "line", "numbered", "spacer"), continue: CONTINUE },
     multimedia: {
       audio: AUDIO,
@@ -267,8 +355,10 @@ export const VARIANTS: Readonly<Record<string, Readonly<Record<string, Record<st
   };
 
 /** The setting table of a block's variant, or undefined where the format leaves it open. */
-export const settingsTable = (block: Pick<Block, "category" | "variant">) =>
-  VARIANTS[block.category]?.[block.variant];
+export const settingsTable = (block: Pick<Block, "category" | "variant">) => {
+  const table = VARIANTS[block.category]?.[block.variant];
+  return table === OPEN ? undefined : table;
+};
 
 /**
  * A block's variant settings with every default filled in, for the variants defined here; the
