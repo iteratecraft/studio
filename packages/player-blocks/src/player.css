@@ -5,6 +5,7 @@
    (theme.ts) sets the --theme-* colours, the fonts and the corners on the page. */
 :root,
 .cards-white .check,
+.cards-white .card,
 .zoom-dialog {
   color-scheme: light;
   --text: #1d1f23;
@@ -1361,6 +1362,396 @@ h3.block-heading {
   margin: 0;
   color: var(--muted);
   text-align: center;
+}
+
+/* Interactive blocks (M2-14, BLK-06; blocks-interactions.md 2.2 to 2.10; interactive.ts). Item
+   cards sit on the page with a rule round them; a chosen tab, step or turned card shows it by shape
+   as well as colour; nothing moves under reduced motion (UI-ACCESSIBILITY-R40). */
+.block .card {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* One column that never grows past the block, whatever the size of the pictures in it. */
+.accordion,
+.labeled-graphic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.accordion-heading {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.accordion-button {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-icon,
+.marker-icon,
+.card-turn .icon,
+.marker-close .icon,
+.process-strip-button .icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.accordion-icon {
+  color: var(--accent);
+}
+
+.accordion-button[aria-expanded="true"] .accordion-icon {
+  transform: rotate(180deg);
+}
+
+.accordion-panel,
+.tab-panel,
+.process-card,
+.card-side .text-body {
+  padding: 0 16px 16px;
+}
+
+.tab-panel,
+.process-card {
+  padding-top: 16px;
+}
+
+.accordion-panel > * + *,
+.tab-panel > * + *,
+.process-card > * + *,
+.marker-card > * + *,
+.card-side > * + * {
+  margin-top: 12px;
+}
+
+/* Tabs scroll sideways in their own strip when they do not fit (rise.md 3N). */
+.tab-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 2px solid var(--rule);
+}
+
+.tab {
+  flex: none;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Inside the scrolling strip the focus ring is drawn inside the tab, where it is never cut off. */
+.tab:focus-visible {
+  outline-offset: -3px;
+}
+
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab-panels {
+  margin-top: 12px;
+}
+
+/* Markers sit at their percentages of the picture's box, which is the picture's own size. */
+.graphic {
+  position: relative;
+  margin: 0;
+}
+
+.graphic-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.markers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marker {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--marker, var(--accent));
+  color: var(--marker-text, var(--accent-text));
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.7);
+  font: inherit;
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+/* A marker not opened yet carries a wide halo; an opened one does not (UI-BLOCKS-R3). */
+.marker:not([data-viewed]) {
+  box-shadow:
+    0 0 0 2px rgb(0 0 0 / 0.7),
+    0 0 0 7px rgb(255 255 255 / 0.85);
+}
+
+.marker[aria-expanded="true"] {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.marker-card {
+  position: relative;
+  padding: 16px 64px 16px 16px;
+}
+
+.marker-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.marker-close,
+.card-turn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.marker-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.process-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.process-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.process-strip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 2px solid var(--accent);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.process-strip-button[aria-current="step"],
+.card-turn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.process-step {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.process-title {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+
+.flashcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+
+.flashcard {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+/* Both sides share one cell and turn on their own; the side turned away is not drawn, yet stays in
+   the accessibility tree (UI-BLOCKS-R12). */
+.card-faces {
+  display: grid;
+  flex: 1;
+  perspective: 1200px;
+}
+
+.card-side {
+  grid-area: 1 / 1;
+  padding-top: 16px;
+  backface-visibility: hidden;
+}
+
+.card-front .text-body {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.card-back,
+.is-turned .card-front {
+  transform: rotateY(180deg);
+}
+
+.is-turned .card-back {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card-side {
+    transition: transform 0.4s ease;
+  }
+
+  .accordion-icon {
+    transition: transform 0.2s ease;
+  }
+}
+
+.card-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.image-centered .card-image {
+  max-width: min(100%, 200px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.image-full {
+  padding-top: 0;
+}
+
+.image-full .card-image {
+  width: 100%;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.card-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 8px 8px 16px;
+}
+
+.card-hint {
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.card-turn {
+  margin-left: auto;
+}
+
+/* Buttons: each with its description beside it, or under it where there is no room. */
+.button-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--button-gap, 12px);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.align-center .button-row {
+  justify-content: center;
+  text-align: center;
+}
+
+.align-right .button-row {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.button-text {
+  flex: 1 1 16em;
+}
+
+.align-center .button-text {
+  flex-grow: 0;
+}
+
+.block-button {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+.buttons-wide .block-button {
+  min-width: min(100%, 16em);
+}
+
+.buttons-full .button-row {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .list {

@@ -510,6 +510,7 @@ export function startShell(
         changed();
       },
       isDone: (id) => progress.isDone(id),
+      exit: () => runtime.exit("exit"),
       watch(update) {
         updates.push(update);
         update();
