@@ -47,8 +47,11 @@ preview.dispose();
 ## Content security policy
 
 The frame inherits the editor's policy. The desktop app's policy (`apps/desktop/README.md`) adds
-for it: `FRAME_SCRIPT_HASH` and `blob:` in `script-src`, `blob:` in `style-src`, `img-src` and `font-src`
-(the theme's fonts, M2-17), and `frame-src data:`. `FRAME_SCRIPT` is a literal whose hash is pinned there; change both together
+for it: `FRAME_SCRIPT_HASH` and `blob:` in `script-src`, `blob:` in `style-src`, `img-src`,
+`media-src` (audio, video and caption tracks, M2-13) and `font-src` (the theme's fonts, M2-17), and
+`frame-src data:`. A web embed shows where it plays and loads nothing in the preview (the player
+sees the in-memory files hook). `FRAME_SCRIPT` is a literal whose hash is pinned there; change both
+together
 (`src/files.test.ts` and `apps/desktop/test/shell.test.ts` fail until they match).
 
 ## Measured

@@ -182,11 +182,11 @@ test.describe("block library", () => {
     await expect(search).toBeFocused();
     // Every type is listed; those the player cannot show yet are there but unavailable.
     const types = library.getByRole("listbox", { name: "Block library" });
-    await expect(types.getByRole("option", { name: /^Columns/ })).toHaveAttribute(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(types.getByRole("option", { name: /^Columns/ })).toContainText(
+    await expect(types.getByRole("option", { name: /^Accordion/ })).toContainText(
       "Not available yet",
     );
     await expect(types.getByRole("option", { name: "Single choice" })).not.toHaveAttribute(
@@ -596,12 +596,11 @@ test.describe("block settings and preview", () => {
     await paragraph.getByRole("button", { name: "Style" }).click();
     const style = page.getByRole("dialog", { name: "Style" });
     await style.getByRole("button", { name: /Background/ }).click();
-    // Theme colours come with the course theme (M2-17), images with media.
-    await expect(page.getByRole("option", { name: /^Theme colour/ })).not.toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    await expect(page.getByRole("option", { name: /^Image/ })).toContainText("Comes with images");
+    // No background is held back: theme colours follow the course theme (M2-17), images come
+    // through media intake (M2-13).
+    for (const name of [/^Theme colour/, /^Theme tint/, /^Image/]) {
+      await expect(page.getByRole("option", { name })).not.toHaveAttribute("aria-disabled");
+    }
     await page.getByRole("option", { name: "Dark" }).click();
     let block = lessonIn(await saved(page), "lessplan01").blocks[1];
     expect(block?.settings).toEqual({ background: { kind: "color", color: "#2b3038" } });
@@ -1347,7 +1346,9 @@ test.describe("block previews and appearance", () => {
       blockRow(page, "Planning", "Heading: Find the sun").locator(".be-block-preview h2"),
     ).toHaveText("Find the sun");
     // The image from the course file, as an in-memory address.
-    const image = blockRow(page, "Planning", "Centred image").locator(".be-block-preview img");
+    const image = blockRow(page, "Planning", "Centred image").locator(
+      ".be-block-preview img.image",
+    );
     await expect(image).toHaveAttribute("src", /^blob:/);
     await expect
       .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))

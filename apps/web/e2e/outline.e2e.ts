@@ -164,7 +164,7 @@ test.describe("course outline", () => {
     await page.keyboard.press("Tab");
     await expect(button(page, "Add")).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("menuitem", { name: "Lesson" })).toBeFocused();
+    await expect(page.getByRole("menuitem", { name: "Lesson", exact: true })).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("menuitem", { name: "Quiz" })).toBeFocused();
     await page.keyboard.press("Enter");

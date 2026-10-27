@@ -194,7 +194,9 @@ describe("size caps", { timeout: LOOPS }, () => {
       // Parts are dropped in the fixed order only.
       expect(DROP_ORDER.filter((part) => result.dropped.includes(part))).toEqual(result.dropped);
     }
-  });
+    // About 0.5 s locally but over the 5 s default on the shared Windows CI runner, where every
+    // package's tests run at once; as for the round trip above.
+  }, 30_000);
 
   test("a part is dropped only when the payload is over the cap without it dropped", () => {
     const random = seeded(4);
@@ -204,7 +206,7 @@ describe("size caps", { timeout: LOOPS }, () => {
       const result = encodeResume(state, { packageVersion: "7", cap: full });
       expect(result).toEqual({ ok: true, payload: encode(state), dropped: [] });
     }
-  });
+  }, 30_000);
 
   test("parts drop in the fixed order: scroll, then media, then visits of finished sections", () => {
     const state: ResumeState = {

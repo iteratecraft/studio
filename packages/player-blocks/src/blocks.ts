@@ -1,13 +1,23 @@
-// Walking-skeleton block renderers (M1-10): text, heading, image, continue and the knowledge checks.
-// Each renderer reads one block of the course document and returns its element, or undefined for a
-// block it cannot show; other block families arrive with their own epics.
-import type { Block, ContentItem, Course, Response } from "@course-suite/format";
-import { accentReadable, isCorrect, SURFACE, textOn } from "@course-suite/format";
+// Block renderers: the continue block and the knowledge checks (M1-10) here, the text and static
+// blocks in static.ts (BLK-04). Each renderer reads one block of the course document and returns
+// its element, or undefined for a block it cannot show; other block families arrive with their own
+// epics.
+import type { Block, Course, Response } from "@course-suite/format";
+import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
-import { h, richText, uid } from "./dom.js";
+import { h, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
+import {
+  attachmentBlock,
+  audioBlock,
+  codeSnippetBlock,
+  embedBlock,
+  narrationOf,
+  videoBlock,
+} from "./media.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
+import { STATIC_RENDERERS, type StaticContext } from "./static.js";
 import { themeBackground } from "./theme.js";
 
 /** What a lesson page gives its blocks: progress, gates and saved answers. */
@@ -21,6 +31,14 @@ export interface LessonHooks {
   saved(questionId: string): Response | undefined;
   /** Runs `update` now and after every progress change. */
   watch(update: () => void): void;
+  /**
+   * An item of a checklist or carousel was done (a box ticked, a slide shown) or undone; or, given
+   * the block's own id, a block finished by one action was (audio or video with forward seeking
+   * off, played to the end).
+   */
+  itemDone(block: Block, item: string, isDone?: boolean): void;
+  /** Whether a block or an item is done, to show again on return. */
+  isDone(id: string): boolean;
 }
 
 export interface BlockContext {
@@ -31,21 +49,21 @@ export interface BlockContext {
   mediaUrl?: (key: string) => string;
 }
 
-type Renderer = (block: Block, context: BlockContext) => HTMLElement | undefined;
+type Renderer = (block: Block, context: StaticContext) => HTMLElement | undefined;
 
 const RENDERERS: Record<string, Renderer> = {
-  "text/paragraph": (block, { labels }) => textBlock(block, labels, undefined),
-  "text/paragraph-with-heading": (block, { labels }) => textBlock(block, labels, 2),
-  "text/paragraph-with-subheading": (block, { labels }) => textBlock(block, labels, 3),
-  "text/heading": (block, { labels }) => headingBlock(block, labels, 2),
-  "text/subheading": (block, { labels }) => headingBlock(block, labels, 3),
-  "image/centered": (block, context) => imageBlock(block, context),
-  "image/full-width": (block, context) => imageBlock(block, context),
+  ...STATIC_RENDERERS,
   "divider/continue": continueBlock,
   "knowledge-check/single-choice": check,
   "knowledge-check/multiple-response": check,
   "knowledge-check/fill-in": check,
   "knowledge-check/matching": check,
+  // Multimedia blocks (M2-13; media.ts).
+  "multimedia/audio": audioBlock,
+  "multimedia/video": videoBlock,
+  "multimedia/embed": embedBlock,
+  "multimedia/attachment": attachmentBlock,
+  "multimedia/code-snippet": codeSnippetBlock,
 };
 
 /**
@@ -56,9 +74,10 @@ const RENDERERS: Record<string, Renderer> = {
  */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
+  const staticContext = { ...context, mediaUrl: context.mediaUrl ?? mediaUrl };
   let content: HTMLElement | undefined;
   try {
-    content = render?.(block, context);
+    content = render?.(block, staticContext);
   } catch (error) {
     // A block the builder let through but this renderer cannot read must not take the lesson down.
     console.error(`Block ${block.id} could not be shown`, error);
@@ -66,14 +85,18 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (!content) return undefined;
   const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
     block.settings ?? {};
-  const full = block.variant === "full-width";
+  const full = FULL_BLEED.has(`${block.category}/${block.variant}`);
+  const narration = narrationOf(block, staticContext);
+  const top = narration && block.settings?.narration?.position === "top";
   const frame = h(
     "div",
     { class: `block block-${block.category}`, "data-block": block.id },
     h(
       "div",
       { class: full ? "block-inner width-full" : `block-inner width-${contentWidth ?? "medium"}` },
+      top ? narration : undefined,
       content,
+      top ? undefined : narration,
     ),
   );
   // Through the style object, not a style attribute, which a page's content security policy may
@@ -82,13 +105,27 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.paddingTop = `${padding.top}px`;
     frame.style.paddingBottom = `${padding.bottom}px`;
   }
-  // shortcut: an image background shows as no background until media blocks arrive (M2-13).
+  // An image background with its overlay: a dark one makes the text light, a light one dark
+  // (UI-BLOCKS-EDITOR-R22).
+  const image =
+    background?.kind === "image" &&
+    context.course.media.find((media) => media.key === background.image.key);
+  if (background?.kind === "image" && image) {
+    const dark = background.overlay !== "light";
+    const alpha = Math.min(100, Math.max(0, background.opacity ?? 50));
+    const tint = dark ? `rgb(0 0 0 / ${alpha}%)` : `rgb(255 255 255 / ${alpha}%)`;
+    const url = staticContext.mediaUrl(image.variantKey ?? image.key);
+    frame.style.backgroundImage = `linear-gradient(${tint}, ${tint}), url("${url}")`;
+    frame.style.backgroundSize = "cover";
+    frame.style.backgroundPosition = "center";
+    frame.classList.add("has-background", dark ? "text-light" : "text-dark");
+    if (cardStyle !== "transparent") frame.classList.add("cards-white");
+  }
   // Theme colour and tint follow the course theme, with its contrast (UI-BLOCKS-EDITOR-R45).
-  const themed = themeBackground(block, context.course);
   const fill =
     background?.kind === "color"
       ? { color: background.color, text: textOn(background.color, textContrast) }
-      : themed;
+      : themeBackground(block, context.course);
   if (fill) {
     frame.style.backgroundColor = fill.color;
     frame.classList.add("has-background", `text-${fill.text}`);
@@ -114,61 +151,6 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     }
   }
   return frame;
-}
-
-const firstContent = (block: Block): ContentItem | undefined =>
-  block.items?.find((item): item is ContentItem => item.kind === "content");
-
-/** Heading level from `variantSettings.headingLevel` (2 to 6), for an accessible outline. */
-function headingLevel(block: Block, fallback: number): number {
-  const level = block.variantSettings?.headingLevel;
-  return typeof level === "number" && Number.isInteger(level) && level >= 2 && level <= 6
-    ? level
-    : fallback;
-}
-
-function heading(level: number, html: string, labels: Labels): HTMLElement {
-  return h(`h${level}` as "h2", { class: "block-heading" }, richText(html, labels));
-}
-
-function headingBlock(block: Block, labels: Labels, level: number): HTMLElement | undefined {
-  const title = firstContent(block)?.title;
-  return title ? heading(headingLevel(block, level), title, labels) : undefined;
-}
-
-function textBlock(
-  block: Block,
-  labels: Labels,
-  level: number | undefined,
-): HTMLElement | undefined {
-  const item = firstContent(block);
-  if (!item?.text && !item?.title) return undefined;
-  return h(
-    "div",
-    { class: "text" },
-    level !== undefined && item.title
-      ? heading(headingLevel(block, level), item.title, labels)
-      : undefined,
-    item.text ? richText(item.text, labels) : undefined,
-  );
-}
-
-function imageBlock(
-  block: Block,
-  { course, mediaUrl: url = mediaUrl }: BlockContext,
-): HTMLElement | undefined {
-  const ref = block.media?.[0];
-  const entry = ref && course.media.find((media) => media.key === ref.key);
-  if (!ref || !entry) return undefined;
-  // An empty or missing alt text marks the image as decorative (ADR-0002 MediaRef).
-  return h("img", {
-    class: "image",
-    src: url(entry.variantKey ?? entry.key),
-    alt: ref.alt ?? "",
-    width: entry.width,
-    height: entry.height,
-    loading: "lazy",
-  });
 }
 
 /** Address of a media file: its path in the package, relative to the index page (see fileUrl). */

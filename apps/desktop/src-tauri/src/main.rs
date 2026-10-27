@@ -5,6 +5,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod files;
+mod media;
 mod picks;
 
 fn main() {
@@ -12,6 +13,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .menu(tauri::menu::Menu::default)
+        .manage(media::Tasks::default())
         .setup(|app| {
             picks::remember(app.handle())?;
             // The window title follows the page's title, which names the open course and whether
@@ -37,6 +39,10 @@ fn main() {
             files::rename_file,
             files::remove_path,
             files::list_folder,
+            media::media_converter,
+            media::media_install,
+            media::media_convert,
+            media::media_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the app");

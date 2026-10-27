@@ -40,8 +40,11 @@ describe("valid documents", () => {
       edit(fullCourse(), "/ext", { "org.example.plugin": { id: "lesson0001", ref: "missing001" } }),
     ],
     [
-      "any JSON as variant settings",
-      edit(fullCourse(), `${BLOCK}/variantSettings`, { chart: { series: [[1, 2]] }, label: null }),
+      "any JSON as the settings of a variant the format leaves open",
+      edit(fullCourse(), `${GRAPHIC}/variantSettings`, {
+        chart: { series: [[1, 2]] },
+        label: null,
+      }),
     ],
     [
       "a button to a quiz entry",

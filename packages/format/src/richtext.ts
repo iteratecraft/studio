@@ -9,6 +9,7 @@ export const RICH_TEXT_ELEMENTS: ReadonlySet<string> = new Set([
   "b",
   "blockquote",
   "br",
+  "caption",
   "cite",
   "code",
   "del",
@@ -33,6 +34,12 @@ export const RICH_TEXT_ELEMENTS: ReadonlySet<string> = new Set([
   "strong",
   "sub",
   "sup",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
   "u",
   "ul",
 ]);
@@ -69,3 +76,11 @@ export const lessonLink = (page: string, block?: string): string =>
 /** A link address the player keeps: web and mail addresses, and links to a lesson or a block. */
 export const isSafeLink = (href: string): boolean =>
   /^(https?:|mailto:)/i.test(href.trim()) || isLessonLink(href);
+
+/**
+ * A link a setting holds (an image's link, blocks-editor.md 2.10), as a JSON Schema pattern: a
+ * web or mail address, or a link to a lesson or a block of one, as isSafeLink allows, with no
+ * space in or around it.
+ */
+export const LINK_PATTERN =
+  "^((?:[hH][tT][tT][pP][sS]?://|[mM][aA][iI][lL][tT][oO]:)\\S+|#/lessons/[^/?#\\s]+(/[^/?#\\s]+)?)$";

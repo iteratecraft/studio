@@ -1,6 +1,7 @@
 export { accentReadable, contrastRatio, luminance, SURFACE, textOn } from "./contrast.js";
 export type * from "./course.js";
 export { activityIri, newContentId, newProjectId, withNewProjectId } from "./ids.js";
+export { mediaKeysIn, usedMediaKeys } from "./media.js";
 export type { JsonObject, MigrateResult, Migration } from "./migrate.js";
 export { compareVersions, MIGRATIONS, migrate, parseVersion, SCHEMA_VERSION } from "./migrate.js";
 export type { OpenResult } from "./open.js";
@@ -23,6 +24,7 @@ export {
 export {
   isLessonLink,
   isSafeLink,
+  LINK_PATTERN,
   lessonLink,
   RICH_TEXT_ATTRIBUTES,
   RICH_TEXT_DROPPED,
@@ -53,3 +55,17 @@ export {
 } from "./theme.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
+export type { EmbedProvider, Setting } from "./variants.js";
+export {
+  deepestHeadingLevel,
+  defaultHeadingLevel,
+  EMBED_PROVIDERS,
+  embedProvider,
+  FULL_BLEED,
+  headingLevel,
+  settingsTable,
+  VARIANTS,
+  variantSettings,
+} from "./variants.js";
+export type { Cue, VttResult } from "./vtt.js";
+export { cleanCueText, formatVttTime, parseVtt, parseVttTime, serializeVtt } from "./vtt.js";

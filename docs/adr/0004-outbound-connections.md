@@ -35,13 +35,19 @@ ship inside the package. M1-30 tests every output and fails on any request outsi
 | Destination | Purpose | When it connects | Off switch |
 |---|---|---|---|
 | Update check (GitHub Releases) | Offer new desktop versions | At start and once a day, desktop only | Setting "Check for updates"; an admin policy file can force it off |
-| oEmbed endpoint of the media host | Title, thumbnail and embed code for a pasted media link | Only when the author pastes or refreshes a link | Setting "Fetch link details"; when off, the author enters embed code by hand |
+| ~~oEmbed endpoint of the media host~~ | None: by D-44 the editor matches a pasted link against a short built-in provider list and calls no lookup service (`packages/blocks-editor/src/embed.ts`) | Never | n/a |
+| Media converter download (GitHub Releases, D-43) | The pinned LGPL FFmpeg build that converts audio and video that is not web-ready (`apps/desktop/src-tauri/media-tool.json`) | Desktop only, once, after the author agrees when they first add such a file; the download is checked by SHA-256 | Answer "Not now": nothing is downloaded and the file is not added; web-ready files never need it |
 | Web font catalogue | List and download fonts the author picks; they are then stored in the project and shipped in the package | Only when the author opens the catalogue or picks a font | Setting "Online fonts"; system, bundled and uploaded fonts still work |
 | AI providers (own key, company key or local model) | Writing help, translation, generation | Only on an author's AI action, and only once a provider is configured | No provider is configured by default; removing it turns AI off |
 | Company server (publish, sync; ENG-41, M8) | Publish and sync projects | Only after the author signs in to a server URL | Sign out |
 
 - **No telemetry by default.** Opt-in telemetry, if ever wanted, needs a new ADR.
 - Preview may load third-party media that the author embedded; that is the author's own content.
+  (M2-13: the desktop app's preview shows where an embed plays without loading it, as its content
+  security policy allows no third-party frame.)
+- An embed in a published course loads its provider's frame only when the learner asks for it
+  (D-44); until then the package requests nothing from outside (M1-30 tests every output with an
+  embed in it).
 - A new destination needs a row here, with purpose and off switch, before its code is merged. Known
   rows still to come with their tasks: the stock media library searched from the editor (rise.md §3 C
   "Block library").

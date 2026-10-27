@@ -3,7 +3,13 @@
 // it. Same course, player, media and options always give the same bytes.
 import { FONT_FACES, type FontFiles, fontFormat } from "@course-suite/fonts";
 import type { Course, FontRef, FontRole, PublishSettings } from "@course-suite/format";
-import { fontKey, fontsOf, validateCourse } from "@course-suite/format";
+import {
+  EMBED_PROVIDERS,
+  fontKey,
+  fontsOf,
+  usedMediaKeys,
+  validateCourse,
+} from "@course-suite/format";
 import type { CourseFonts, PackagedFace } from "@course-suite/player-blocks";
 import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
 import { checkResume, resumeCapFor } from "@course-suite/tracking";
@@ -135,9 +141,15 @@ export const FONTS_FOLDER = "fonts";
 /** The storage key a package takes a media entry's bytes from: its optimised variant when it has one. */
 const packagedKey = (entry: Course["media"][number]) => entry.variantKey ?? entry.key;
 
+/** The media index entries the course refers to; a file nothing uses stays out of packages (BLK-05). */
+const usedMedia = (course: Course) => {
+  const used = usedMediaKeys(course);
+  return course.media.filter((entry) => used.has(entry.key));
+};
+
 /** Storage keys of every media file a package of `course` holds, each once: what `media` is asked for. */
 export const packagedMediaKeys = (course: Course): string[] => [
-  ...new Set(course.media.map(packagedKey)),
+  ...new Set(usedMedia(course).map(packagedKey)),
 ];
 
 /**
@@ -152,7 +164,7 @@ export function courseDataFor(
   fonts?: CourseFonts,
 ): CourseData {
   const media = Object.fromEntries(
-    course.media.map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
+    usedMedia(course).map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
   );
   return {
     course: withoutExt(course),
@@ -268,7 +280,7 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     });
   }
 
-  // Asset collector: every media index entry, as its optimised variant when it has one.
+  // Asset collector: every media file the course uses, as its optimised variant when it has one.
   const collected = new Set<string>();
   for (const key of packagedMediaKeys(course)) {
     const path = `${MEDIA_FOLDER}/${key}`;
@@ -316,7 +328,13 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     ...(input.allowedUrls ?? []),
     ...(exporter.lrs ? [exporter.lrs.endpoint] : []),
   ];
-  problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed, collected));
+  // The player's code names each embed provider's player address, exactly, to hold an embed to its
+  // provider (D-44); it frames one only for an embed the author put in, when the learner asks.
+  const named = Object.values(EMBED_PROVIDERS);
+  problems.push(
+    ...findModuleCode(shipped),
+    ...findOutboundUrls(shipped, allowed, collected, named),
+  );
   if (problems.length > 0) return fail(problems);
 
   // The descriptor is checked against the files actually in the package, not the list it was given.

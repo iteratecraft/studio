@@ -15,6 +15,7 @@ import {
 } from "@course-suite/ui";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEFAULT_LANGUAGE, languageCode, shownTitle, TITLE_MAX } from "./course.js";
+import { CoverImageField } from "./cover.js";
 import { DraftField, DraftSession, LinkTargets, RichDraftField } from "./fields.js";
 import type { FontLibrary } from "./fonts.js";
 import { LessonContent, LessonView } from "./lesson.js";
@@ -327,6 +328,7 @@ function CourseFields({ session }: { session: CourseSession }) {
             : { type: "updateCourse", unset: ["description"] }
         }
       />
+      <CoverImageField editor={editor} />
     </div>
   );
 }

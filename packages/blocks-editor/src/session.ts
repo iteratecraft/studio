@@ -131,6 +131,20 @@ export class CourseSession {
     await addAsset(this.#project, asset.data, asset.info, key);
   }
 
+  /**
+   * Adds a new media file to the course's store and returns its storage key, made from the file's
+   * content hash: the same bytes added twice are stored once, under one key (M2-13 dedupe).
+   */
+  addMedia(data: Uint8Array, info: AssetInfo): Promise<string> {
+    return addAsset(this.#project, data, info);
+  }
+
+  /** The name a media file was added with, for the author; undefined for an unknown key. */
+  mediaName(key: string): string | undefined {
+    const { assets } = this.#project;
+    return Object.hasOwn(assets, key) ? assets[key]?.name : undefined;
+  }
+
   /** Writes an autosave of the latest edits, if any, for crash recovery. */
   autosave(): Promise<void> {
     return this.#write(async () => {

@@ -16,6 +16,11 @@
 //     modified font, which may not keep a reserved name. An app's build output (apps/*/dist, once
 //     built) is a copy too (OFL-1.1 section 2): each bundled font in it needs its family's OFL.txt
 //     somewhere in the same output, and a font that is no bundled font fails.
+// (e) Programs an app downloads at run time instead of shipping them (D-12, D-43: the desktop app's
+//     media converter, pinned in apps/desktop/src-tauri/media-tool.json) run as separate processes,
+//     so LGPL is accepted for them as for app dependencies, and GPL and the others fail. Each pin
+//     must say it is not bundled, name an https download and its SHA-256, and be named in
+//     THIRD_PARTY_NOTICES.md outside the generated block.
 //
 // Reviewed exceptions live in exceptions.json next to this file, as an array of
 //   { "name": "pkg", "licence": "<exact licence string reported>", "inCourses": false,
@@ -352,6 +357,33 @@ if (start < 0 || end < start) {
     console.log(`Updated ${NOTICES_FILE}.`);
   } else if (next !== current) {
     problems.push(`${NOTICES_FILE} is out of date; run pnpm check:licences --write`);
+  }
+}
+
+// (e) Downloaded programs.
+const DOWNLOADED = ["apps/desktop/src-tauri/media-tool.json"];
+for (const file of DOWNLOADED) {
+  const path = join(root, file);
+  if (!existsSync(path)) {
+    problems.push(`${file}: the pin of a downloaded program is missing`);
+    continue;
+  }
+  const pin = readJson(path) as Partial<Record<string, unknown>>;
+  const licence = typeof pin.licence === "string" ? pin.licence : "Unknown";
+  const reason = rejection(licence, false);
+  if (reason) problems.push(`${file}: ${reason} for a downloaded program`);
+  if (pin.bundled !== false) {
+    problems.push(`${file}: a downloaded program must not be bundled ("bundled": false)`);
+  }
+  if (typeof pin.url !== "string" || !pin.url.startsWith("https://")) {
+    problems.push(`${file}: needs the https address it is downloaded from`);
+  }
+  if (typeof pin.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(pin.sha256)) {
+    problems.push(`${file}: needs the SHA-256 of the download`);
+  }
+  const outside = current.slice(0, Math.max(0, start)) + current.slice(Math.max(0, end));
+  if (typeof pin.name !== "string" || !outside.includes(pin.name)) {
+    problems.push(`${NOTICES_FILE} must name the downloaded program ${String(pin.name)} (${file})`);
   }
 }
 

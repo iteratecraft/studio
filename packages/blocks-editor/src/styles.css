@@ -806,3 +806,163 @@ body,
   padding-inline-start: var(--cs-space-6);
   overflow-wrap: anywhere;
 }
+
+/* Text and static blocks (M2-12): items, pictures and tables in a block's fields. */
+.be-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  padding: var(--cs-space-3);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.be-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-1);
+}
+
+.be-item-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.be-image-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-image-slot > .cs-Field {
+  align-self: stretch;
+}
+
+.be-warning {
+  margin: 0;
+  color: var(--cs-danger);
+  font-size: var(--cs-text-sm);
+  font-weight: 600;
+}
+
+.be-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  min-width: 0;
+}
+
+.be-table-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+  overflow-x: auto;
+}
+
+.be-table-row {
+  display: flex;
+  gap: var(--cs-space-1);
+}
+
+.be-table-row > .cs-Field {
+  flex: 1 0 8rem;
+}
+
+.be-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-space-2);
+}
+
+/* Media intake and media blocks (M2-13). */
+.be-drop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-space-2) var(--cs-space-3);
+  align-items: center;
+  padding: var(--cs-space-3);
+  border: 1px dashed var(--cs-control-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.be-drop.is-over {
+  border-style: solid;
+  background: var(--cs-accent-soft);
+}
+
+.be-captions,
+.be-image-setting,
+.be-caption-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+}
+
+.be-media-list,
+.be-cues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.be-media-list > li > div,
+.be-cues > li > div,
+.be-media-list > li.be-media-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  padding: var(--cs-space-3);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+}
+
+.be-media-row,
+.be-cue-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-space-2);
+  align-items: end;
+}
+
+.be-media-row > :first-child {
+  flex: 1 1 auto;
+}
+
+.be-cue-times > .cs-Field {
+  flex: 1 1 9rem;
+}
+
+.be-caption-editor {
+  width: min(40rem, 85vw);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.be-task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
+  width: min(28rem, 80vw);
+}
+
+.be-problems {
+  margin: 0;
+  padding-left: var(--cs-space-6);
+}
+
+.be-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.be-code textarea {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  white-space: pre;
+}

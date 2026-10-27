@@ -7,6 +7,7 @@ import {
   type FileRef,
   HostError,
   type HostInterface,
+  type HostMedia,
   type OpenOptions,
   projectFolder,
   type SaveOptions,
@@ -21,6 +22,11 @@ export interface MemoryHostInit {
   onPickOpen?: (options: OpenOptions) => string[];
   /** What the save dialog returns: the id the user picks, or `null`. Default: the suggested name. */
   onPickSave?: (options: SaveOptions) => string | null;
+  /**
+   * A stand-in media converter, for tests of the convert flow; without it the host has no `media`,
+   * like the browser. Its input must be a file the editor may read, as on desktop.
+   */
+  media?: HostMedia;
 }
 
 export interface MemoryHost extends HostInterface {
@@ -59,6 +65,7 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
     removeItem: (key) => values.delete(key),
   };
   let closeListener: (() => Promise<boolean>) | undefined;
+  const { media } = init;
   return {
     disk,
     requestClose: async () => (closeListener ? closeListener() : true),
@@ -133,5 +140,14 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
       },
     },
     storage: createKeyValueStorage(store),
+    ...(media && {
+      media: {
+        ...media,
+        convert: async (input, kind, options) => {
+          granted(input);
+          return media.convert(input, kind, options);
+        },
+      } satisfies HostMedia,
+    }),
   };
 }

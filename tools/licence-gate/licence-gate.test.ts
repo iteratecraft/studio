@@ -269,8 +269,21 @@ describe("check:licences", () => {
     mkdirSync(desktop, { recursive: true });
     cpSync(join(fonts, "literata", "bold.woff2"), join(desktop, "bold-abc.woff2"));
     cpSync(join(fonts, "literata", "OFL.txt"), join(desktop, "OFL-def.txt"));
+    // A downloaded program (D-43): GPL, bundled, and not named in the notices.
+    editJson(join(dir, "apps", "desktop", "src-tauri", "media-tool.json"), (pin) => {
+      pin.licence = "GPL-3.0-or-later";
+      pin.bundled = true;
+      pin.name = "Some converter 1.0";
+    });
 
     const result = gate(dir);
+    for (const message of [
+      "media-tool.json: GPL-3.0-or-later is not allowed for a downloaded program",
+      'media-tool.json: a downloaded program must not be bundled ("bundled": false)',
+      "THIRD_PARTY_NOTICES.md must name the downloaded program Some converter 1.0",
+    ]) {
+      expect(result.output).toContain(message);
+    }
     for (const [pkg, license, message] of cases) {
       expect(result.output).toContain(`${pkg}: license is "${license}", ${message}`);
     }

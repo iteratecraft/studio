@@ -28,7 +28,7 @@ use tauri_plugin_fs::FsExt;
 
 /// Where a path is, as far as the page's access goes.
 #[derive(Debug, PartialEq)]
-enum Place {
+pub(crate) enum Place {
     /// Anything in the data folder.
     Data,
     /// A file the user picked.
@@ -94,13 +94,13 @@ fn is_plain_name(name: &str) -> bool {
 }
 
 /// The data folder: `data` in the app local data folder, which also holds WebView2's profile.
-fn data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+pub(crate) fn data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     Ok(dir.join("data"))
 }
 
 /// The place of `path`, or a "not-allowed" refusal.
-fn checked<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<Place, String> {
+pub(crate) fn checked<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<Place, String> {
     let scope = app.fs_scope();
     place(path, &data_dir(app)?, &|p| scope.is_allowed(p)).ok_or_else(|| not_allowed(path))
 }
