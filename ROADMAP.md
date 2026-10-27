@@ -502,6 +502,14 @@ Wave I, release:
 | D-44 | Web embeds | **Decided 2026-10-26:** a short built-in provider list matched by URL pattern, no lookup service while authoring; the learner's browser loads the provider only when the learner plays it | done |
 | D-45 | Bundled fonts | **Decided 2026-10-26:** 8 open-licence (OFL) families as woff2 Latin subsets, about 1 MB; custom .woff upload; exports carry only the fonts used | done |
 | D-46 | Quiz flow (not in the spec) | **Decided 2026-10-26:** one question per page, submit, feedback, then a results page with retry | done |
+| D-47 | Converted media format (with D-12) | **Decided 2026-10-27:** video is converted to WebM (VP9 + Opus) and audio to MP3, royalty-free and possible with the LGPL build; uploaded MP4 H.264 is kept as it is | done |
+| D-48 | Largest single media file | **Decided 2026-10-27:** 2 GiB now; 5 GB once the project container supports ZIP64 and streams entries | done |
+| D-49 | ffmpeg download source (with D-43) | **Decided 2026-10-27:** mirror the pinned build to an iteratecraft GitHub release before Desktop 0.1 (M2-19); the SHA-256 stays the same | open until M2-19 |
+| D-50 | Default font when the author picks none | **Decided 2026-10-27:** the device's own fonts, so exports carry no font files | done |
+| D-51 | Rich-text styling (font, size, colour, line height, letter spacing, alignment, bullet style, indent) | **Decided 2026-10-27:** a closed set of named styles stored in the format, never free CSS; built in M2b | open (M2b) |
+| D-52 | Waves for deferred media items | **Decided 2026-10-27:** crop and alignment, video and embed width, video chapters, recorded narration in M2b; SRT, SBV and SUB caption import with SLD-10 in M5b; AI captions with LOC-09 in M6; AI speech with LOC-08 in M6b | done |
+| D-53 | Cover layouts | **Decided 2026-10-27:** four layouts: picture left, picture right, title over picture, no picture | done |
+| D-54 | Heading levels | **Decided 2026-10-27:** the editor disables or flags levels that skip one; the player publishes the level the author chose | done |
 
 ## How to read the backlog
 
