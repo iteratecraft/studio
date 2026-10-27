@@ -256,6 +256,94 @@ describe("knowledge checks", () => {
   });
 });
 
+describe("knowledge-check tries (M2-15)", () => {
+  const limited = (retries: number, requireCorrect = false): Block => ({
+    ...check(),
+    variantSettings: { retries, ...(requireCorrect && { requireCorrect }) },
+  });
+  const wrongOf = (kc: Block) => answersOf(kc.question as never).wrong;
+  const rightOf = (kc: Block) => answersOf(kc.question as never).right;
+
+  test("UI-BLOCKS-R24: retries are unlimited by default and offered only after a wrong answer", () => {
+    const kc = check();
+    const page = lesson(kc);
+    const progress = createProgress(course([page]));
+    expect(progress.check(kc)).toEqual({
+      answered: false,
+      correct: false,
+      triesLeft: Infinity,
+      canRetry: false,
+    });
+    for (let i = 0; i < 5; i++) progress.answerCheck(page, kc, wrongOf(kc), false);
+    expect(progress.check(kc)).toMatchObject({ answered: true, canRetry: true });
+    progress.answerCheck(page, kc, rightOf(kc), true);
+    expect(progress.check(kc)).toMatchObject({ correct: true, canRetry: false });
+    // Unlimited retries keep no count in the saved state.
+    expect(progress.snapshot().attempts).toEqual({});
+  });
+
+  test("UI-BLOCKS-R24: with a limit of one retry the second wrong answer leaves none, and later answers are ignored", () => {
+    const kc = limited(1);
+    const page = lesson(kc);
+    const progress = createProgress(course([page]));
+    progress.answerCheck(page, kc, wrongOf(kc), false);
+    expect(progress.check(kc)).toMatchObject({ triesLeft: 1, canRetry: true });
+    progress.answerCheck(page, kc, wrongOf(kc), false);
+    expect(progress.check(kc)).toMatchObject({ triesLeft: 0, canRetry: false, correct: false });
+    progress.answerCheck(page, kc, rightOf(kc), true);
+    expect(progress.check(kc).correct).toBe(false);
+    expect(progress.snapshot().attempts).toEqual({ [kc.id]: [0, 0] });
+  });
+
+  test("UI-BLOCKS-R24: a right answer never offers a retry, even with tries left", () => {
+    const kc = limited(3);
+    const page = lesson(kc);
+    const progress = createProgress(course([page]));
+    progress.answerCheck(page, kc, rightOf(kc), true);
+    expect(progress.check(kc)).toMatchObject({ correct: true, triesLeft: 3, canRetry: false });
+  });
+
+  test("UI-BLOCKS-R25: a required check whose tries are spent on wrong answers keeps the rest of the lesson hidden", () => {
+    const kc = limited(0, true);
+    const page = lesson(kc, text());
+    const progress = createProgress(course([page, lesson(text())]));
+    progress.view(page);
+    progress.answerCheck(page, kc, wrongOf(kc), false);
+    expect(progress.check(kc).canRetry).toBe(false);
+    expect(progress.shownBlocks(page)).toBe(1);
+    expect(progress.courseDone()).toBe(false);
+  });
+
+  test("tries and the last answer survive a resume through the SCORM 1.2 codec", () => {
+    const kc = limited(2);
+    const page = lesson(kc);
+    const doc = course([page]);
+    const progress = createProgress(doc);
+    progress.answerCheck(page, kc, wrongOf(kc), false);
+    const encoded = encodeResume(progress.snapshot(), {
+      packageVersion: "1",
+      cap: RESUME_CAPS.scorm12,
+    });
+    if (!encoded.ok) throw new Error("does not fit");
+    const decoded = decodeResume(encoded.payload);
+    if (decoded.status !== "ok") throw new Error(decoded.status);
+    const resumed = createProgress(doc, decoded.state);
+    expect(resumed.check(kc)).toEqual({
+      answered: true,
+      correct: false,
+      triesLeft: 2,
+      canRetry: true,
+    });
+  });
+
+  test("standards.md §4.2: the largest saved state counts every try of a check with a retry limit", () => {
+    const kc = limited(2);
+    expect(largestResume(course([lesson(kc, check())])).attempts).toEqual({
+      [kc.id]: [100, 100, 100],
+    });
+  });
+});
+
 describe("navigation", () => {
   test("[rise:R14] restricted navigation opens lessons in order and turns off mark-done", () => {
     const pages = [lesson(text()), lesson(text()), lesson(text())];

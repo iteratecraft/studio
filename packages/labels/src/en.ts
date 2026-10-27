@@ -59,6 +59,8 @@ export const english = {
     "question.chooseMatch": "Choose a match",
     "question.acceptedAnswers": "Accepted answers",
     "question.mustAnswer": "Answer this question correctly to see the rest of the lesson",
+    // Knowledge-check retry limit (M2-15).
+    "question.noTriesLeft": "You have no tries left for this question",
 
     "quiz.begin": "Begin quiz",
     "quiz.position": "Question {current} of {total}",
@@ -86,6 +88,8 @@ export const english = {
     "timer.show": "Show timer",
     "timer.hide": "Hide timer",
     "timer.title": "Quiz timer",
+    // The time limit on a timed quiz's start screen (M2-15).
+    "timer.limit": "Time limit: {minutes} min",
 
     "media.play": "Play",
     "media.pause": "Pause",

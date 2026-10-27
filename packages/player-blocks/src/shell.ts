@@ -12,6 +12,7 @@ import {
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
+import { questionMedia } from "./media.js";
 import { isContinue, type PageStatus } from "./progress.js";
 import { quizView } from "./quiz.js";
 import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
@@ -316,7 +317,13 @@ export function startShell(
       body = blocks.element;
       leave = blocks.stop;
     } else {
-      const quiz = quizView(page, { labels, runtime, next, refresh });
+      const quiz = quizView(page, {
+        labels,
+        runtime,
+        next,
+        refresh,
+        media: (ref) => questionMedia(ref, { course, mediaUrl }),
+      });
       leave = quiz.stop;
       body = quiz.element;
     }
@@ -505,6 +512,7 @@ export function startShell(
         changed();
       },
       saved: (id) => progress.response(id),
+      check: (block) => progress.check(block),
       itemDone(block, item, isDone) {
         progress.itemDone(page, block, item, isDone);
         changed();

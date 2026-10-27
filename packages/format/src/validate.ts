@@ -375,10 +375,23 @@ export function validateCourse(
       errors.push({ path: pointer(path, "answers"), message: rule.message });
     }
   }
+  // rise.md rule 16: a microlearning holds no quiz.
+  if (isObject(document) && document.kind === "microlearning" && Array.isArray(document.entries)) {
+    document.entries.forEach((entry, i) => {
+      if (isObject(entry) && entry.kind === "quiz") {
+        errors.push({
+          path: `/entries/${i}/kind`,
+          message: "must not be a quiz in a microlearning",
+        });
+      }
+    });
+  }
   const reported = new Set(errors.map((error) => error.path));
   errors.push(...variantErrors(document, options.allowUnknown === true, reported));
   return errors;
 }
+
+const QUESTION_KINDS = new Set(["single-choice", "multiple-response", "fill-in", "matching"]);
 
 const compiledTables = new Map<Record<string, Setting>, CompiledSchema>();
 /** A setting table of variants.ts as a closed object schema, with the course's definitions. */
@@ -441,6 +454,14 @@ function variantErrors(
             path: `${path}/variantSettings/embedUrl`,
             message: `is not a player address of ${provider ?? "a listed provider"}`,
           });
+        }
+      }
+      // A knowledge check of a question type holds a question of that type (M2-15).
+      if (block.category === "knowledge-check" && QUESTION_KINDS.has(String(block.variant))) {
+        const at = `${path}/question`;
+        if (!isObject(block.question)) errors.push({ path: at, message: "is required" });
+        else if (block.question.kind !== block.variant && !reported.has(`${at}/kind`)) {
+          errors.push({ path: `${at}/kind`, message: `must be ${JSON.stringify(block.variant)}` });
         }
       }
       if (block.category === "divider") return;

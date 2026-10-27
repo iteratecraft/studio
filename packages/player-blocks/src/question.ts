@@ -2,7 +2,7 @@
 // response, fill-in and matching, answered locally and marked after submit (blocks-interactions.md
 // UI-BLOCKS-R20 to R23, R28 and R29).
 import type { Question, Response } from "@course-suite/format";
-import { isCorrect, shuffle } from "@course-suite/format";
+import { accentReadable, isCorrect, SURFACE, shuffle } from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
 
@@ -41,7 +41,11 @@ interface Control {
 export function questionView(
   question: Question,
   labels: Labels,
-  options: { shuffleChoices?: boolean } = {},
+  options: {
+    shuffleChoices?: boolean;
+    /** The question's picture, audio or video (questionMedia), shown under the prompt. */
+    media?: HTMLElement | undefined;
+  } = {},
 ): QuestionView {
   const promptId = uid("prompt");
   const hintId = uid("hint");
@@ -183,6 +187,7 @@ export function questionView(
     "fieldset",
     { class: "question", "aria-labelledby": promptId, "aria-describedby": hintId },
     h("div", { class: "prompt", id: promptId }, richText(question.prompt, labels)),
+    options.media,
     hint,
     h("div", { class: "choices" }, ...controls.map((control) => control.row)),
     accepted,
@@ -248,9 +253,47 @@ export function feedback(
     question.kind === "single-choice" && question.feedbackMode === "perAnswer"
       ? question.answers.find((answer) => answer.id === response)?.feedback
       : undefined;
-  const text = chosen ?? (correct ? question.correctFeedback : question.incorrectFeedback);
+  const text =
+    question.feedbackMode === "any"
+      ? question.feedback
+      : (chosen ?? (correct ? question.correctFeedback : question.incorrectFeedback));
   return [
     h("p", { class: "outcome" }, labels[correct ? "question.correct" : "question.incorrect"]),
     ...(text ? [richText(text, labels)] : []),
   ];
+}
+
+/**
+ * The author's colours for right and wrong marks (blocks-interactions.md 2.12, 2.13; rise.md 3I):
+ * each one only where it keeps 4.5:1 on the white card, as the marks are text; otherwise the
+ * player's own.
+ */
+export function answerColors(
+  element: HTMLElement,
+  correct: string | undefined,
+  incorrect: string | undefined,
+): void {
+  if (correct && accentReadable(correct, SURFACE)) element.style.setProperty("--correct", correct);
+  if (incorrect && accentReadable(incorrect, SURFACE)) {
+    element.style.setProperty("--wrong", incorrect);
+  }
+}
+
+/**
+ * Runs `answer` when the learner presses the check's submit button, or Enter in an answer field
+ * (blocks-interactions.md 4 "Enter submits, also with focus on a choice or the fill-in field").
+ * Not through form submission, which a sandboxed frame without allow-forms blocks: the editor's
+ * preview, and some LMS frames.
+ */
+export function onAnswer(form: HTMLFormElement, answer: () => void): void {
+  form.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest("button[type=submit]")) return;
+    event.preventDefault();
+    answer();
+  });
+  form.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !(event.target instanceof HTMLInputElement)) return;
+    event.preventDefault();
+    answer();
+  });
 }

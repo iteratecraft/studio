@@ -3,7 +3,14 @@
 // its element, or undefined for a block it cannot show; other block families arrive with their own
 // epics.
 import type { Block, Course, Response } from "@course-suite/format";
-import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-suite/format";
+import {
+  accentReadable,
+  FULL_BLEED,
+  isCorrect,
+  SURFACE,
+  textOn,
+  variantSettings,
+} from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
@@ -13,10 +20,11 @@ import {
   codeSnippetBlock,
   embedBlock,
   narrationOf,
+  questionMedia,
   videoBlock,
 } from "./media.js";
-import { requiresCorrect } from "./progress.js";
-import { feedback, questionView } from "./question.js";
+import { type CheckState, requiresCorrect } from "./progress.js";
+import { answerColors, feedback, onAnswer, questionView } from "./question.js";
 import { STATIC_RENDERERS, type StaticContext } from "./static.js";
 import { themeBackground } from "./theme.js";
 
@@ -29,6 +37,8 @@ export interface LessonHooks {
   answered(block: Block, response: Response, correct: boolean): void;
   /** The saved response to a question, to show again on return. */
   saved(questionId: string): Response | undefined;
+  /** A knowledge check's answer and tries, after `answered` (progress.ts, one rule). */
+  check(block: Block): CheckState;
   /** Runs `update` now and after every progress change. */
   watch(update: () => void): void;
   /**
@@ -196,14 +206,25 @@ function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElem
   return h("div", { class: "continue-block" }, button, hint);
 }
 
+/** The settings of a knowledge check (format variants.ts, M2-15). */
+interface CheckSettings {
+  reveal: boolean;
+  correctColor?: string;
+  incorrectColor?: string;
+}
+
 /**
- * A knowledge check, answered locally (UI-BLOCKS-R20, R23 to R25). Reveal is on and retries are
- * unlimited, the defaults of the block. A required check says so above itself.
+ * A knowledge check, answered locally (UI-BLOCKS-R20 to R25, R72): its question with its picture,
+ * audio or video; after a wrong answer the right answers are marked only when reveal is on, and a
+ * retry is offered while tries remain. A required check says so above itself. Without a lesson
+ * (the editor's block previews) retries are unlimited.
  */
-function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | undefined {
+function check(block: Block, context: StaticContext): HTMLElement | undefined {
+  const { labels, lesson } = context;
   const question = block.question;
   if (!question || block.variant !== question.kind) return undefined;
-  const view = questionView(question, labels);
+  const settings = variantSettings<CheckSettings>(block);
+  const view = questionView(question, labels, { media: questionMedia(question.media, context) });
   const result = h("div", { class: "feedback", tabindex: -1, hidden: true });
   const submit = h("button", { type: "submit", class: "button" }, labels["question.check"]);
   const retry = h(
@@ -211,6 +232,7 @@ function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | un
     { type: "button", class: "button", hidden: true },
     labels["question.tryAgain"],
   );
+  const spent = h("p", { class: "check-spent", hidden: true }, labels["question.noTriesLeft"]);
   const form = h(
     "form",
     { class: "check", novalidate: true },
@@ -220,29 +242,32 @@ function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | un
     view.element,
     result,
     h("div", { class: "actions" }, submit, retry),
+    spent,
   );
+  answerColors(form, settings.correctColor, settings.incorrectColor);
 
   const show = (response: Response) => {
     const correct = isCorrect(question, response);
-    view.lock("all");
+    view.lock(correct || settings.reveal ? "all" : "own");
     result.className = `feedback ${correct ? "is-correct" : "is-wrong"}`;
     result.replaceChildren(...feedback(question, response, correct, labels));
     result.hidden = false;
     submit.hidden = true;
-    retry.hidden = correct; // UI-BLOCKS-R24: only after a wrong answer
-    return correct;
+    const state = lesson?.check(block);
+    retry.hidden = state ? !state.canRetry : correct;
+    spent.hidden = !state || correct || state.triesLeft > 0;
   };
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
+  onAnswer(form, () => {
+    if (submit.hidden) return;
     const response = view.response();
     if (response === undefined) {
       view.needAnswer();
       return;
     }
-    const correct = show(response);
+    lesson?.answered(block, response, isCorrect(question, response));
+    show(response);
     result.focus();
-    lesson?.answered(block, response, correct);
   });
 
   retry.addEventListener("click", () => {

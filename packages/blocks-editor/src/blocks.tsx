@@ -4,8 +4,8 @@
 // edited in place); the others are listed as not available yet. A later block epic adds its type
 // here and touches no other editor file.
 import type { Command, Editor } from "@course-suite/doc-ops";
-import type { Block, ContentItem, Question } from "@course-suite/format";
-import { Checkbox, type StringKey, type Translate, useStrings } from "@course-suite/ui";
+import type { Block, ContentItem } from "@course-suite/format";
+import { type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import { type ComponentType, useId } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
@@ -17,6 +17,8 @@ import {
   EmbedFields,
   VideoFields,
 } from "./media-fields.js";
+import { CheckFields, CheckFormat } from "./question-fields.js";
+import { KIND_LABEL, newQuestion, QUESTION_KINDS } from "./questions.js";
 import {
   DIVIDER_TYPES,
   GALLERY_TYPES,
@@ -190,96 +192,6 @@ function ContinueFields({ block }: FieldsProps) {
   );
 }
 
-/**
- * Knowledge checks: the question, its answers and which are right (blocks-interactions.md 2.12).
- * Adding and removing answers, feedback and the other settings come with quiz editing (M2-15).
- */
-function QuestionFields({ block, editor }: FieldsProps) {
-  const t = useStrings();
-  const question = block.question;
-  if (!question) return <p className="be-note">{t("field.noFields")}</p>;
-  const update = (set: Partial<Question>) =>
-    ({ type: "updateQuestion", id: question.id, set }) as Command;
-  return (
-    <>
-      <RichDraftField
-        label={t("field.question")}
-        value={question.prompt}
-        command={(prompt) => (prompt ? update({ prompt }) : undefined)}
-      />
-      {(question.kind === "single-choice" || question.kind === "multiple-response") &&
-        question.answers.map((answer, i) => (
-          <div key={answer.id} className="be-answer">
-            <DraftField
-              label={t("field.answer", { number: i + 1 })}
-              value={textOf(answer.text)}
-              command={(text) =>
-                text.trim()
-                  ? { type: "updateAnswer", id: answer.id, set: { text: inlineHtml(text) } }
-                  : undefined
-              }
-            />
-            <Checkbox
-              isSelected={answer.correct}
-              onChange={(correct) =>
-                editor.dispatch(
-                  question.kind === "single-choice"
-                    ? // One right answer: choosing one makes the others wrong, in one step.
-                      question.answers.map((other) => ({
-                        type: "updateAnswer" as const,
-                        id: other.id,
-                        set: { correct: other.id === answer.id },
-                      }))
-                    : { type: "updateAnswer", id: answer.id, set: { correct } },
-                )
-              }
-            >
-              {t("field.correct")}
-            </Checkbox>
-          </div>
-        ))}
-      {question.kind === "fill-in" && (
-        <DraftField
-          label={t("field.accepted")}
-          description={t("field.acceptedHelp")}
-          multiline
-          value={question.acceptedAnswers.join("\n")}
-          command={(text) => {
-            const accepted = text
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter(Boolean);
-            return accepted.length > 0 ? update({ acceptedAnswers: accepted }) : undefined;
-          }}
-        />
-      )}
-      {question.kind === "matching" &&
-        question.pairs.map((pair, i) => (
-          <div key={pair.id} className="be-answer">
-            <DraftField
-              label={t("field.pairItem", { number: i + 1 })}
-              value={textOf(pair.prompt)}
-              command={(text) =>
-                text.trim()
-                  ? { type: "updatePair", id: pair.id, set: { prompt: inlineHtml(text) } }
-                  : undefined
-              }
-            />
-            <DraftField
-              label={t("field.pairMatch", { number: i + 1 })}
-              value={textOf(pair.match)}
-              command={(text) =>
-                text.trim()
-                  ? { type: "updatePair", id: pair.id, set: { match: inlineHtml(text) } }
-                  : undefined
-              }
-            />
-          </div>
-        ))}
-    </>
-  );
-}
-
 const paragraph = (t: Translate) => `<p>${inlineHtml(t("sample.paragraph"))}</p>`;
 const textBlock =
   (variant: string, title: StringKey | undefined, body: boolean) =>
@@ -296,19 +208,24 @@ const textBlock =
       },
     ],
   });
-const check =
-  (make: (id: () => string, t: Translate) => Question) =>
-  (id: () => string, t: Translate): Block => {
+/** Knowledge checks (M2-15, question-fields.tsx): one per question type, with sample content. */
+const CHECK_TYPES: readonly BlockType[] = QUESTION_KINDS.map((kind) => ({
+  group: "knowledge-check",
+  variant: kind,
+  label: KIND_LABEL[kind],
+  create: (id, t) => {
     const blockId = id();
-    const question = make(id, t);
-    return { id: blockId, category: "knowledge-check", variant: question.kind, question };
-  };
-const prompt = (t: Translate, key: StringKey) => `<p>${inlineHtml(t(key))}</p>`;
-const answer = (id: () => string, t: Translate, key: StringKey, correct: boolean) => ({
-  id: id(),
-  text: inlineHtml(t(key)),
-  correct,
-});
+    return {
+      id: blockId,
+      category: "knowledge-check",
+      variant: kind,
+      question: newQuestion(kind, id, t),
+    };
+  },
+  Fields: CheckFields,
+  Format: CheckFormat,
+  cards: true,
+}));
 
 /**
  * Multimedia blocks (M2-13; blocks-editor.md 2.12). A new one waits for its file, which the player
@@ -423,72 +340,8 @@ export const BLOCK_TYPES: readonly BlockType[] = [
     "buttons",
     "slides",
   ]),
-  {
-    group: "knowledge-check",
-    variant: "single-choice",
-    label: "variant.knowledge-check.single-choice",
-    create: check((id, t) => ({
-      id: id(),
-      kind: "single-choice",
-      prompt: prompt(t, "sample.choicePrompt"),
-      answers: [answer(id, t, "sample.right", true), answer(id, t, "sample.wrong", false)],
-    })),
-    Fields: QuestionFields,
-    cards: true,
-  },
-  {
-    group: "knowledge-check",
-    variant: "multiple-response",
-    label: "variant.knowledge-check.multiple-response",
-    create: check((id, t) => ({
-      id: id(),
-      kind: "multiple-response",
-      prompt: prompt(t, "sample.responsePrompt"),
-      answers: [
-        answer(id, t, "sample.right", true),
-        answer(id, t, "sample.right", true),
-        answer(id, t, "sample.wrong", false),
-      ],
-    })),
-    Fields: QuestionFields,
-    cards: true,
-  },
-  {
-    group: "knowledge-check",
-    variant: "fill-in",
-    label: "variant.knowledge-check.fill-in",
-    create: check((id, t) => ({
-      id: id(),
-      kind: "fill-in",
-      prompt: prompt(t, "sample.fillPrompt"),
-      acceptedAnswers: [t("sample.fillAnswer")],
-    })),
-    Fields: QuestionFields,
-    cards: true,
-  },
-  {
-    group: "knowledge-check",
-    variant: "matching",
-    label: "variant.knowledge-check.matching",
-    create: check((id, t) => ({
-      id: id(),
-      kind: "matching",
-      prompt: prompt(t, "sample.matchPrompt"),
-      pairs: (
-        [
-          ["sample.match1", "sample.match1b"],
-          ["sample.match2", "sample.match2b"],
-          ["sample.match3", "sample.match3b"],
-        ] as const
-      ).map(([item, match]) => ({
-        id: id(),
-        prompt: inlineHtml(t(item)),
-        match: inlineHtml(t(match)),
-      })),
-    })),
-    Fields: QuestionFields,
-    cards: true,
-  },
+  // Knowledge checks (M2-15).
+  ...CHECK_TYPES,
   ...later("knowledge-check", ["draw"]),
   ...later("survey", ["survey"]),
   ...later("chart", ["bar", "line", "pie"]),

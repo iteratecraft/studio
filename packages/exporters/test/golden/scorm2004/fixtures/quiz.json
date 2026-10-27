@@ -1,0 +1,23 @@
+[
+  "Initialize(\"\") -> \"true\" [0]",
+  "GetValue(\"cmi.success_status\") -> \"unknown\" [0]",
+  "GetValue(\"cmi.completion_status\") -> \"unknown\" [0]",
+  "SetValue(\"cmi.exit\", \"suspend\") -> \"true\" [0]",
+  "GetValue(\"cmi.mode\") -> \"normal\" [0]",
+  "GetValue(\"cmi.suspend_data\") -> \"\" [403]",
+  "GetValue(\"cmi.success_status\") -> \"unknown\" [403]",
+  "GetValue(\"cmi.completion_status\") -> \"unknown\" [403]",
+  "SetValue(\"cmi.success_status\", \"unknown\") -> \"true\" [0]",
+  "SetValue(\"cmi.completion_status\", \"incomplete\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "SetValue(\"cmi.location\", \"#/lessons/lesschecks\") -> \"true\" [0]",
+  "SetValue(\"cmi.suspend_data\", \"1.CY6AdD0RZnNABoB0PRFmc0GDypig5XWYAAAAA\") -> \"true\" [0]",
+  "SetValue(\"cmi.location\", \"#/lessons/quizpond01\") -> \"true\" [0]",
+  "SetValue(\"cmi.suspend_data\", \"1.CY6_On-tycZgBoB0PRFmc0GDypig5XWYAAAAA\") -> \"true\" [0]",
+  "SetValue(\"cmi.session_time\", \"PT20S\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "SetValue(\"cmi.session_time\", \"PT20S\") -> \"true\" [0]",
+  "SetValue(\"cmi.exit\", \"suspend\") -> \"true\" [0]",
+  "Commit(\"\") -> \"true\" [0]",
+  "Terminate(\"\") -> \"true\" [0]"
+]

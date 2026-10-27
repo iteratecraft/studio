@@ -450,6 +450,12 @@
             "learnerChooses": {
               "description": "Let the learner choose whether to skip. Default false.",
               "type": "boolean"
+            },
+            "buttonLabel": {
+              "description": "The skip button's text when the learner chooses; unset, the label set's.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
             }
           },
           "required": ["entry"],
@@ -858,6 +864,10 @@
           "items": { "$ref": "#/$defs/Answer" }
         },
         "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "feedback": {
+          "description": "The one message for any response (feedbackMode any).",
+          "$ref": "#/$defs/RichText"
+        },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
@@ -878,6 +888,10 @@
           "items": { "$ref": "#/$defs/Answer" }
         },
         "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "feedback": {
+          "description": "The one message for any response (feedbackMode any).",
+          "$ref": "#/$defs/RichText"
+        },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
@@ -898,7 +912,15 @@
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
+        "caseSensitive": {
+          "description": "A typed answer must match an accepted answer's capitals too. Default false.",
+          "type": "boolean"
+        },
         "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "feedback": {
+          "description": "The one message for any response (feedbackMode any).",
+          "$ref": "#/$defs/RichText"
+        },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
@@ -919,6 +941,10 @@
           "items": { "$ref": "#/$defs/MatchPair" }
         },
         "feedbackMode": { "$ref": "#/$defs/FeedbackMode" },
+        "feedback": {
+          "description": "The one message for any response (feedbackMode any).",
+          "$ref": "#/$defs/RichText"
+        },
         "correctFeedback": { "$ref": "#/$defs/RichText" },
         "incorrectFeedback": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
@@ -928,8 +954,8 @@
       "unevaluatedProperties": false
     },
     "FeedbackMode": {
-      "description": "Feedback by correct or incorrect, or per answer choice.",
-      "enum": ["correctness", "perAnswer"]
+      "description": "Feedback by correct or incorrect, per answer choice (single choice), or one message for any response. Default correctness.",
+      "enum": ["correctness", "perAnswer", "any"]
     },
     "Answer": {
       "type": "object",

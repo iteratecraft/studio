@@ -600,11 +600,11 @@ test.describe("lessons", () => {
     lesson = (await saved(page)).entries[1] as LessonEntry;
     expect(lesson.author).toBeUndefined();
 
-    // A quiz shows where its questions will go.
+    // A quiz shows its questions (M2-15), none yet.
     await page.getByRole("button", { name: /Go to/ }).click();
     await page.getByRole("option", { name: "Final check" }).click();
     await expect(page.getByRole("heading", { level: 2, name: "Final check" })).toBeFocused();
-    await expect(page.getByRole("heading", { name: "Quiz questions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No questions yet" })).toBeVisible();
     // Leaving the lesson clears its undo history (R15).
     await expect(button(page, "Undo")).toBeDisabled();
 

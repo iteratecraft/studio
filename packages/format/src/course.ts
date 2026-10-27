@@ -239,6 +239,8 @@ export interface QuizSettings {
     entry: EntryRef;
     /** Let the learner choose whether to skip. Default false. */
     learnerChooses?: boolean;
+    /** The skip button's text when the learner chooses; unset, the label set's. */
+    buttonLabel?: string;
   };
   /** Ask the questions in a new random order on each attempt. Default false. */
   shuffleQuestions?: boolean;
@@ -485,6 +487,8 @@ export interface SingleChoiceQuestion {
   prompt: RichText;
   answers: Answer[];
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
   media?: MediaRef;
@@ -497,6 +501,8 @@ export interface MultipleResponseQuestion {
   prompt: RichText;
   answers: Answer[];
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
   media?: MediaRef;
@@ -508,7 +514,11 @@ export interface FillInQuestion {
   kind: "fill-in";
   prompt: RichText;
   acceptedAnswers: string[];
+  /** A typed answer must match an accepted answer's capitals too. Default false. */
+  caseSensitive?: boolean;
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
   media?: MediaRef;
@@ -521,14 +531,16 @@ export interface MatchingQuestion {
   prompt: RichText;
   pairs: MatchPair[];
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
   media?: MediaRef;
   ext?: Ext;
 }
 
-/** Feedback by correct or incorrect, or per answer choice. */
-export type FeedbackMode = "correctness" | "perAnswer";
+/** Feedback by correct or incorrect, per answer choice (single choice), or one message for any response. Default correctness. */
+export type FeedbackMode = "correctness" | "perAnswer" | "any";
 
 export interface Answer {
   id: Id;

@@ -37,7 +37,9 @@ describe("text and static block variants (BLK-04)", () => {
       .flatMap(([category, variants]) => Object.keys(variants).map((v) => `${category}/${v}`))
       .filter((type) => !older.includes(type))
       // Multimedia blocks are BLK-05's, covered by the media course (variants-media.test.ts).
-      .filter((type) => !type.startsWith("multimedia/"));
+      .filter((type) => !type.startsWith("multimedia/"))
+      // Knowledge checks are BLK-07's, covered by the quiz course (variants-quiz.test.ts).
+      .filter((type) => !type.startsWith("knowledge-check/"));
     for (const type of defined) expect(used, type).toContain(type);
   });
 

@@ -37,7 +37,10 @@ interface MediaSettings {
 }
 
 /** The address of a media reference's file, and its index entry, or undefined when it has none. */
-function fileOf(ref: MediaRef | undefined, { course, mediaUrl }: MediaContext) {
+function fileOf(
+  ref: MediaRef | undefined,
+  { course, mediaUrl }: Pick<MediaContext, "course" | "mediaUrl">,
+) {
   const entry = mediaEntry(course, ref);
   return entry && { entry, src: mediaUrl(entry.variantKey ?? entry.key) };
 }
@@ -307,6 +310,57 @@ export function codeSnippetBlock(block: Block, { labels }: MediaContext): HTMLEl
     ),
     area,
     caption(items(block)[0]?.text, labels),
+  );
+}
+
+/**
+ * A question's picture, audio or video (M2-15; rise.md 3C "questions can carry audio and other
+ * media"), by its file's type: the browser's own players, a video with its caption tracks; a
+ * picture with its alt text, empty for a decorative one.
+ */
+export function questionMedia(
+  ref: MediaRef | undefined,
+  context: Pick<MediaContext, "course" | "mediaUrl">,
+): HTMLElement | undefined {
+  const file = fileOf(ref, context);
+  if (!ref || !file) return undefined;
+  const type = file.entry.mimeType ?? "";
+  const { width, height } = file.entry;
+  if (type.startsWith("audio/")) {
+    return h(
+      "div",
+      { class: "question-media" },
+      h("audio", { controls: true, preload: "metadata", src: file.src }),
+    );
+  }
+  if (type.startsWith("video/")) {
+    const video = h("video", {
+      controls: true,
+      preload: "metadata",
+      playsinline: true,
+      src: file.src,
+      width,
+      height,
+    });
+    for (const track of ref.captions ?? []) {
+      const captions = fileOf({ key: track.key }, context);
+      if (captions) {
+        video.append(
+          h("track", {
+            kind: "captions",
+            src: captions.src,
+            srclang: track.language,
+            label: languageName(track.language),
+          }),
+        );
+      }
+    }
+    return h("div", { class: "question-media" }, video);
+  }
+  return h(
+    "div",
+    { class: "question-media" },
+    h("img", { src: file.src, alt: ref.alt ?? "", width, height, loading: "lazy" }),
   );
 }
 

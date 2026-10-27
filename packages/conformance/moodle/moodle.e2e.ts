@@ -17,6 +17,7 @@ import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
 import type { CmiData } from "../src/test-lms.js";
 import { blocksZip, corpusCourses, fixtureCourses } from "../test/blocks.js";
 import { walkPages } from "../test/learner.js";
+import { FALLING, failThrice, ids, pond } from "../test/pond.js";
 import { exitActivity, launch, logIn, type Tracks, trackedVisit, upload } from "./moodle.js";
 
 const label = english.labels;
@@ -262,4 +263,42 @@ test("[standards:T-4] [standards:R11] [standards:R12] [rise:R7] a learner who fa
   expect(kept(ended)).toEqual(reference);
   expect(ended.elements["cmi.suspend_data"]).toMatch(/^1\./);
   expect(totalTime(ended)).toBeGreaterThan(0);
+});
+
+/** Every interaction Moodle keeps, by its number: its id, type and result. */
+function keptInteractions(elements: Record<string, string>) {
+  const found = new Map<number, Record<string, string>>();
+  for (const [element, value] of Object.entries(elements)) {
+    // Moodle may write the index with a dot or an underscore (cmi.interactions_0.id).
+    const match = /^cmi\.interactions[._](\d+)\.(id|type|result)$/.exec(element);
+    if (!match) continue;
+    const n = Number(match[1]);
+    found.set(n, { ...found.get(n), [match[2] as string]: value });
+  }
+  return [...found.entries()].sort(([a], [b]) => a - b).map(([, fields]) => fields);
+}
+
+test("[standards:T-4] [rise:R8] [rise:R10] [rise:R11] BLK-07: three failed attempts at a quiz of every question type, with falling scores and passing required: Moodle keeps the best score and failed, and an interaction per answer named by rule 11", async ({
+  browser,
+  page,
+}) => {
+  const zip = await blocksZip(pond("scorm12"), scorm12Exporter());
+  const [reference] = await keptByTestLmsAfter(browser, zip, [failThrice]);
+  expect(reference).toMatchObject({ status: "failed", score: "50" });
+
+  const activity = upload(zip, "Pond life, three attempts");
+  await logIn(page);
+  await failThrice(await launch(page, activity));
+  await exitActivity(page);
+  const ended = await trackedVisit(activity);
+  expect(kept(ended)).toEqual(reference);
+  const kept12 = keptInteractions(ended.elements);
+  expect(kept12.map((interaction) => interaction.id)).toEqual([...ids(1), ...ids(2), ...ids(3)]);
+  expect(kept12.slice(0, 4).map((interaction) => interaction.type)).toEqual([
+    "choice",
+    "choice",
+    "fill-in",
+    "matching",
+  ]);
+  expect(kept12.map((interaction) => interaction.result === "correct")).toEqual(FALLING.flat());
 });
