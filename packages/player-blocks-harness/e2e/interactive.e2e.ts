@@ -8,6 +8,7 @@ import {
   type Course,
   contrastOf,
   type LessonEntry,
+  type MarkerItem,
   type Theme,
   themeColors,
 } from "@course-suite/format";
@@ -496,6 +497,260 @@ for (const theme of [
       expect(contrastOf(hex(fill), hex(text)), `${selector} in ${name}`).toBeGreaterThanOrEqual(
         4.5,
       );
+    }
+  });
+}
+
+test("[rise:3C] blocks-interactions 2.1 to 2.4, 2.8, A10, A11: items show a video with its captions, a web embed that loads nothing until asked, and audio above or below their text", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  await write({ course: subject });
+  const visit = await open(`#/lessons/${lessonOf(subject, 0).id}`);
+  // An accordion section: its embed waits behind a button, its audio is below the text.
+  await page.getByRole("button", { name: "Chain" }).click();
+  const chain = page.getByRole("region", { name: "Chain" });
+  await expect(chain.locator("iframe")).toHaveCount(0);
+  await expect(chain.getByRole("button", { name: "Show the content from YouTube" })).toBeVisible();
+  const bell = chain.locator("audio");
+  await expect(bell).toHaveAttribute("aria-label", "Audio: Chain");
+  await expect(bell).toHaveAttribute("preload", "none");
+  expect(await chain.evaluate((panel) => panel.lastElementChild?.tagName)).toBe("AUDIO");
+  // A tab's video, with its caption track, loads only when played.
+  await page.getByRole("tab", { name: "Summer" }).click();
+  const video = page.getByRole("tabpanel", { name: "Summer" }).locator("video");
+  await expect(video).toHaveAttribute("src", "media/spin.mp4");
+  await expect(video).toHaveAttribute("preload", "none");
+  await expect(video.locator("track")).toHaveAttribute("src", "media/spin-en.vtt");
+  await expect(video.locator("track")).toHaveAttribute("srclang", "en");
+  expect(visit.badRequests).toEqual([]);
+  // A marker's audio sits above its text, as the block's audio position asks.
+  await open(`#/lessons/${lessonOf(subject, 1).id}`);
+  await page.getByRole("button", { name: /^Marker 3/ }).click();
+  const card = page.getByRole("dialog", { name: "Front wheel" });
+  await expect(card.locator("audio")).toHaveAttribute("aria-label", "Audio: Front wheel");
+  expect(
+    await card.evaluate(
+      (element) =>
+        element
+          .querySelector("audio")
+          ?.compareDocumentPosition(element.querySelector(".text-body") as Node) ===
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ),
+  ).toBe(true);
+  // A process step's video.
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.getByRole("group", { name: "2 of 5" }).locator("video")).toHaveAttribute(
+    "src",
+    "media/spin.mp4",
+  );
+  // The embed loads the provider's player when the learner asks, and only then.
+  await open(`#/lessons/${lessonOf(subject, 0).id}`);
+  await page.getByRole("button", { name: "Chain" }).click();
+  await page.route("https://www.youtube-nocookie.com/**", (route) =>
+    route.fulfill({ body: "<!doctype html><title>Player</title>", contentType: "text/html" }),
+  );
+  await chain.getByRole("button", { name: "Show the content from YouTube" }).click();
+  await expect(chain.locator("iframe")).toHaveAttribute(
+    "src",
+    "https://www.youtube-nocookie.com/embed/aaaaaaaaaaa",
+  );
+  await expect(chain.locator("iframe")).toHaveAttribute("title", "Content from YouTube");
+});
+
+test("[rise:3C] blocks-interactions 2.8, W6, UI-BLOCKS-R12: each side of a card has its own picture style and media, and the side turned away keeps its controls out of the tab order", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  await write({ course: subject });
+  await open(`#/lessons/${lessonOf(subject, 2).id}`);
+  const cards = page.locator("[data-block=iacardgrid] .flashcard");
+  // Per side: the first card's back fills the side, the second card's front is centred.
+  await expect(cards.nth(0).locator(".card-back")).toHaveClass(/image-full/);
+  await expect(cards.nth(0).locator(".card-front")).toHaveClass(/image-centered/);
+  await expect(cards.nth(1).locator(".card-front img")).toHaveAttribute("src", "media/wheel.svg");
+  await expect(cards.nth(1).locator(".card-front")).toHaveClass(/image-centered/);
+  // The third card's back holds an embed and audio: out of the tab order until it is turned.
+  const third = cards.nth(2);
+  const load = third.getByRole("button", { name: "Show the content from Vimeo" });
+  const audio = third.locator("audio");
+  await expect(audio).toHaveAttribute("aria-label", "Audio: Back");
+  await expect(load).toHaveAttribute("tabindex", "-1");
+  await expect(audio).toHaveAttribute("tabindex", "-1");
+  const turn = third.getByRole("button", { name: "Turn card" });
+  await turn.focus();
+  await page.keyboard.press("Enter");
+  await expect(load).not.toHaveAttribute("tabindex");
+  await expect(audio).not.toHaveAttribute("tabindex");
+  // Both sides stay in the accessibility tree.
+  await expect(third.getByRole("group", { name: "Front" })).toContainText("Crank");
+  // A press on the embed does not turn the card back.
+  await third.locator(".embed-frame").click();
+  await expect(turn).toHaveAttribute("aria-pressed", "true");
+  await expectAccessible(page, "a turned card with an embed and audio", [320, 1280]);
+});
+
+test("[rise:3C] blocks-interactions 2.10, L10, W8, UI-BLOCKS-R18: a button shows its heading, goes to a page next to the course in a new tab, or opens an email to its addresses with the course title as subject", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  await write({ course: subject });
+  await open(`#/lessons/${lessonOf(subject, 2).id}`);
+  // The heading sits one level below the lesson title, beside the button.
+  const single = page.locator("[data-block=iabutton01]");
+  await expect(single.getByRole("heading", { level: 2, name: "Need a reminder?" })).toBeVisible();
+  const handbook = page.getByRole("link", { name: /^The workshop handbook/ });
+  await expect(handbook).toHaveAttribute("href", "handbook/care.html");
+  await expect(handbook).toHaveAttribute("target", "_blank");
+  await expect(handbook).toHaveAccessibleName("The workshop handbook (opens in a new tab)");
+  const email = page.getByRole("link", { name: "Ask the workshop" });
+  await expect(email).toHaveAttribute(
+    "href",
+    "mailto:workshop@example.org,help@example.org?subject=Looking%20after%20a%20bicycle",
+  );
+  await expect(email).not.toHaveAttribute("target");
+  await expect(page.getByRole("heading", { level: 2, name: "Questions?" })).toBeVisible();
+});
+
+test("[rise:3C] blocks-interactions 2.10, W8: a plain web package leaves out the buttons that exit the course; the others stay", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  subject.publish = { standard: "web" };
+  await write({ course: subject });
+  await open(`#/lessons/${lessonOf(subject, 2).id}`);
+  await expect(page.getByRole("link", { name: /^A maintenance guide/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "See the steps again" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Leave the course" })).toHaveCount(0);
+  await expect(page.locator("[data-block=iabuttons1] .block-button")).toHaveCount(4);
+});
+
+test("[rise:3C] UI-BLOCKS-R5, UI-ACCESSIBILITY-R40: a marker not opened yet pulses, an opened one does not, and none pulses under reduced motion", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  await write({ course: subject });
+  const pulse = (index: number) =>
+    page
+      .locator(".marker")
+      .nth(index)
+      .evaluate((marker) => getComputedStyle(marker, "::after").animationName);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await open(`#/lessons/${lessonOf(subject, 1).id}`);
+  await expect(page.locator(".marker")).toHaveCount(3);
+  expect(await pulse(0)).toBe("marker-pulse");
+  await page.getByRole("button", { name: /^Marker 1/ }).click();
+  await page.getByRole("button", { name: "Close marker" }).click();
+  expect(await pulse(0)).toBe("none");
+  expect(await pulse(1)).toBe("marker-pulse");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(await pulse(1)).toBe("none");
+  expect(await pulse(2)).toBe("none");
+});
+
+test("[rise:3C] blocks-interactions 2.4, 2.5, LA8: marker names, an untitled marker's heading and step names come from label templates, in the order and words a translation gives", async ({
+  write,
+  open,
+  page,
+}) => {
+  const subject = read();
+  const graphic = block(subject, "ialabeled1");
+  const items = graphic.items as MarkerItem[];
+  const { title: _, ...untitled } = items[1] as MarkerItem;
+  items.splice(1, 1, untitled);
+  await write({
+    course: subject,
+    labels: {
+      language: "en",
+      labels: {
+        "marker.name": "Point {number}",
+        "marker.withIcon": "{icon} point: {marker}",
+        "marker.withTitle": "{title} ({marker})",
+        "marker.state": "{state}. {marker}",
+        "marker.notViewed": "New",
+        "marker.viewed": "Seen",
+        "process.stepName": "{number}. {word}",
+        "process.step": "stage",
+      },
+    },
+  });
+  await open(`#/lessons/${lessonOf(subject, 1).id}`);
+  const markers = page.getByRole("figure", { name: "Labelled image" }).getByRole("button");
+  await expect(markers.nth(0)).toHaveAccessibleName("New. Back wheel (Point 1)");
+  await expect(markers.nth(1)).toHaveAccessibleName("New. star point: Point 2");
+  await expect(markers.nth(2)).toHaveAccessibleName(
+    "New. Front wheel (information sign point: Point 3)",
+  );
+  // A card without a title takes its heading from the marker's own name, commas and all.
+  await markers.nth(1).click();
+  await expect(page.getByRole("heading", { name: "star point: Point 2" })).toBeVisible();
+  await expect(markers.nth(1)).toHaveAccessibleName("Seen. star point: Point 2");
+  const strip = page.getByRole("group", { name: "Steps" }).getByRole("button");
+  await expect(strip.nth(1)).toHaveAccessibleName("1. stage");
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator("p.process-step:visible")).toHaveText("1. stage");
+});
+
+/** A block on a picture behind a dark or a light overlay, with the theme `theme`. */
+function onPicture(id: string, overlay: "dark" | "light", theme?: Theme): Course {
+  const subject = gated(id);
+  const [first] = (subject.entries[0] as LessonEntry).blocks;
+  if (first) {
+    first.settings = { background: { kind: "image", image: { key: "bike.svg" }, overlay } };
+    // The author's colour gives way to black or white on a picture.
+    if (id === "iabuttons1") first.variantSettings = { buttonColor: "#e63946" };
+  }
+  if (theme) subject.theme = theme;
+  return subject;
+}
+
+for (const theme of [undefined, { color: "#1b2a49" }, { color: "#ffd400" }]) {
+  const name = theme ? JSON.stringify(theme) : "the default theme";
+  test(`[rise:3C] UI-BLOCKS-EDITOR-R23: on a picture, buttons are white or black by contrast and the process controls take the theme colour, with ${name}`, async ({
+    write,
+    open,
+    page,
+  }) => {
+    for (const [overlay, fill, ink] of [
+      ["dark", "#ffffff", "#000000"],
+      ["light", "#000000", "#ffffff"],
+    ] as const) {
+      await write({ course: onPicture("iabuttons1", overlay, theme) });
+      await page.goto("about:blank");
+      await open("#/lessons/lessongate");
+      const buttons = await pairs(page, [".block-button"]);
+      expect(buttons.length).toBeGreaterThan(2);
+      for (const button of buttons) {
+        expect(hex(button.fill), `a button on a ${overlay} overlay`).toBe(fill);
+        expect(hex(button.text), `a button on a ${overlay} overlay`).toBe(ink);
+      }
+      await write({ course: onPicture("iaprocess1", overlay, theme) });
+      await page.goto("about:blank");
+      await open("#/lessons/lessongate");
+      const { accent, accentText } = themeColors(theme);
+      const controls = await pairs(page, [
+        ".process-controls .carousel-button",
+        ".process-strip-button:not([aria-current])",
+      ]);
+      expect(controls.length).toBeGreaterThan(3);
+      for (const { selector, fill: shown, text } of controls) {
+        expect(hex(shown), `${selector} on a ${overlay} overlay`).toBe(accent);
+        expect(hex(text), `${selector} on a ${overlay} overlay`).toBe(accentText);
+      }
+      const [current] = await pairs(page, [".process-strip-button[aria-current=step]"]);
+      expect(hex(current?.fill ?? ""), "the chosen step").toBe(accentText);
+      expect(hex(current?.text ?? ""), "the chosen step").toBe(accent);
+      await expectAccessible(page, `a process on a ${overlay} picture with ${name}`, [1280]);
     }
   });
 }

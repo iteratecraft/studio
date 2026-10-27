@@ -10,12 +10,13 @@ import type {
   ButtonItem,
   ContentItem,
   Course,
+  FlashcardItem,
   LessonEntry,
   MarkerItem,
   StepItem,
 } from "@course-suite/format";
 import { interactiveBlocksCourse } from "@course-suite/format/test/courses";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { violations } from "./axe.ts";
 import { button, courseIn, heading, launch, openFixture, status } from "./helpers.ts";
 
@@ -129,7 +130,7 @@ test.afterEach(async ({ page }) => {
   expect(seen).toEqual([]);
 });
 
-test("[rise:3C] blocks-interactions A3, A4, BLK-06: the library offers every interactive block of this task, and the shortcut bar the labelled image and flashcards", async ({
+test("[rise:3C] blocks-interactions A3, A4, BLK-06: the library offers every interactive block of this task, and the shortcut bar the labelled image, the process and flashcards", async ({
   page,
 }) => {
   await openBicycle(page);
@@ -150,9 +151,15 @@ test("[rise:3C] blocks-interactions A3, A4, BLK-06: the library offers every int
   await page.keyboard.press("Escape");
   const bar = page.getByRole("toolbar", { name: "Add a block at the end" });
   await bar.getByRole("button", { name: "Labelled image" }).click();
+  await bar.getByRole("button", { name: "Process" }).focus();
+  await page.keyboard.press("Enter");
   await bar.getByRole("button", { name: "Flashcard grid" }).click();
   const blocks = lessonIn(await saved(page), "lessempty1").blocks;
-  expect(blocks.map((block) => block.variant)).toEqual(["labeled-graphic", "flashcard-grid"]);
+  expect(blocks.map((block) => block.variant)).toEqual([
+    "labeled-graphic",
+    "process",
+    "flashcard-grid",
+  ]);
 });
 
 test("[rise:3C] blocks-editor W7, blocks-interactions W1 to W3, W6, W8, BLK-06: by keyboard each interactive type inserts with sample content", async ({
@@ -344,7 +351,7 @@ test("[rise:3C] BLK-06, blocks-interactions W2, 2.4: by keyboard, a marker is ad
   await closeFormat(page);
   const course = await saved(page);
   const graphic = blockIn(course, "ialabeled1");
-  expect(graphic.variantSettings).toEqual({ markerColor: "#1b2a49" });
+  expect(graphic.variantSettings).toEqual({ audioPosition: "top", markerColor: "#1b2a49" });
   expect(graphic.items?.[3]).toMatchObject({ x: 52, y: 40, title: "Pedal", icon: "question" });
   await expect(block.locator(".be-block-preview .marker").nth(3)).toHaveCSS(
     "background-color",
@@ -462,8 +469,8 @@ test("[rise:3C] blocks-interactions W8, 2.10, UI-BLOCKS-R18: a button goes to a 
   await label.press("Enter");
   // A stack: a third button that exits the course.
   const stack = row(page, "Cards and buttons", /^Button stack/);
-  await stack.getByRole("button", { name: "Add Button 4" }).click();
-  const fourth = stack.getByRole("group", { name: "Button 4" });
+  await stack.getByRole("button", { name: "Add Button 6" }).click();
+  const fourth = stack.getByRole("group", { name: "Button 6" });
   await fourth.getByRole("button", { name: /Goes to/ }).click();
   await page.getByRole("option", { name: "Exit the course" }).click();
   await expect(fourth.getByText("Ends the course")).toBeVisible();
@@ -473,9 +480,267 @@ test("[rise:3C] blocks-interactions W8, 2.10, UI-BLOCKS-R18: a button goes to a 
     destination: { kind: "url", url: "https://example.org/tyres" },
   });
   const buttons = blockIn(course, "iabuttons1").items as ButtonItem[];
-  expect(buttons[3]?.destination).toEqual({
+  expect(buttons[5]?.destination).toEqual({
     kind: "exit",
   });
+});
+
+/** Puts a file on the in-memory disk, for the open dialog to pick next. */
+async function putFile(page: Page, id: string, bytes: Uint8Array | string): Promise<void> {
+  const data = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+  await page.evaluate(
+    ([id, data]) => {
+      window.editorTest.host.disk.set(id as string, new Uint8Array(data as number[]));
+      window.editorTest.open = [id as string];
+    },
+    [id, Array.from(data)] as const,
+  );
+}
+
+/** The start of a web-ready MP4 (H.264 and AAC tracks), enough for the media intake's check. */
+function mp4(): Uint8Array {
+  const box = (type: string, ...body: Uint8Array[]) => {
+    const size = 8 + body.reduce((sum, part) => sum + part.length, 0);
+    const out = new Uint8Array(size);
+    new DataView(out.buffer).setUint32(0, size);
+    out.set(new TextEncoder().encode(type), 4);
+    let at = 8;
+    for (const part of body) {
+      out.set(part, at);
+      at += part.length;
+    }
+    return out;
+  };
+  const count = new Uint8Array(8);
+  new DataView(count.buffer).setUint32(4, 1);
+  const traks = ["avc1", "mp4a"].map((codec) =>
+    box(
+      "trak",
+      box("mdia", box("minf", box("stbl", box("stsd", count, box(codec, new Uint8Array(8)))))),
+    ),
+  );
+  return new Uint8Array([
+    ...box("ftyp", new TextEncoder().encode("isom")),
+    ...box("moov", ...traks),
+  ]);
+}
+
+/** An MP3 as the intake knows one: its ID3 header. */
+const MP3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0]);
+const CAPTIONS = "WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nThe wheel spins.\n";
+
+/**
+ * Moves keyboard focus onto block row `target` of lesson `lesson` the way a keyboard user does: into
+ * the list of blocks, then down the rows with the arrow keys. Tab then reaches the row's fields.
+ */
+async function toRow(page: Page, lesson: string, target: Locator): Promise<void> {
+  await blocksOf(page, lesson).getByRole("row").first().focus();
+  for (let i = 0; i < 10 && !(await target.evaluate((r) => r === document.activeElement)); i++) {
+    await page.keyboard.press("ArrowDown");
+  }
+  await expect(target).toBeFocused();
+}
+
+/** Picks option `name` of the select `select` by keyboard. */
+async function choose(page: Page, select: Locator, name: string): Promise<void> {
+  await select.focus();
+  await page.keyboard.press("Enter");
+  const option = page.getByRole("option", { name, exact: true });
+  await option.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(select).toContainText(name);
+}
+
+test("[rise:3C] blocks-interactions 2.1 to 2.3, A10, A11, W1: by keyboard, sections get a video with captions, a web embed and audio, and the audio player goes above the text", async ({
+  page,
+}) => {
+  await openBicycle(page);
+  await insertByKeyboard(page, "accordion", "Accordion");
+  const block = row(page, "Empty", /^Accordion/);
+  // Section 1: a video, and a caption file for it.
+  const first = block
+    .getByRole("group", { name: "Section 1", exact: true })
+    .getByRole("group", { name: "Media and audio" });
+  await choose(page, first.getByRole("button", { name: /Shows/ }), "A video");
+  await putFile(page, "clips/wheel.mp4", mp4());
+  await first.getByRole("button", { name: "Choose a video" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(first.getByText("File: wheel.mp4")).toBeVisible();
+  const captions = first.getByRole("group", { name: "Captions" });
+  await captions.getByRole("textbox", { name: "Language code of a new caption file" }).focus();
+  await page.keyboard.type("en");
+  await putFile(page, "subs/wheel.en.vtt", CAPTIONS);
+  await captions.getByRole("button", { name: "Add a caption file" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(captions.getByText("English (en)")).toBeVisible();
+  // Section 2: a web embed, refused until it is a listed provider's.
+  const second = block
+    .getByRole("group", { name: "Section 2", exact: true })
+    .getByRole("group", { name: "Media and audio" });
+  await choose(page, second.getByRole("button", { name: /Shows/ }), "A web embed");
+  const address = second.getByRole("textbox", { name: "Web address or embed code" });
+  await address.focus();
+  await page.keyboard.type("https://example.org/clip");
+  await expect(address).toHaveAttribute("aria-invalid", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("https://youtu.be/aaaaaaaaaaa?t=30");
+  await page.keyboard.press("Enter");
+  await expect(second.getByText("Plays from YouTube when a learner asks for it.")).toBeVisible();
+  // Section 3: audio, then the audio player above the text.
+  const third = block
+    .getByRole("group", { name: "Section 3", exact: true })
+    .getByRole("group", { name: "Media and audio" });
+  await putFile(page, "sound/bell.mp3", MP3);
+  await third.getByRole("button", { name: "Add audio" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(third.getByText("File: bell.mp3")).toBeVisible();
+  await block.getByRole("button", { name: "Format", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await choose(
+    page,
+    page.getByRole("dialog", { name: "Format" }).getByRole("button", { name: /Audio player/ }),
+    "Above the text",
+  );
+  await closeFormat(page);
+  const course = await saved(page);
+  const accordion = lessonIn(course, "lessempty1").blocks[0] as Block;
+  const items = accordion.items as ContentItem[];
+  const key = (name: string) => course.media.find((entry) => entry.key === name)?.mimeType;
+  expect(key(items[0]?.media?.key ?? "")).toBe("video/mp4");
+  expect(items[0]?.media?.captions).toEqual([{ key: expect.any(String), language: "en" }]);
+  expect(items[1]?.embed).toEqual({
+    url: "https://youtu.be/aaaaaaaaaaa?t=30",
+    embedUrl: "https://www.youtube-nocookie.com/embed/aaaaaaaaaaa?start=30",
+    provider: "YouTube",
+  });
+  expect(key(items[2]?.audio?.key ?? "")).toBe("audio/mpeg");
+  expect(accordion.variantSettings).toEqual({ audioPosition: "top" });
+  // Back to nothing: the embed goes, in one undo step.
+  await choose(page, second.getByRole("button", { name: /Shows/ }), "Nothing");
+  await expect(address).toHaveCount(0);
+  await heading(page, "Looking after a bicycle").click();
+  await page.keyboard.press("Control+Z");
+  await expect(second.getByRole("button", { name: /Shows/ })).toContainText("A web embed");
+});
+
+test("[rise:3C] blocks-interactions 2.8, W6: by pointer, each side of a card gets its own picture style, a video replaces a picture, and a side loses its picture", async ({
+  page,
+}) => {
+  await openBicycle(page, "Cards and buttons");
+  const block = row(page, "Cards and buttons", /^Flashcard grid/);
+  const first = block.getByRole("group", { name: "Card 1" });
+  // The first card's back fills the side; its front has no picture, so no style to choose.
+  await expect(first.getByRole("button", { name: /Picture on the back/ })).toContainText(
+    "Across the whole card",
+  );
+  await expect(first.getByRole("button", { name: /Picture on the front/ })).toHaveCount(0);
+  await first.getByRole("button", { name: /Picture on the back/ }).click();
+  await page.getByRole("option", { name: "Centred, with a frame" }).click();
+  // The second card's front: its picture goes.
+  const second = block.getByRole("group", { name: "Card 2" });
+  const front = second.getByRole("group", { name: "Media on the front" });
+  await front.getByRole("button", { name: /Shows/ }).click();
+  await page.getByRole("option", { name: "Nothing", exact: true }).click();
+  await expect(front.getByRole("button", { name: /Shows/ })).toContainText("Nothing");
+  // The fourth card's back: a video.
+  const back = block.getByRole("group", { name: "Card 4" }).getByRole("group", {
+    name: "Media on the back",
+  });
+  await back.getByRole("button", { name: /Shows/ }).click();
+  await page.getByRole("option", { name: "A video", exact: true }).click();
+  await putFile(page, "clips/spoke.mp4", mp4());
+  await back.getByRole("button", { name: "Choose a video" }).click();
+  await expect(back.getByText("File: spoke.mp4")).toBeVisible();
+  const course = await saved(page);
+  const cards = blockIn(course, "iacardgrid").items as FlashcardItem[];
+  expect(cards[0]?.back).toEqual({
+    text: "<p>The stack of gears on the back wheel.</p>",
+    media: { key: "wheel.svg", alt: "" },
+  });
+  expect(cards[1]?.front).toEqual({ text: "<p>Derailleur</p>" });
+  expect(cards[3]?.back.media?.key).toMatch(/\.mp4$/);
+  // The player's drawing of the grid: each side's own style.
+  await expect(block.locator(".be-block-preview .card-back.image-centered")).toHaveCount(4);
+});
+
+test("[rise:3C] blocks-interactions 2.10, L10, W8: by keyboard, a button gets a heading, a page next to the course and an email, each checked as typed; exit is for learning systems only", async ({
+  page,
+}) => {
+  await openBicycle(page, "Cards and buttons");
+  const single = row(page, "Cards and buttons", /^Button$/);
+  const heading2 = single.getByRole("textbox", { name: "Heading" });
+  await expect(heading2).toHaveValue("Need a reminder?");
+  await toRow(page, "Cards and buttons", single);
+  await tabTo(page, heading2);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Not sure yet?");
+  await page.keyboard.press("Enter");
+  await choose(page, single.getByRole("button", { name: /Goes to/ }), "A page next to the course");
+  const path = single.getByRole("textbox", { name: "Address next to the course" });
+  await path.focus();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("//example.org/care");
+  await expect(path).toHaveAttribute("aria-invalid", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("handbook/tyres.html");
+  await page.keyboard.press("Enter");
+  await expect(path).not.toHaveAttribute("aria-invalid");
+  await expect(single.locator(".be-block-preview a.block-button")).toHaveAttribute(
+    "href",
+    "handbook/tyres.html",
+  );
+  await expect(single.locator(".be-block-preview .button-heading")).toHaveText("Not sure yet?");
+  const stack = row(page, "Cards and buttons", /^Button stack/);
+  const second = stack.getByRole("group", { name: "Button 2" });
+  await toRow(page, "Cards and buttons", stack);
+  await tabTo(page, second.getByRole("button", { name: /Goes to/ }));
+  await choose(page, second.getByRole("button", { name: /Goes to/ }), "An email");
+  const addresses = second.getByRole("textbox", { name: "Email addresses" });
+  await addresses.focus();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("workshop@example.org, help");
+  await expect(addresses).toHaveAttribute("aria-invalid", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("workshop@example.org, help@example.org");
+  await page.keyboard.press("Enter");
+  await expect(addresses).not.toHaveAttribute("aria-invalid");
+  // The exit choice says it is for learning systems only.
+  await expect(stack.getByText("Plain web packages leave this button out.")).toBeVisible();
+  const course = await saved(page);
+  expect(blockIn(course, "iabutton01").items?.[0]).toMatchObject({
+    title: "Not sure yet?",
+    destination: { kind: "relative", path: "handbook/tyres.html" },
+  });
+  expect(blockIn(course, "iabuttons1").items?.[1]).toMatchObject({
+    destination: { kind: "email", addresses: ["workshop@example.org", "help@example.org"] },
+  });
+});
+
+test("[rise:3C] blocks-interactions 2.10, D-36: a single button whose lesson was deleted offers a new button, by keyboard", async ({
+  page,
+}) => {
+  await launch(page);
+  await openFixture(page, FILE, bicycle(), ASSETS);
+  // The single button goes to "Sections and tabs"; deleting that lesson takes the button too.
+  await page.getByRole("button", { name: "Actions for Sections and tabs" }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Open Sections and tabs" })).toHaveCount(0);
+  await openLesson(page, "Cards and buttons");
+  const single = row(page, "Cards and buttons", /^Button$/);
+  await expect(single.getByText("This block has no button: its lesson was deleted.")).toBeVisible();
+  const add = single.getByRole("button", { name: "Add a button" });
+  await toRow(page, "Cards and buttons", single);
+  await tabTo(page, add);
+  await page.keyboard.press("Enter");
+  await expect(single.getByRole("textbox", { name: "Label" })).toHaveValue("Learn more");
+  const course = await saved(page);
+  expect(blockIn(course, "iabutton01").items).toEqual([
+    expect.objectContaining({ kind: "button", label: "Learn more" }),
+  ]);
+  expect(await violations(page), "a button block offering a new button").toEqual([]);
 });
 
 test("[rise:3C] blocks-editor P1, BLK-06: the preview shows every interactive block in the real player, accessible, with working markers, steps, cards and buttons", async ({

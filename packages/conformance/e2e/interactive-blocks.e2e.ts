@@ -62,11 +62,15 @@ for (const exporter of registeredExporters()) {
   }
 }
 
-test("[rise:3C] BLK-06: the exported web package shows every interactive block of every lesson", async ({
+test("[rise:3C] BLK-06, blocks-interactions 2.10, A10, A11: the exported web package shows every interactive block of every lesson, carries its items' media, and leaves out the button that exits the course", async ({
   page,
 }) => {
   const zip = await readZip(await blocksZip(course, webExporter()));
   if (!zip.ok) throw new Error(JSON.stringify(zip.problems));
+  // The items' video, its captions and their audio go in the package.
+  expect(zip.value.names).toEqual(
+    expect.arrayContaining(["media/spin.mp4", "media/spin-en.vtt", "media/bell.wav"]),
+  );
   const dir = mkdtempSync(join(tmpdir(), "interactive-blocks-"));
   try {
     for (const name of zip.value.names) {
@@ -87,6 +91,9 @@ test("[rise:3C] BLK-06: the exported web package shows every interactive block o
       }
       if (lesson.id === "ialesscard") {
         await page.locator("[data-block=iacardgrid] .card-turn").first().click();
+        // Exit is for learning-system packages only (2.10); the other buttons stay.
+        await expect(page.getByRole("link", { name: "Ask the workshop" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Leave the course" })).toHaveCount(0);
       }
       // Pictures on show load from the package's own media folder.
       for (const image of await page.locator(".blocks img:not(.zoom-image):visible").all()) {
