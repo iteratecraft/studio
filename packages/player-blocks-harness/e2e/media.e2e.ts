@@ -6,7 +6,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Block, Course } from "@course-suite/format";
-import { mediaCourse } from "@course-suite/format/test/courses";
+import { EMBED_ATTACKS, mediaCourse } from "@course-suite/format/test/courses";
 import { expectAccessible } from "./axe.ts";
 import { continueBlock, course, lesson } from "./courses.ts";
 import { expect, test } from "./fixture.ts";
@@ -136,6 +136,44 @@ test.describe("audio and video", () => {
     await expect(locked).not.toHaveAttribute("aria-disabled");
   });
 
+  test("UI-BLOCKS-R45: audio or video with forward seeking off but no file to play shows nothing and holds no continue block", async ({
+    write,
+    open,
+    page,
+  }) => {
+    const unplayable = (id: string, variant: string, key?: string): Block => ({
+      id,
+      category: "multimedia",
+      variant,
+      variantSettings: { forwardSeeking: false },
+      ...(key && { media: [{ key }] }),
+    });
+    await write({
+      course: course([
+        lesson(
+          "lessonnone",
+          "Nothing to play",
+          unplayable("blkaudnone", "audio"),
+          continueBlock("cgateaudio", "block-above"),
+          unplayable("blkvidnone", "video"),
+          continueBlock("cgatevideo", "block-above"),
+          unplayable("blkvidgone", "video", "gone.mp4"),
+          continueBlock("cgategone1", "block-above"),
+        ),
+      ]),
+    });
+    await open("#/lessons/lessonnone");
+    // Each gate is ready as soon as it shows, and pressing it shows the next.
+    for (const id of ["cgateaudio", "cgatevideo", "cgategone1"]) {
+      const gate = page.locator(`[data-block=${id}] .continue`);
+      await expect(gate).toBeVisible();
+      await expect(gate).not.toHaveAttribute("aria-disabled");
+      await expect(page.locator(`[data-block=${id}] .continue-hint`)).toBeHidden();
+      await gate.click();
+    }
+    await expect(page.locator("audio, video")).toHaveCount(0);
+  });
+
   test("[rise:3C] UI-ACCESSIBILITY-R41, LA8, BLK-05: a video has a caption track per language named in the course language, a thumbnail and a transcript (blocks-editor 2.12); the author can turn off the speed menu", async ({
     write,
     open,
@@ -260,6 +298,42 @@ test.describe("embeds, files and narration", () => {
     await expect(link).toHaveAttribute("href", "media/map.pdf");
     await expect(link).toHaveAttribute("download", "River map.pdf");
     await expect(page.locator(".attachment-row")).toContainText("24.6 kB");
+  });
+
+  test("D-44: an embed whose address is not a player of its provider frames nothing and offers nothing to load or follow", async ({
+    write,
+    open,
+    page,
+  }) => {
+    const embed = ([trick, embedUrl]: (typeof EMBED_ATTACKS)[number], i: number): Block => ({
+      id: `blkattack${i.toString(36)}`,
+      category: "multimedia",
+      variant: "embed",
+      variantSettings: { embedUrl, provider: "YouTube" },
+      items: [{ id: `itmattack${i.toString(36)}`, kind: "content", text: `<p>${trick}</p>` }],
+    });
+    // A hand-made document: the format refuses these, so they reach the player only unchecked.
+    await write({ course: course([lesson("lessonfake", "Fakes", ...EMBED_ATTACKS.map(embed))]) });
+    const outside: string[] = [];
+    page.on("request", (request) => {
+      if (!request.url().startsWith("file:")) outside.push(request.url());
+    });
+    await open("#/lessons/lessonfake");
+    const figures = page.locator(".media-embed");
+    await expect(figures).toHaveCount(EMBED_ATTACKS.length);
+    for (const [i, [trick]] of EMBED_ATTACKS.entries()) {
+      const figure = figures.nth(i);
+      await expect(figure.locator("figcaption"), trick).toHaveText(trick);
+      await expect(figure.locator(".embed-notice"), trick).toHaveText(
+        "This content cannot be shown.",
+      );
+    }
+    await expect(figures.getByRole("button")).toHaveCount(0);
+    await expect(figures.getByRole("link")).toHaveCount(0);
+    await expect(page.locator("iframe")).toHaveCount(0);
+    await expect(page.getByText(/youtube|example\.net|vimeo/i)).toHaveCount(0);
+    await expectAccessible(page, "refused embeds");
+    expect(outside).toEqual([]);
   });
 
   test("[rise:3D] blocks-editor 2.4, W16: narration sits at the top of its block with its transcript", async ({

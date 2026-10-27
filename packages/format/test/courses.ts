@@ -703,6 +703,28 @@ export function staticBlocksCourse(): Course {
 }
 
 /**
+ * Embed addresses named YouTube that are not a YouTube player (D-44), by the trick each tries: the
+ * format refuses them and the player frames none of them.
+ */
+export const EMBED_ATTACKS: readonly (readonly [trick: string, embedUrl: string])[] = [
+  ["another host", "https://login.example.net/phish"],
+  ["a look-alike host", "https://www.youtube-nocookie.com.example.net/embed/aqz-KE-bpKQ"],
+  [
+    "the provider's host as a user name",
+    "https://www.youtube-nocookie.com@login.example.net/embed/aqz-KE-bpKQ",
+  ],
+  ["a user name and password", "https://user:pass@www.youtube-nocookie.com/embed/aqz-KE-bpKQ"],
+  ["another port", "https://www.youtube-nocookie.com:8443/embed/aqz-KE-bpKQ"],
+  ["a dot segment", "https://www.youtube-nocookie.com/embed/../phish"],
+  ["an encoded dot segment", "https://www.youtube-nocookie.com/embed/%2e%2e/phish"],
+  ["an encoded slash", "https://www.youtube-nocookie.com/embed/x%2F..%2F..%2Fphish"],
+  ["backslashes", "https://www.youtube-nocookie.com\\embed\\aqz-KE-bpKQ"],
+  ["a path past the video", "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ/phish"],
+  ["no video", "https://www.youtube-nocookie.com/embed/"],
+  ["another provider's player", "https://player.vimeo.com/video/76979871"],
+];
+
+/**
  * Every media block (M2-13, BLK-05): image variants, galleries, audio, video with caption tracks in
  * two languages, a web embed, a file to download and a code snippet, a block with narration, a
  * cover and a lesson header image. Its media are stand-ins the tests write next to it.

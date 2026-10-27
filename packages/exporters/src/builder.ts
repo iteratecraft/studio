@@ -2,7 +2,7 @@
 // media, lets the exporter for the chosen standard write its descriptor, checks the result and zips
 // it. Same course, player, media and options always give the same bytes.
 import type { Course, PublishSettings } from "@course-suite/format";
-import { usedMediaKeys, validateCourse } from "@course-suite/format";
+import { EMBED_PROVIDERS, usedMediaKeys, validateCourse } from "@course-suite/format";
 import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
 import { checkResume, resumeCapFor } from "@course-suite/tracking";
 import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "@course-suite/zip";
@@ -230,7 +230,13 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     ...(input.allowedUrls ?? []),
     ...(exporter.lrs ? [exporter.lrs.endpoint] : []),
   ];
-  problems.push(...findModuleCode(shipped), ...findOutboundUrls(shipped, allowed, collected));
+  // The player's code names each embed provider's player address, exactly, to hold an embed to its
+  // provider (D-44); it frames one only for an embed the author put in, when the learner asks.
+  const named = Object.values(EMBED_PROVIDERS);
+  problems.push(
+    ...findModuleCode(shipped),
+    ...findOutboundUrls(shipped, allowed, collected, named),
+  );
   if (problems.length > 0) return fail(problems);
 
   // The descriptor is checked against the files actually in the package, not the list it was given.

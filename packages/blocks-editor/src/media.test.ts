@@ -1,3 +1,5 @@
+import { embedProvider } from "@course-suite/format";
+import { EMBED_ATTACKS } from "@course-suite/format/test/courses";
 import { describe, expect, test } from "vitest";
 import { embedFor, PROVIDER_NAMES } from "./embed.js";
 import { extensionOf, imageType, isWebReady, mp4Codecs } from "./media.js";
@@ -97,6 +99,27 @@ describe("web embeds (D-44)", () => {
     expect(embedFor("http://dai.ly/x8abc12")?.embedUrl).toBe(
       "https://www.dailymotion.com/embed/video/x8abc12",
     );
+  });
+
+  test("D-44: a pasted watch or share address becomes the player address the format accepts for its provider", () => {
+    for (const [pasted, provider] of [
+      ["https://www.youtube.com/watch?v=aqz-KE-bpKQ&t=90", "YouTube"],
+      ["https://youtube.com/shorts/aqz-KE-bpKQ", "YouTube"],
+      ["https://vimeo.com/76979871", "Vimeo"],
+      ["https://www.loom.com/share/0123456789abcdef0123456789abcdef?sid=1", "Loom"],
+      ["https://www.dailymotion.com/video/x8abc12", "Dailymotion"],
+    ] as const) {
+      const embed = embedFor(pasted);
+      expect(embed?.provider, pasted).toBe(provider);
+      expect(embedProvider(embed?.embedUrl ?? "", provider), pasted).toBe(provider);
+    }
+    // An address that tries to frame something else is refused, or framed only as the provider's
+    // own player for the video it names.
+    for (const [trick, address] of EMBED_ATTACKS) {
+      const embed = embedFor(address);
+      if (embed) expect(embedProvider(embed.embedUrl, embed.provider), trick).toBe(embed.provider);
+    }
+    for (const [, address] of EMBED_ATTACKS.slice(0, 5)) expect(embedFor(address)).toBeUndefined();
   });
 
   test("D-44: anything else is refused, including look-alike hosts and scripts", () => {

@@ -1,4 +1,5 @@
-import type { LessonEntry } from "@course-suite/format";
+import type { Block, LessonEntry } from "@course-suite/format";
+import { EMBED_ATTACKS, mediaCourse } from "@course-suite/format/test/courses";
 import { describe, expect, test } from "vitest";
 import { stubCourse, stubInput, stubMedia, stubPlayer } from "../test/stub.js";
 import {
@@ -78,6 +79,28 @@ describe("buildPackage", () => {
       { file: "course", path: "/title", message: expect.any(String) },
     ]);
   });
+
+  test.each(EMBED_ATTACKS)(
+    "D-44: refuses to publish an embed named YouTube on %s",
+    async (_trick, embedUrl) => {
+      const course = mediaCourse();
+      const entry = course.entries.findIndex(
+        (entry) =>
+          entry.kind === "lesson" && entry.blocks.some((block) => block.variant === "embed"),
+      );
+      const blocks = (course.entries[entry] as LessonEntry).blocks;
+      const index = blocks.findIndex((block) => block.variant === "embed");
+      const embed = blocks[index] as Block;
+      embed.variantSettings = { ...embed.variantSettings, embedUrl, provider: "YouTube" };
+      expect(await problems({ course })).toEqual([
+        {
+          file: "course",
+          path: `/entries/${entry}/blocks/${index}/variantSettings/embedUrl`,
+          message: "is not a player address of YouTube",
+        },
+      ]);
+    },
+  );
 
   test("rejects a package version that is not a whole number from 1", async () => {
     for (const packageVersion of [0, 1.5, -2]) {
@@ -261,6 +284,29 @@ Read more at https://example.org/guide-two
       const player = withFiles({ "player/notes.js": "// docs: https://tracker.example.net/x\n" });
       expect(await problems({ player })).toEqual([
         { file: "player/notes.js", message: expect.stringContaining("tracker.example.net") },
+      ]);
+    });
+
+    test("D-44: the player's code may name each embed provider's player address, exactly; nothing under it, and no media file", async () => {
+      const prefix = "https://www.youtube-nocookie.com/embed/";
+      await expect(
+        built({
+          player: withFiles({
+            "player/embed.js": `const p = "${prefix}";
+`,
+          }),
+        }),
+      ).resolves.toBeTruthy();
+      const player = withFiles({
+        "player/embed.js": `const p = "${prefix}aqz-KE-bpKQ";
+`,
+      });
+      expect(await problems({ player })).toEqual([
+        { file: "player/embed.js", message: expect.stringContaining(`${prefix}aqz-KE-bpKQ`) },
+      ]);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg"><image href="${prefix}"/></svg>`;
+      expect(await problems(withMedia({ "remote.svg": svg }))).toEqual([
+        { file: "media/remote.svg", message: expect.stringContaining(prefix) },
       ]);
     });
   });

@@ -32,11 +32,12 @@ export {
 } from "./richtext.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
-export type { Setting } from "./variants.js";
+export type { EmbedProvider, Setting } from "./variants.js";
 export {
   deepestHeadingLevel,
   defaultHeadingLevel,
   EMBED_PROVIDERS,
+  embedProvider,
   FULL_BLEED,
   headingLevel,
   settingsTable,

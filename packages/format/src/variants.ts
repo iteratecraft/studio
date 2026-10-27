@@ -127,8 +127,55 @@ const CONTINUE: Record<string, Setting> = {
 // Multimedia (M2-13, BLK-05; blocks-editor.md 2.5, 2.12). Each variant has a table of its own: the
 // editor does not switch among them.
 
-/** The embed providers (D-44): the published course frames only their players. */
-export const EMBED_PROVIDERS = ["YouTube", "Vimeo", "Loom", "Dailymotion"] as const;
+/**
+ * The embed providers (D-44) and the start of each one's player address, as their public embed
+ * instructions give it: the published course frames only these players.
+ */
+export const EMBED_PROVIDERS = {
+  YouTube: "https://www.youtube-nocookie.com/embed/",
+  Vimeo: "https://player.vimeo.com/video/",
+  Loom: "https://www.loom.com/embed/",
+  // Dailymotion's documented embed address for a video id (its newer player takes the id in a
+  // query instead; this one keeps the id in the path, where the check below can hold it).
+  Dailymotion: "https://www.dailymotion.com/embed/video/",
+} as const;
+
+export type EmbedProvider = keyof typeof EMBED_PROVIDERS;
+
+// The WHATWG URL parser every browser and Node.js provide; this package takes no DOM or Node types.
+declare const URL: new (
+  url: string,
+) => Readonly<Record<"href" | "origin" | "pathname" | "username" | "password", string>>;
+
+/**
+ * The provider whose player `embedUrl` is (D-44), or undefined: the address, written exactly as the
+ * URL parser writes it, is https on the provider's own host and port with no user name, and its
+ * path is the player path and one video id; a query and a fragment (start times) may follow. A
+ * named `provider` must be that one. The player frames only such an address, and the format
+ * accepts no other.
+ */
+export function embedProvider(embedUrl: string, provider?: string): EmbedProvider | undefined {
+  let url: InstanceType<typeof URL>;
+  try {
+    url = new URL(embedUrl);
+  } catch {
+    return undefined;
+  }
+  // The written form rules out dot segments, backslashes, a spelled-out port and the like.
+  if (url.href !== embedUrl || url.username || url.password) return undefined;
+  for (const [name, prefix] of Object.entries(EMBED_PROVIDERS) as [EmbedProvider, string][]) {
+    const player = new URL(prefix);
+    if (
+      (provider === undefined || provider === name) &&
+      url.origin === player.origin &&
+      url.pathname.startsWith(player.pathname) &&
+      /^[\w-]+$/.test(url.pathname.slice(player.pathname.length))
+    ) {
+      return name;
+    }
+  }
+  return undefined;
+}
 
 /** Plain text, a paragraph per blank-line-separated part. */
 const PLAIN = { type: "string", maxLength: 100_000 };
@@ -158,10 +205,10 @@ const VIDEO: Record<string, Setting> = {
 const EMBED: Record<string, Setting> = {
   // What the author pasted (an address or embed code's frame address), to edit it again.
   url: { schema: { type: "string", maxLength: 2048 } },
-  // The provider's player that the published course frames, https only (ADR-0004), and the
-  // provider named on the button that loads it.
+  // The provider's player that the published course frames, https only (ADR-0004) and checked
+  // against the provider by embedProvider, and the provider named on the button that loads it.
   embedUrl: { schema: { type: "string", pattern: "^https://[^\\s\"'<>]+$", maxLength: 2048 } },
-  provider: { schema: choice(...EMBED_PROVIDERS) },
+  provider: { schema: choice(...Object.keys(EMBED_PROVIDERS)) },
   border: { schema: FLAG, default: false },
 };
 

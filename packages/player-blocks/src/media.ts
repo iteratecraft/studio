@@ -7,6 +7,7 @@
 import {
   type Block,
   type ContentItem,
+  embedProvider,
   type MediaRef,
   textOn,
   variantSettings,
@@ -14,6 +15,7 @@ import {
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
 import { hooks } from "./hooks.js";
+import { lockedMedia, mediaEntry } from "./progress.js";
 import type { StaticContext } from "./static.js";
 
 type MediaContext = Pick<StaticContext, "course" | "labels" | "lesson" | "mediaUrl">;
@@ -36,7 +38,7 @@ interface MediaSettings {
 
 /** The address of a media reference's file, and its index entry, or undefined when it has none. */
 function fileOf(ref: MediaRef | undefined, { course, mediaUrl }: MediaContext) {
-  const entry = ref && course.media.find((media) => media.key === ref.key);
+  const entry = mediaEntry(course, ref);
   return entry && { entry, src: mediaUrl(entry.variantKey ?? entry.key) };
 }
 
@@ -62,11 +64,11 @@ function mediaPlayer<K extends "audio" | "video">(
   tag: K,
   block: Block,
   src: string,
-  { lesson }: MediaContext,
+  { course, lesson }: MediaContext,
 ): HTMLElementTagNameMap[K] {
   const media = h(tag, { controls: true, preload: "metadata", src });
   // UI-BLOCKS-EDITOR-R37: forward seeking is on by default; off makes the block requirable.
-  if (!variantSettings<MediaSettings>(block).forwardSeeking) {
+  if (lockedMedia(course, block)) {
     lockForwardSeeking(media);
     media.addEventListener("ended", () => {
       if (lesson && !lesson.isDone(block.id)) lesson.itemDone(block, block.id);
@@ -175,16 +177,22 @@ export function videoBlock(block: Block, context: MediaContext): HTMLElement | u
 /**
  * A web embed (D-44; rise.md §3 C Multimedia): a placeholder naming the provider, and the provider's
  * frame only once the learner asks for it, so nothing loads from outside the package before that
- * (ADR-0004). The editor's preview shows where it goes but never loads it. Only https frames.
+ * (ADR-0004). The editor's preview shows where it goes but never loads it. Only a player address
+ * of the named provider is framed; for any other address, which a hand-made document may hold, the
+ * block says it cannot be shown and offers nothing to load or follow.
  */
 export function embedBlock(block: Block, { labels }: MediaContext): HTMLElement | undefined {
   const s = variantSettings<MediaSettings>(block);
-  // The format allows only https addresses; an older or hand-made document may still hold another.
-  const address = s.embedUrl ?? "";
-  if (!/^https:\/\/[^\s]+$/.test(address)) return undefined;
-  const provider = s.provider ?? new URL(address).hostname;
+  const address = s.embedUrl;
+  if (!address) return undefined;
+  const provider = embedProvider(address, s.provider);
   const text = items(block)[0]?.text;
   const frame = h("div", { class: s.border ? "embed-frame embed-border" : "embed-frame" });
+  if (!provider) {
+    const notice = h("p", { class: "embed-notice" }, labels["embed.unavailable"]);
+    frame.append(h("div", { class: "embed-placeholder" }, notice));
+    return h("figure", { class: "figure media-embed" }, frame, caption(text, labels));
+  }
   const preview = hooks?.files !== undefined;
   const noticeId = uid("embed");
   const load = h(

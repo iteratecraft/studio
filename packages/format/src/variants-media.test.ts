@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { mediaCourse } from "../test/courses.js";
+import { EMBED_ATTACKS, mediaCourse } from "../test/courses.js";
 import { edit } from "../test/edit.js";
 import { validateCourse } from "./validate.js";
-import { VARIANTS, variantSettings } from "./variants.js";
+import { EMBED_PROVIDERS, embedProvider, VARIANTS, variantSettings } from "./variants.js";
 
 /** The path of a block of the media course, by its id. */
 const at = (id: string) => {
@@ -75,6 +75,42 @@ describe("multimedia block variants (M2-13, BLK-05)", () => {
         message: expect.stringContaining(message),
       },
     ]);
+  });
+
+  test.each(EMBED_ATTACKS)("D-44: an embed named YouTube on %s is refused", (_trick, address) => {
+    const path = `${at("blkembed01")}/variantSettings/embedUrl`;
+    expect(embedProvider(address, "YouTube")).toBeUndefined();
+    expect(validateCourse(edit(mediaCourse(), path, address))).toEqual([
+      { path, message: "is not a player address of YouTube" },
+    ]);
+  });
+
+  test("D-44: each provider's player address, with a start time, is accepted for that provider only", () => {
+    const players = {
+      YouTube: "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?start=90",
+      Vimeo: "https://player.vimeo.com/video/76979871?dnt=1#t=30s",
+      Loom: "https://www.loom.com/embed/0123456789abcdef0123456789abcdef",
+      Dailymotion: "https://www.dailymotion.com/embed/video/x8abc12",
+    };
+    expect(Object.keys(players)).toEqual(Object.keys(EMBED_PROVIDERS));
+    const embed = at("blkembed01");
+    for (const [provider, address] of Object.entries(players)) {
+      expect(embedProvider(address)).toBe(provider);
+      expect(embedProvider(address, provider)).toBe(provider);
+      const course = edit(
+        edit(mediaCourse(), `${embed}/variantSettings/provider`, provider),
+        `${embed}/variantSettings/embedUrl`,
+        address,
+      );
+      expect(validateCourse(course), provider).toEqual([]);
+      const other = provider === "Loom" ? "Vimeo" : "Loom";
+      expect(validateCourse(edit(course, `${embed}/variantSettings/provider`, other))).toEqual([
+        {
+          path: `${embed}/variantSettings/embedUrl`,
+          message: `is not a player address of ${other}`,
+        },
+      ]);
+    }
   });
 
   test("an unknown multimedia variant is reported", () => {

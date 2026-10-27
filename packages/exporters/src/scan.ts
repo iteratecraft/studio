@@ -113,21 +113,23 @@ export function findModuleCode(files: Iterable<readonly [string, Uint8Array]>): 
 /**
  * One problem per file and URL that is neither allowed nor a namespace name. The player's pages,
  * scripts and styles are scanned whole; the `media` paths (the author's media files) and other markup
- * only for what a browser loads from them.
+ * only for what a browser loads from them. The player's code may also name the `named` addresses,
+ * exactly as written there, never anything under them, and the author's media may not.
  */
 export function findOutboundUrls(
   files: Iterable<readonly [string, Uint8Array]>,
   allowed: readonly string[],
   media: ReadonlySet<string> = new Set(),
+  named: readonly string[] = [],
 ): Problem[] {
   const permitted = [...NAMESPACE_URIS, ...allowed];
   const problems: Problem[] = [];
   for (const [path, data] of files) {
-    const scan =
-      CODE.test(path) && !media.has(path) ? urlsIn : MARKUP.test(path) ? loadedUrlsIn : undefined;
+    const code = CODE.test(path) && !media.has(path);
+    const scan = code ? urlsIn : MARKUP.test(path) ? loadedUrlsIn : undefined;
     if (scan === undefined) continue;
     for (const url of new Set(scan(utf8.decode(data)))) {
-      if (isAllowed(url, permitted)) continue;
+      if (isAllowed(url, permitted) || (code && named.includes(url))) continue;
       problems.push({
         file: path,
         message: `names '${url}', which is not the package, the LMS or an address the author configured (ADR-0004)`,

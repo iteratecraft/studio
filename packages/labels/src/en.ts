@@ -105,6 +105,7 @@ export const english = {
     "embed.notice": "It loads from {provider}, outside this course.",
     "embed.preview": "The content from {provider} loads here in the published course.",
     "embed.title": "Content from {provider}",
+    "embed.unavailable": "This content cannot be shown.",
     "attachment.download": "Download {name}",
     "code.label": "Code",
     "code.named": "{language} code",
