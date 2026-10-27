@@ -52,15 +52,20 @@ const samplePairs = (id: () => string, t: Translate) =>
     match: inlineHtml(t(match)),
   }));
 
-/** A new question of `kind` with sample content (W7, W11 step 3). */
+/**
+ * A new question of `kind` with sample content (W7, W11 step 3), its feedback one message for any
+ * answer (2.12 default).
+ */
 export function newQuestion(kind: QuestionKind, id: () => string, t: Translate): Question {
   const right = inlineHtml(t("sample.right"));
   const wrong = inlineHtml(t("sample.wrong"));
+  const feedbackMode = "any";
   switch (kind) {
     case "single-choice":
       return {
         id: id(),
         kind,
+        feedbackMode,
         prompt: prompt(t, "sample.choicePrompt"),
         answers: [answer(id, right, true), answer(id, wrong, false)],
       };
@@ -68,6 +73,7 @@ export function newQuestion(kind: QuestionKind, id: () => string, t: Translate):
       return {
         id: id(),
         kind,
+        feedbackMode,
         prompt: prompt(t, "sample.responsePrompt"),
         answers: [answer(id, right, true), answer(id, right, true), answer(id, wrong, false)],
       };
@@ -75,11 +81,18 @@ export function newQuestion(kind: QuestionKind, id: () => string, t: Translate):
       return {
         id: id(),
         kind,
+        feedbackMode,
         prompt: prompt(t, "sample.fillPrompt"),
         acceptedAnswers: [t("sample.fillAnswer")],
       };
     case "matching":
-      return { id: id(), kind, prompt: prompt(t, "sample.matchPrompt"), pairs: samplePairs(id, t) };
+      return {
+        id: id(),
+        kind,
+        feedbackMode,
+        prompt: prompt(t, "sample.matchPrompt"),
+        pairs: samplePairs(id, t),
+      };
   }
 }
 

@@ -38,7 +38,7 @@ import type { CourseSession } from "./session.js";
 import { ColorControl, NumberControl } from "./static-blocks.js";
 
 /** A new timer's limit in minutes (rise.md 3I) and the longest one offered. */
-export const DEFAULT_TIMER_MINUTES = 10;
+const DEFAULT_TIMER_MINUTES = 10;
 const MAX_TIMER_MINUTES = 120;
 
 /** The first words of a question, to tell it from the others in the list. */
@@ -256,7 +256,7 @@ function QuizSettingsButton({ editor, quiz }: { editor: Editor; quiz: QuizEntry 
 /**
  * Every setting of a quiz (2.13, GI-O1, GI-O2, W11 step 4), each change one undo step.
  */
-export function QuizSettingsFields({ editor, quiz }: { editor: Editor; quiz: QuizEntry }) {
+function QuizSettingsFields({ editor, quiz }: { editor: Editor; quiz: QuizEntry }) {
   const t = useStrings();
   const entries = editor.document.entries;
   const settings = quiz.settings ?? {};

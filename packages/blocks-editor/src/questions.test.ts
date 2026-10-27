@@ -24,6 +24,8 @@ describe("question types (M2-15)", () => {
       const course = quizCourse();
       const question = { ...newQuestion(kind, idMaker(course), t), id: "qqzsingle1" };
       expect(withQuestion(course, question).ok).toBe(true);
+      // blocks-interactions 2.12: feedback starts as one message for any response.
+      expect(question.feedbackMode).toBe("any");
     },
   );
 

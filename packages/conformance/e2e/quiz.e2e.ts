@@ -142,7 +142,7 @@ test.describe("SCORM 1.2", () => {
 });
 
 test.describe("SCORM 2004", () => {
-  test("[rise:R8] [rise:R10] [standards:R12] three failed attempts keep the best scaled score and failed, with an interaction per answer; a pass is passed and completed", async ({
+  test("[rise:R8] [rise:R10] [standards:R10] [standards:R12] three failed attempts keep the best scaled score and failed, with an interaction per answer; a pass is passed and completed", async ({
     browser,
   }) => {
     const pkg = await scorm2004Package(pond("scorm2004"));
@@ -195,7 +195,7 @@ for (const standard of ["xapi", "cmi5"] as const) {
   const build = (course: Course) =>
     standard === "xapi" ? xapiPackage(course) : cmi5Package(course);
   test.describe(standard, () => {
-    test(`[rise:R8] [rise:R10] [standards:X-2] ${standard}: every answer is an answered statement, each attempt failed with its score, the course failed with the best one; a pass is passed with its score`, async ({
+    test(`[rise:R8] [rise:R10] [standards:X-2] [standards:C-6] ${standard}: every answer is an answered statement${standard === "xapi" ? ", each attempt failed with its score" : ""}; the course failed with the best score; a pass is passed with its score`, async ({
       browser,
     }) => {
       const pkg = await build(pond(standard));
