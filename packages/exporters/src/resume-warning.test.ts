@@ -1,5 +1,6 @@
 // M2-07: at publish the builder estimates the largest learner progress the course can save and
 // warns the author when the target standard cannot store it whole (standards.md §4.2).
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Block, Course, LessonEntry, QuizEntry } from "@course-suite/format";
 import { RESUME_CAPS } from "@course-suite/tracking";
 import { describe, expect, test } from "vitest";
@@ -78,6 +79,7 @@ async function warnings(input: Course, exporter: Exporter) {
     player: blocksPlayer(),
     exporter,
     media: () => undefined,
+    fonts: nodeFonts,
     packageVersion: 1,
   });
   if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));

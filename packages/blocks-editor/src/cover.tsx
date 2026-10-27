@@ -26,20 +26,29 @@ export function CoverImageField({ editor }: { editor: Editor }) {
   );
 }
 
-/** A lesson's header image (rise.md 3B, T6). */
+/**
+ * A lesson's header image (rise.md 3B, T6). The player shows it in the image layout of lesson
+ * headers only (blocks-editor.md 2.18), so the field says so under any other.
+ */
 export function HeaderImageField({ editor, lesson }: { editor: Editor; lesson: LessonEntry }) {
   const t = useStrings();
+  const headers = editor.document.theme?.headers;
   return (
-    <ImageSlot
-      editor={editor}
-      label={t("media.header")}
-      image={lesson.headerImage}
-      command={(headerImage) => ({ type: "updateEntry", id: lesson.id, set: { headerImage } })}
-      remove={{
-        label: t("media.removeHeader"),
-        command: { type: "updateEntry", id: lesson.id, unset: ["headerImage"] },
-      }}
-    />
+    <>
+      <ImageSlot
+        editor={editor}
+        label={t("media.header")}
+        image={lesson.headerImage}
+        command={(headerImage) => ({ type: "updateEntry", id: lesson.id, set: { headerImage } })}
+        remove={{
+          label: t("media.removeHeader"),
+          command: { type: "updateEntry", id: lesson.id, unset: ["headerImage"] },
+        }}
+      />
+      {(headers?.layout !== "image" || headers.hidden) && (
+        <p className="be-note">{t("media.headerShown")}</p>
+      )}
+    </>
   );
 }
 

@@ -23,6 +23,7 @@
     "@course-suite/tracking": "workspace:*"
   },
   "devDependencies": {
+    "@course-suite/fonts": "workspace:*",
     "@course-suite/zip": "workspace:*",
     "@types/node": "catalog:",
     "vitest": "catalog:"

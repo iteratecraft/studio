@@ -2,6 +2,13 @@
 // addressed by stable id, previous and next links (rise.md §3 B, E, F, G and N), and the goodbye
 // page. Every learner string comes from the label set; course text comes from the course document.
 import type { Block, Course, Entry, LessonEntry } from "@course-suite/format";
+import {
+  cropOf,
+  DEFAULT_HEADER_OVERLAY,
+  DEFAULT_OVERLAY,
+  overlayColors,
+  themeColors,
+} from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
@@ -9,6 +16,13 @@ import { isContinue, type PageStatus } from "./progress.js";
 import { quizView } from "./quiz.js";
 import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
 import type { Runtime } from "./runtime.js";
+import {
+  animateOnScroll,
+  animates,
+  headerBackground,
+  setVariables,
+  themePicture,
+} from "./theme.js";
 
 /** Below this width the outline starts closed and covers the content when opened (UI-BLOCKS-EDITOR-R53, R55). */
 export const WIDE_LAYOUT = "(min-width: 992px)";
@@ -148,10 +162,16 @@ export function startShell(
   let first = true;
   const show = () => {
     if (runtime.ended) return;
-    const route = parseRoute(location.hash, pages);
+    let route = parseRoute(location.hash, pages);
     if (route.kind === "unknown") {
       // A lesson address this version of the course does not have: open the cover instead.
       history.replaceState(null, "", COVER_HASH);
+    }
+    // A skipped cover opens the first lesson, or where the learner stopped (BLK-09, rise.md 3E).
+    const skipTo = runtime.resumeAt ?? pages[0];
+    if (route.kind !== "page" && course.theme?.cover?.skip && skipTo) {
+      history.replaceState(null, "", pageHash(skipTo.id));
+      route = parseRoute(location.hash, pages);
     }
     const page = route.kind === "page" ? route.page : undefined;
     view?.leave();
@@ -183,9 +203,16 @@ export function startShell(
   };
 
   function coverView(): PageView {
-    const cover = course.cover && course.media.find((media) => media.key === course.cover?.key);
-    // A returning learner resumes where they stopped (rise.md rule 1, §4 "Learner state").
-    const target = runtime.resumeAt ?? pages[0];
+    // The cover's layout and options (rise.md 3E, blocks-editor.md 2.18 cover page).
+    const options = course.theme?.cover ?? {};
+    const layout = options.layout ?? "split-left";
+    const cover =
+      layout === "plain"
+        ? undefined
+        : course.cover && course.media.find((media) => media.key === course.cover?.key);
+    // A returning learner resumes where they stopped (rise.md rule 1, §4 "Learner state"). Without
+    // the button learners start from the outline (UI-BLOCKS-EDITOR-R47).
+    const target = options.startButton === false ? undefined : (runtime.resumeAt ?? pages[0]);
     const begin = target
       ? h(
           "a",
@@ -194,26 +221,47 @@ export function startShell(
         )
       : undefined;
     begin?.addEventListener("click", () => runtime.begin());
+    // The logo above the title, in one of three sizes, square or its own shape (blocks-editor.md
+    // 2.18 cover page).
+    const logo = options.logo;
+    const logoEntry = logo && course.media.find((media) => media.key === logo.key);
     const element = h(
       "div",
-      { class: "cover" },
+      { class: `cover cover-${layout}` },
       cover && course.cover
-        ? h("img", {
-            class: "cover-image",
-            src: mediaUrl(cover.variantKey ?? cover.key),
-            alt: course.cover.alt ?? "",
-            width: cover.width,
-            height: cover.height,
-          })
+        ? themePicture(
+            mediaUrl(cover.variantKey ?? cover.key),
+            course.cover.alt ?? "",
+            cover,
+            cropOf(options.crop, cover.key),
+            "cover-image",
+            layout === "full-image",
+          )
         : undefined,
       h(
         "div",
         { class: "cover-text" },
+        logo && logoEntry
+          ? h(
+              "div",
+              {
+                class: `cover-logo logo-${options.logoSize ?? "small"}${options.logoSquare ? " logo-square" : ""}`,
+              },
+              themePicture(
+                mediaUrl(logoEntry.variantKey ?? logoEntry.key),
+                logo.alt ?? "",
+                logoEntry,
+                cropOf(logo.crop, logoEntry.key),
+                "logo-image",
+                options.logoSquare === true,
+              ),
+            )
+          : undefined,
         h("h1", { tabindex: -1 }, course.title),
         course.description
           ? h("div", { class: "cover-description" }, richText(course.description, labels))
           : undefined,
-        course.authors?.length
+        course.authors?.length && options.author !== false
           ? h(
               "p",
               { class: "cover-authors" },
@@ -223,6 +271,21 @@ export function startShell(
         begin,
       ),
     );
+    if (layout === "full-image") {
+      // The title over the picture under an overlay, or over the theme colour without a picture.
+      const chosen = options.overlay ?? DEFAULT_OVERLAY;
+      const colors = themeColors(course.theme);
+      const overlay = cover
+        ? overlayColors(chosen, course.theme)
+        : { color: colors.theme, text: colors.themeText };
+      setVariables(element, {
+        "--overlay": overlay.color,
+        "--overlay-opacity": String(cover ? chosen.opacity / 100 : 1),
+      });
+      element.classList.add(`text-${overlay.text === "#ffffff" ? "light" : "dark"}`);
+      // Over the picture, under the text.
+      element.lastElementChild?.before(h("div", { class: "cover-overlay" }));
+    }
     return { element, refresh() {}, leave() {} };
   }
 
@@ -249,7 +312,9 @@ export function startShell(
         ),
       );
     } else if (page.kind === "lesson") {
-      body = lessonBlocks(page, next, updates);
+      const blocks = lessonBlocks(page, next, updates);
+      body = blocks.element;
+      leave = blocks.stop;
     } else {
       const quiz = quizView(page, { labels, runtime, next, refresh });
       leave = quiz.stop;
@@ -288,33 +353,10 @@ export function startShell(
       wasDone = done;
     });
 
-    // The lesson's header image (rise.md §3 B, §3 E lesson headers); empty alt text is decorative.
-    const headerImage = page.kind === "lesson" ? page.headerImage : undefined;
-    const header = headerImage && course.media.find((media) => media.key === headerImage.key);
     const element = h(
       "article",
       { class: `lesson lesson-${page.kind}`, "aria-labelledby": titleId },
-      header && headerImage
-        ? h("img", {
-            class: "lesson-header-image",
-            src: mediaUrl(header.variantKey ?? header.key),
-            alt: headerImage.alt ?? "",
-            width: header.width,
-            height: header.height,
-          })
-        : undefined,
-      h(
-        "header",
-        { class: "lesson-header" },
-        previous ? pageLink(previous, "previous", labels) : undefined,
-        number
-          ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
-          : undefined,
-        h("h1", { id: titleId, tabindex: -1 }, page.title),
-        page.description
-          ? h("div", { class: "lesson-description" }, richText(page.description, labels))
-          : undefined,
-      ),
+      lessonHeader(page, previous, number, titleId),
       body,
       markDone ? h("div", { class: "lesson-actions" }, markDone) : undefined,
       nav,
@@ -326,6 +368,103 @@ export function startShell(
       },
       leave,
     };
+  }
+
+  /**
+   * The lesson header (blocks-editor.md 2.18 lesson headers, UI-BLOCKS-EDITOR-R46): its layout,
+   * height, lesson count and author. Hidden headers keep the title for screen readers.
+   */
+  function lessonHeader(
+    page: Page,
+    previous: Page | undefined,
+    number: ReturnType<typeof lessonNumber>,
+    titleId: string,
+  ): HTMLElement {
+    const options = course.theme?.headers ?? {};
+    const hidden = options.hidden === true;
+    const background = hidden ? undefined : headerBackground(course.theme);
+    // The author is hidden on every lesson, on the cover (which hides it everywhere) or on this
+    // lesson alone (blocks-editor.md W6).
+    const lesson = page.kind === "lesson" ? page : undefined;
+    const author =
+      hidden ||
+      options.author === false ||
+      course.theme?.cover?.author === false ||
+      lesson?.authorHidden
+        ? undefined
+        : (lesson?.author?.name ?? course.authors?.[0]?.name);
+    const header = h(
+      "header",
+      {
+        class: [
+          "lesson-header",
+          `header-${options.height ?? "medium"}`,
+          hidden && "header-hidden",
+          background && `has-background text-${background.text}`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+      previous ? pageLink(previous, "previous", labels) : undefined,
+      number && !hidden && options.lessonCount !== false
+        ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
+        : undefined,
+      h(
+        "h1",
+        { id: titleId, tabindex: -1, class: hidden ? "visually-hidden" : undefined },
+        page.title,
+      ),
+      author ? h("p", { class: "lesson-author" }, author) : undefined,
+      page.description
+        ? h("div", { class: "lesson-description" }, richText(page.description, labels))
+        : undefined,
+    );
+    if (background) header.style.backgroundColor = background.color;
+    if (!hidden && options.layout === "image") imageHeader(header, lesson);
+    return header;
+  }
+
+  /**
+   * The image lesson header: the lesson's own header image, else the theme's with its crop, under
+   * the overlay whose text keeps 4.5:1; the theme colour stands in for a missing picture
+   * (blocks-editor.md 2.18 lesson headers, default dark at 60 %).
+   */
+  function imageHeader(header: HTMLElement, lesson: LessonEntry | undefined): void {
+    const theme = course.theme;
+    const ref = lesson?.headerImage ?? theme?.headers?.image;
+    const entry = ref && course.media.find((media) => media.key === ref.key);
+    const chosen = theme?.headers?.overlay ?? DEFAULT_HEADER_OVERLAY;
+    const colors = themeColors(theme);
+    const overlay = entry
+      ? overlayColors(chosen, theme)
+      : { color: colors.theme, text: colors.themeText };
+    const media = h("div", { class: "header-media" });
+    if (entry && ref) {
+      const crop =
+        ref === theme?.headers?.image ? cropOf(theme.headers.image.crop, entry.key) : undefined;
+      media.append(
+        themePicture(
+          mediaUrl(entry.variantKey ?? entry.key),
+          ref.alt ?? "",
+          entry,
+          crop,
+          "header-picture",
+          true,
+        ),
+      );
+    }
+    const shade = h("div", { class: "header-overlay" });
+    setVariables(shade, {
+      "--overlay": overlay.color,
+      "--overlay-opacity": String(entry ? chosen.opacity / 100 : 1),
+    });
+    media.append(shade);
+    header.prepend(media);
+    header.classList.add(
+      "has-background",
+      "header-image",
+      `text-${overlay.text === "#ffffff" ? "light" : "dark"}`,
+    );
   }
 
   /** The next page's link, or its title marked unavailable with the reason (UI-BLOCKS-R26). */
@@ -387,11 +526,16 @@ export function startShell(
           element.hidden = i >= shown || (isContinue(block) && progress.isDone(block.id));
       });
     });
-    return h(
+    const element = h(
       "div",
       { class: "blocks" },
       ...rendered.flatMap(([, element]) => (element ? [element] : [])),
     );
+    // Blocks fade in as they scroll into view, by the course's switch and their own (rise.md 3D).
+    const stop = animateOnScroll(
+      rendered.flatMap(([block, el]) => (el && animates(block, course) ? [el] : [])),
+    );
+    return { element, stop };
   }
 
   /** Focus moves to the first block a gate revealed, so keyboard users carry on from there. */

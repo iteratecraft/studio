@@ -18,6 +18,7 @@ import {
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
 import { STATIC_RENDERERS, type StaticContext } from "./static.js";
+import { themeBackground } from "./theme.js";
 
 /** What a lesson page gives its blocks: progress, gates and saved answers. */
 export interface LessonHooks {
@@ -120,14 +121,19 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.classList.add("has-background", dark ? "text-light" : "text-dark");
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
-  if (background?.kind === "color") {
-    frame.style.backgroundColor = background.color;
-    frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);
+  // Theme colour and tint follow the course theme, with its contrast (UI-BLOCKS-EDITOR-R45).
+  const fill =
+    background?.kind === "color"
+      ? { color: background.color, text: textOn(background.color, textContrast) }
+      : themeBackground(block, context.course);
+  if (fill) {
+    frame.style.backgroundColor = fill.color;
+    frame.classList.add("has-background", `text-${fill.text}`);
     // Keep cards white (blocks-editor.md 2.4, W10 step 4): on by default.
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
   if (accentColor) {
-    const color = background?.kind === "color" ? background.color : SURFACE;
+    const color = fill?.color ?? SURFACE;
     const cards = frame.classList.contains("cards-white")
       ? [...frame.querySelectorAll<HTMLElement>(".check")]
       : [];
@@ -137,11 +143,11 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     ]) {
       if (!accentReadable(accentColor, surface)) continue;
       element.style.setProperty("--accent", accentColor);
+      element.style.setProperty("--button", accentColor);
       element.style.setProperty("--focus", accentColor);
-      element.style.setProperty(
-        "--accent-text",
-        textOn(accentColor) === "light" ? "#ffffff" : "#000000",
-      );
+      const text = textOn(accentColor) === "light" ? "#ffffff" : "#000000";
+      element.style.setProperty("--accent-text", text);
+      element.style.setProperty("--button-text", text);
     }
   }
   return frame;

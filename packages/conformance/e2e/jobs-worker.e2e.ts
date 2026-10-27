@@ -17,6 +17,8 @@ import {
   webExporter,
   xapiExporter,
 } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
+import { fontKey, fontsOf } from "@course-suite/format";
 import { expect, test } from "@playwright/test";
 import { build } from "rolldown";
 import { blocksZip, standardsCourses } from "../test/blocks.js";
@@ -89,7 +91,20 @@ for (const standard of Object.keys(STANDARDS) as Standard[]) {
         const data = media(key);
         if (data) files[key] = Buffer.from(data).toString("base64");
       }
-      sent.push({ name, course, media: files });
+      const fonts: PageCourse["fonts"] = {};
+      const base64 = (data: Uint8Array | undefined) => data && Buffer.from(data).toString("base64");
+      for (const font of Object.values(fontsOf(course.theme))) {
+        const found = await nodeFonts(font);
+        if (!found) continue;
+        fonts[fontKey(font)] = {
+          name: found.name,
+          regular: base64(found.regular) as string,
+          ...(found.bold && { bold: base64(found.bold) }),
+          ...(found.italic && { italic: base64(found.italic) }),
+          ...(found.licence && { licence: base64(found.licence) }),
+        };
+      }
+      sent.push({ name, course, media: files, fonts });
     }
     await page.goto(`${origin}/`);
     await page.waitForFunction("globalThis.jobsPage");

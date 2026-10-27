@@ -235,7 +235,9 @@ describe("check:licences", () => {
     expect(result.status, result.output).toBe(0);
   });
 
-  test("fails on wrong package licences", { timeout: TIMEOUT_MS }, () => {
+  test("fails on wrong package licences, and on fonts without their licence in the repository or an app's build output", {
+    timeout: TIMEOUT_MS,
+  }, () => {
     const cases: [string, string, string][] = [
       ["packages/format", "Apache-2.0", 'ADR-0001 requires "MIT"'],
       ["packages/ui", "MIT", 'ADR-0001 requires "Apache-2.0"'],
@@ -252,6 +254,21 @@ describe("check:licences", () => {
       turbo.tags = ["engine"];
     });
     rmSync(join(dir, "packages", "tracking", "LICENSE"));
+    // D-45: a bundled font without its OFL licence beside it.
+    rmSync(join(dir, "packages", "fonts", "files", "inter", "OFL.txt"));
+    // OFL-1.1 section 2: an app's build output with a bundled font but not its licence, and with
+    // one that is no bundled font. The other family's licence beside it does not count.
+    const assets = join(dir, "apps", "web", "dist", "assets");
+    const fonts = join(dir, "packages", "fonts", "files");
+    mkdirSync(assets, { recursive: true });
+    cpSync(join(fonts, "literata", "regular.woff2"), join(assets, "regular-abc.woff2"));
+    cpSync(join(fonts, "work-sans", "OFL.txt"), join(assets, "OFL-abc.txt"));
+    writeFileSync(join(assets, "stray-abc.woff2"), "wOF2 not one of ours");
+    // With its licence, a bundled font in the build output passes.
+    const desktop = join(dir, "apps", "desktop", "dist", "assets");
+    mkdirSync(desktop, { recursive: true });
+    cpSync(join(fonts, "literata", "bold.woff2"), join(desktop, "bold-abc.woff2"));
+    cpSync(join(fonts, "literata", "OFL.txt"), join(desktop, "OFL-def.txt"));
     // A downloaded program (D-43): GPL, bundled, and not named in the notices.
     editJson(join(dir, "apps", "desktop", "src-tauri", "media-tool.json"), (pin) => {
       pin.licence = "GPL-3.0-or-later";
@@ -276,6 +293,18 @@ describe("check:licences", () => {
     expect(result.output).toContain(
       "packages/tracking: a course-shipped package needs its own MIT",
     );
+    for (const face of ["bold", "italic", "regular"]) {
+      expect(result.output).toContain(
+        `packages/fonts/files/inter/${face}.woff2: a font needs the SIL Open Font License 1.1`,
+      );
+    }
+    expect(result.output).toContain(
+      "apps/web/dist/assets/regular-abc.woff2: the build output lacks the OFL.txt of literata",
+    );
+    expect(result.output).toContain(
+      "apps/web/dist/assets/stray-abc.woff2: a font in the app's build output that is no bundled font",
+    );
+    expect(result.output).not.toContain("apps/desktop/dist");
     expect(result.status).not.toBe(0);
   });
 

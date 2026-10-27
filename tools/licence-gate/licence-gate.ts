@@ -11,7 +11,12 @@
 //     apps and tools but fails in course-shipped packages, because those ship inside every course.
 // (c) The generated block in THIRD_PARTY_NOTICES.md lists every production dependency and repeats
 //     any NOTICE file it ships (Apache-2.0 section 4(d)). A stale block fails the check.
-// (d) Programs an app downloads at run time instead of shipping them (D-12, D-43: the desktop app's
+// (d) Every font file in the repository ships in the app and in courses (D-45), so it needs the SIL
+//     Open Font License 1.1 beside it, as OFL.txt, declaring no Reserved Font Name: a subset is a
+//     modified font, which may not keep a reserved name. An app's build output (apps/*/dist, once
+//     built) is a copy too (OFL-1.1 section 2): each bundled font in it needs its family's OFL.txt
+//     somewhere in the same output, and a font that is no bundled font fails.
+// (e) Programs an app downloads at run time instead of shipping them (D-12, D-43: the desktop app's
 //     media converter, pinned in apps/desktop/src-tauri/media-tool.json) run as separate processes,
 //     so LGPL is accepted for them as for app dependencies, and GPL and the others fail. Each pin
 //     must say it is not bundled, name an https download and its SHA-256, and be named in
@@ -23,8 +28,9 @@
 // `inCourses: false` covers the package only outside course-shipped packages. An exception that no
 // longer matches any dependency fails the check, so the list cannot go stale.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { extname, join, relative, sep } from "node:path";
 
 // devDependencies a course-shipped package may keep: test tooling that never reaches a bundle.
 const COURSE_TOOLING = new Set(["vitest"]);
@@ -221,6 +227,84 @@ for (const e of exceptions) {
     problems.push(`exceptions.json: ${e.name} (${e.licence}) is no longer needed; remove it`);
 }
 
+// (d) Font files.
+// The folders .gitignore leaves out, and /demo/ (pnpm demo:m1): build and test output, which can
+// hold copies of fonts.
+const SKIPPED = new Set([
+  ".git",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+  "playwright-report",
+  "target",
+  "test-courses",
+  "test-results",
+]);
+const FONT_EXTENSIONS = new Set([".woff", ".woff2", ".ttf", ".otf"]);
+function checkFonts(folder: string): void {
+  const entries = readdirSync(folder, { withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(folder, entry.name);
+    if (entry.isDirectory() && !SKIPPED.has(entry.name) && path !== join(root, "demo")) {
+      checkFonts(path);
+    }
+    if (!entry.isFile() || !FONT_EXTENSIONS.has(extname(entry.name).toLowerCase())) continue;
+    const font = relativeDir(path);
+    const licence = join(folder, "OFL.txt");
+    const text = existsSync(licence) ? readFileSync(licence, "utf8") : "";
+    if (!text.includes("SIL OPEN FONT LICENSE Version 1.1")) {
+      problems.push(`${font}: a font needs the SIL Open Font License 1.1 beside it, as OFL.txt`);
+    } else if (text.split("Reserved Font Name").length > 2) {
+      problems.push(
+        `${font}: its OFL.txt declares a Reserved Font Name, which a subset may not use`,
+      );
+    }
+  }
+}
+checkFonts(root);
+
+/** Every file under `folder`, as absolute paths. */
+function filesIn(folder: string): string[] {
+  return readdirSync(folder, { withFileTypes: true, recursive: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name));
+}
+const digest = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+// The bundled families, by the digest of each face, and the digest of each family's licence.
+const fontsRoot = join(root, "packages", "fonts", "files");
+const familyOf = new Map<string, string>();
+const licenceOf = new Map<string, string>();
+if (existsSync(fontsRoot)) {
+  for (const family of readdirSync(fontsRoot)) {
+    for (const file of filesIn(join(fontsRoot, family))) {
+      if (FONT_EXTENSIONS.has(extname(file).toLowerCase())) familyOf.set(digest(file), family);
+      else if (file.endsWith("OFL.txt")) licenceOf.set(family, digest(file));
+    }
+  }
+}
+const appsRoot = join(root, "apps");
+for (const app of existsSync(appsRoot) ? readdirSync(appsRoot) : []) {
+  const dist = join(appsRoot, app, "dist");
+  if (!existsSync(dist)) continue;
+  const files = filesIn(dist);
+  const present = new Set(files.map(digest));
+  for (const file of files) {
+    if (!FONT_EXTENSIONS.has(extname(file).toLowerCase())) continue;
+    const family = familyOf.get(digest(file));
+    const licence = family && licenceOf.get(family);
+    if (!family) {
+      problems.push(
+        `${relativeDir(file)}: a font in the app's build output that is no bundled font`,
+      );
+    } else if (!licence || !present.has(licence)) {
+      problems.push(
+        `${relativeDir(file)}: the build output lacks the OFL.txt of ${family} (OFL-1.1 section 2)`,
+      );
+    }
+  }
+}
+
 // (c) THIRD_PARTY_NOTICES.md generated block.
 const rows = new Set<string>();
 const notices = new Map<string, string>();
@@ -276,7 +360,7 @@ if (start < 0 || end < start) {
   }
 }
 
-// (d) Downloaded programs.
+// (e) Downloaded programs.
 const DOWNLOADED = ["apps/desktop/src-tauri/media-tool.json"];
 for (const file of DOWNLOADED) {
   const path = join(root, file);
@@ -308,6 +392,6 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `Licence gate: ${dirs.size} workspace packages, ${dependencies.length} production dependency ` +
+  `Licence gate: ${dirs.size} workspace packages, font licences, ${dependencies.length} production dependency ` +
     `licence entries (${shippedInCourses.size} in courses), no issues found.`,
 );

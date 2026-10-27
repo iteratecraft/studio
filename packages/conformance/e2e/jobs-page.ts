@@ -1,7 +1,7 @@
 // The page side of the desktop export flow, bundled for Chromium by jobs-worker.e2e.ts: a job
 // runner whose export job builds in the export worker, as the app wires it (ADR-0006, M2-06).
 import type { Standard } from "@course-suite/exporters";
-import type { Course } from "@course-suite/format";
+import { type Course, fontKey } from "@course-suite/format";
 import {
   EXPORT_JOB,
   exportJob,
@@ -16,6 +16,17 @@ export interface PageCourse {
   course: Course;
   /** Base64 bytes of each media file by storage key. */
   media: Record<string, string>;
+  /** The theme's fonts by font key: name, and base64 bytes of each face and of the licence. */
+  fonts: Record<
+    string,
+    {
+      name: string;
+      regular: string;
+      bold?: string | undefined;
+      italic?: string | undefined;
+      licence?: string | undefined;
+    }
+  >;
 }
 
 const bytes = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -34,8 +45,25 @@ async function exportAll(courses: PageCourse[], standard: Standard) {
     handlers: {
       [EXPORT_JOB]: exportJob({
         load: async (source) => {
-          const { course, media } = courses.find((c) => c.name === source) as PageCourse;
-          return { course, media: async (key) => (media[key] ? bytes(media[key]) : undefined) };
+          const { course, media, fonts } = courses.find((c) => c.name === source) as PageCourse;
+          return {
+            course,
+            media: async (key) => (media[key] ? bytes(media[key]) : undefined),
+            fonts: (font) => {
+              const found = fonts[fontKey(font)];
+              if (!found) return undefined;
+              const { name, regular, bold, italic, licence } = found;
+              const optional = (text: string | undefined) =>
+                text === undefined ? undefined : bytes(text);
+              return {
+                name,
+                regular: bytes(regular),
+                bold: optional(bold),
+                italic: optional(italic),
+                licence: optional(licence),
+              };
+            },
+          };
         },
         build: (build, context) =>
           runInWorker(() => new Worker("/export-worker.js", { type: "module" }), build, context),

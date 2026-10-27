@@ -8,6 +8,8 @@ export type {
   CourseData,
   DescribeInput,
   Exporter,
+  FontSource,
+  PackagedFonts,
   PackageFile,
   PackageWarning,
   PlayerBundle,
@@ -16,7 +18,9 @@ export type {
 export {
   buildPackage,
   courseDataFor,
+  FONTS_FOLDER,
   MEDIA_FOLDER,
+  packagedFonts,
   packagedMediaKeys,
   unsafePath,
 } from "./builder.js";

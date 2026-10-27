@@ -50,3 +50,10 @@ export {
   startRuntime,
   type TimedEvent,
 } from "./runtime.js";
+export {
+  type CourseFonts,
+  headerBackground,
+  type PackagedFace,
+  setVariables,
+  themeVariables,
+} from "./theme.js";

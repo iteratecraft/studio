@@ -1,7 +1,7 @@
-// The course editor's frame (blocks-editor.md C1, C2, P1): the top bar with the way back, the course
-// title, the save state, undo and redo, save, the preview and the entry points of later waves;
-// under it the course overview (title, author, description and the outline), one open lesson, or
-// the preview of the course in the real player.
+// The course editor's frame (blocks-editor.md C1, C2, P1, T1): the top bar with the way back, the
+// course title, the save state, undo and redo, save, the theme, the preview and the entry points of
+// later waves; under it the course overview (title, author, description and the outline), one open
+// lesson, the theme panel, or the preview of the course in the real player.
 import { type Entry, lessonLink } from "@course-suite/format";
 import {
   Button,
@@ -16,10 +16,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { DEFAULT_LANGUAGE, languageCode, shownTitle, TITLE_MAX } from "./course.js";
 import { CoverImageField } from "./cover.js";
 import { DraftField, DraftSession, LinkTargets, RichDraftField } from "./fields.js";
+import type { FontLibrary } from "./fonts.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
 import type { CourseSession } from "./session.js";
+import { ThemeView } from "./theme.js";
 
 /** Re-renders on every edit and save-state change of the session. */
 const useSession = (session: CourseSession) =>
@@ -39,7 +41,8 @@ const isTextEntry = (target: EventTarget | null) =>
 type View =
   | { kind: "overview"; from?: string }
   | { kind: "entry"; id: string }
-  | { kind: "preview"; start?: string };
+  | { kind: "preview"; start?: string }
+  | { kind: "theme" };
 
 export interface EditorFrameProps {
   session: CourseSession;
@@ -51,6 +54,8 @@ export interface EditorFrameProps {
   onCopyEntry: (entry: Entry) => void;
   /** Copied blocks, to paste in any lesson of any course. */
   clipboard: Clipboard;
+  /** The author's fonts, in every course (M2-17). */
+  library: FontLibrary;
 }
 
 export function EditorFrame({
@@ -61,6 +66,7 @@ export function EditorFrame({
   onClose,
   onCopyEntry,
   clipboard,
+  library,
 }: EditorFrameProps) {
   const t = useStrings();
   useSession(session);
@@ -165,8 +171,12 @@ export function EditorFrame({
                 {t("editor.saveAs")}
               </Button>
               <ToolbarSeparator />
-              {/* Theme arrives with M2-17, publish with M2-18. */}
-              <Button variant="quiet" isDisabled>
+              {/* T1, W20: the theme panel beside the course in the real player. Publish: M2-18. */}
+              <Button
+                variant="quiet"
+                isDisabled={view.kind === "theme"}
+                onPress={() => go({ kind: "theme" })}
+              >
                 {t("editor.theme")}
               </Button>
               {/* P1, W23: the whole course in the real player, from the lesson being edited. */}
@@ -186,11 +196,21 @@ export function EditorFrame({
               </Button>
             </Toolbar>
           </header>
-          {view.kind === "preview" ? (
+          {view.kind === "theme" ? (
+            <ThemeView
+              session={session}
+              library={library}
+              fonts={library.source}
+              media={session.media}
+              toasts={toasts}
+              onClose={() => go({ kind: "overview" })}
+            />
+          ) : view.kind === "preview" ? (
             <main className="be-preview">
               <PreviewPane
                 source={editor}
                 media={session.media}
+                fonts={library.source}
                 start={view.start}
                 // UI-BLOCKS-EDITOR-R52: back to the editor at the lesson on show.
                 onEdit={(page) => {

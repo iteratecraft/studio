@@ -5,6 +5,7 @@
 // package and opens it beside a panel that shows, as they happen, the SCORM calls the course makes
 // or the xAPI statements the LRS stores. It opens nothing by itself; Ctrl+C stops it.
 // Test-only tooling: it runs the conformance test LMS (M1-15), never anything a course ships.
+
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -32,6 +33,7 @@ import {
   webExporter,
   xapiExporter,
 } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
 import { readZip } from "@course-suite/zip";
@@ -117,6 +119,7 @@ export async function startDemo(options: DemoOptions = {}): Promise<Demo> {
         player: blocksPlayer({ language: course.course.sourceLanguage ?? "en" }),
         exporter: made,
         media: course.media,
+        fonts: nodeFonts,
         packageVersion: 1,
       });
       if (!built.ok)

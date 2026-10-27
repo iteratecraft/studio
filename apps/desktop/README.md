@@ -17,7 +17,8 @@ at a time in the editor.
 ## Security boundary
 
 - **Content security policy:** `default-src 'none'`; script, style, images and fonts only from the
-  app itself; connections only to Tauri's IPC. No inline script, no eval, no remote origin.
+  app itself; connections only to Tauri's IPC and the app's own files. No inline script, no
+  eval, no remote origin.
   `devCsp` adds only inline styles and Vite's reload socket, for development. For the course
   preview (M2-11, `@course-suite/preview`) both add `frame-src data:` for its sandboxed frame,
   which inherits the policy, the frame's one script by its hash in `script-src`, and `blob:` in
@@ -26,7 +27,10 @@ at a time in the editor.
   gains nothing from it. `apps/web/preview.html` runs the preview under the release policy.
   `media-src 'self' blob:` lets the preview play audio, video and caption files from memory, and the
   editor read a video's size while adding it (M2-13). No third-party frame is allowed: the preview
-  shows where a web embed plays without loading it.
+  shows where a web embed plays without loading it. For the course theme (M2-17, ENG-08)
+  `font-src` adds `blob:` for the fonts the preview frame holds in memory, and `connect-src` adds
+  `'self'` so the editor can read the bytes of its own bundled fonts (`fetch` of the app's files)
+  to put them in the preview and in exported packages; it reaches no other origin.
 - **Commands:** app name and version, the open and save dialogs, the shell's own file commands
   (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
   `list_folder`), the media converter's commands (`media_converter`, `media_install`,

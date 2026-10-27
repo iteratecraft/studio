@@ -10,6 +10,7 @@ import {
   webExporter,
   xapiExporter,
 } from "@course-suite/exporters";
+import { fontKey } from "@course-suite/format";
 import type { ExportBuild, ExportBuilt, ExportOptions } from "./export.js";
 import { JobFailure } from "./jobs.js";
 
@@ -36,6 +37,7 @@ export async function buildExport(build: ExportBuild): Promise<ExportBuilt> {
     player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
     exporter: exporterFor(build.standard, build.options ?? {}),
     media: (key) => build.media[key],
+    fonts: (font) => build.fonts[fontKey(font)],
     packageVersion: build.packageVersion,
     ...(build.allowedUrls && { allowedUrls: build.allowedUrls }),
   });

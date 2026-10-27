@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@course-suite/exporters": "workspace:*",
+    "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/jobs": "workspace:*",
     "@course-suite/labels": "workspace:*",

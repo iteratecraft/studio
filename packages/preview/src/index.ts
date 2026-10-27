@@ -1,7 +1,12 @@
 // Real-player preview (ENG-13): the current course in the exact player bundle that gets published,
 // in a sandboxed frame, built in memory and updated as the document changes. Runs in a browser
 // (the desktop app's WebView2 and the server edition); the package builder parts also in Node.js.
-export { type MediaSource, type PreviewPackage, previewPackage } from "./files.js";
+export {
+  type FontSource,
+  type MediaSource,
+  type PreviewPackage,
+  previewPackage,
+} from "./files.js";
 export {
   FRAME_SCRIPT,
   FRAME_SCRIPT_HASH,

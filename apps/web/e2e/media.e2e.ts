@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import {
   type Block,
   type Course,
@@ -497,6 +498,7 @@ async function webPackage(page: Page) {
     player: blocksPlayer(),
     exporter: webExporter(),
     media: (key) => readAsset(project, key),
+    fonts: nodeFonts,
     packageVersion: 1,
   });
   if (!built.ok) throw new Error(JSON.stringify(built.problems));
@@ -827,7 +829,9 @@ test.describe("cover and header images", () => {
     page,
   }) => {
     await launch(page);
-    await openFixture(page, FILE, river());
+    // The player shows a lesson's header image in the image layout of lesson headers only
+    // (blocks-editor.md 2.18).
+    await openFixture(page, FILE, { ...river(), theme: { headers: { layout: "image" } } });
     const cover = page.getByRole("group", { name: "Cover image" });
     await putImage(page, "photos/cover.png", 1200, 600);
     await cover.getByRole("button", { name: "Choose an image" }).click();
@@ -838,13 +842,22 @@ test.describe("cover and header images", () => {
     await putImage(page, "photos/header.png", 1600, 400);
     await header.getByRole("button", { name: "Choose an image" }).click();
     await header.getByText(/^Decorative/).click();
+    // In the image layout the field has no note that learners will not see it.
+    await expect(page.getByText(/^Learners see it when/)).toHaveCount(0);
     const course = await saved(page);
     expect(course.cover).toMatchObject({ alt: "A path by the river" });
     expect(lessonOf(course).headerImage).toMatchObject({ alt: "" });
 
     // The player: the cover page and the lesson header.
     await button(page, "Preview").click();
-    await expect(shownFrame(page).locator(".lesson-header-image")).toHaveAttribute("alt", "");
+    // Drawn once, behind the header, by the image layout.
+    const lessonPage = shownFrame(page).locator("article.lesson");
+    await expect(lessonPage.locator(".lesson-header.header-image")).toBeVisible();
+    await expect(lessonPage.locator("img")).toHaveCount(1);
+    await expect(lessonPage.locator(".lesson-header img.header-picture")).toHaveAttribute(
+      "alt",
+      "",
+    );
     await page.getByRole("button", { name: "Edit" }).click();
     await page.getByRole("button", { name: /Go to$/ }).click();
     await page.getByRole("option", { name: "Course overview" }).click();

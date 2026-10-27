@@ -31,11 +31,13 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { ThemeFonts } from "./block-preview.js";
 import { blankCourse, fileNameFor, shownTitle } from "./course.js";
 import { coverThumbnail, coverUrl } from "./cover.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
 import { ChoiceDialog, PickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import { FontLibrary } from "./fonts.js";
 import { MediaIntakeProvider } from "./intake.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import {
@@ -83,6 +85,11 @@ function App({ host }: { host: HostInterface }) {
   const [layout, setLayout] = useState<LayoutKey>("grid");
   const [session, setSession] = useState<CourseSession>();
   const [clip, setClip] = useState<Clip>();
+  // The author's fonts (M2-17): one library for every course, kept in the app data folder.
+  const [fontLibrary] = useState(() => new FontLibrary(host));
+  useEffect(() => {
+    void fontLibrary.load();
+  }, [fontLibrary]);
   // Blob addresses of the cards' cover copies, by data file name (H8).
   const [covers, setCovers] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
@@ -716,15 +723,18 @@ function App({ host }: { host: HostInterface }) {
       {session ? (
         // Media files come in, and are converted, through the host (M2-13).
         <MediaIntakeProvider key={session.id} host={host} session={session}>
-          <EditorFrame
-            session={session}
-            toasts={toasts}
-            onSave={() => void save()}
-            onSaveAs={() => void saveAs().catch(failure)}
-            onClose={() => void closeCourse()}
-            onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
-            clipboard={clipboard(session)}
-          />
+          <ThemeFonts session={session} library={fontLibrary}>
+            <EditorFrame
+              session={session}
+              library={fontLibrary}
+              toasts={toasts}
+              onSave={() => void save()}
+              onSaveAs={() => void saveAs().catch(failure)}
+              onClose={() => void closeCourse()}
+              onCopyEntry={(entry) => void copyEntry(entry).catch(failure)}
+              clipboard={clipboard(session)}
+            />
+          </ThemeFonts>
         </MediaIntakeProvider>
       ) : (
         <Dashboard

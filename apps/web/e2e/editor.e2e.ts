@@ -763,16 +763,16 @@ test.describe("course editor", () => {
     expect(course.sourceLanguage).toBe("fr-CA");
   });
 
-  test("blocks-editor C1: settings entry points of later waves are shown but disabled; preview is on", async ({
+  test("blocks-editor C1: publish is shown but disabled until a later wave; theme and preview are on", async ({
     page,
   }) => {
     await launch(page);
     await create(page, "Entry points");
     const tools = page.getByRole("toolbar", { name: "Course tools" });
-    for (const name of ["Theme", "Publish"]) {
-      await expect(tools.getByRole("button", { name })).toBeDisabled();
+    await expect(tools.getByRole("button", { name: "Publish" })).toBeDisabled();
+    for (const name of ["Theme", "Preview"]) {
+      await expect(tools.getByRole("button", { name })).toBeEnabled();
     }
-    await expect(tools.getByRole("button", { name: "Preview" })).toBeEnabled();
   });
 });
 

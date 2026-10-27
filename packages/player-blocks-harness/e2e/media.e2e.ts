@@ -205,14 +205,43 @@ test.describe("audio and video", () => {
 });
 
 test.describe("pictures from the media library", () => {
+  test("[rise:3B] [rise:3E] blocks-editor 2.18: a lesson's header image shows once, behind the header, in the image layout and in no other", async ({
+    write,
+    open,
+    page,
+  }) => {
+    const subject = mediaCourse();
+    const picture = page.locator('article.lesson img[src="media/header.svg"]');
+    const layouts = ["light", "gray", "theme", "tint", "dark", "black", "color"] as const;
+    for (const headers of [
+      ...layouts.map((layout) => ({ layout })),
+      { layout: "image" as const, hidden: true },
+    ]) {
+      await write({ course: { ...subject, theme: { headers } } });
+      // A new document each time: the same address again would only move to its fragment.
+      await page.goto("about:blank");
+      await open("#/lessons/lessonpics");
+      await expect(page.locator(".lesson-header h1")).toHaveText("What you will see");
+      await expect(picture, JSON.stringify(headers)).toHaveCount(0);
+    }
+    await write({ course: { ...subject, theme: { headers: { layout: "image" } } } });
+    await page.goto("about:blank");
+    await open("#/lessons/lessonpics");
+    await expect(picture).toHaveCount(1);
+    await expect(page.locator(".lesson-header.header-image img.header-picture")).toHaveAttribute(
+      "src",
+      "media/header.svg",
+    );
+  });
+
   test("[rise:3B] [rise:3C] UI-ACCESSIBILITY-R34: the lesson header image and the course's pictures keep their alt text, empty when decorative", async ({
     write,
     open,
     page,
   }) => {
-    await write({ course: mediaCourse() });
+    await write({ course: { ...mediaCourse(), theme: { headers: { layout: "image" } } } });
     await open("#/lessons/lessonpics");
-    await expect(page.locator(".lesson-header-image")).toHaveAttribute("alt", "");
+    await expect(page.locator(".lesson-header img.header-picture")).toHaveAttribute("alt", "");
     await expect(
       page.getByRole("img", { name: "A grey heron standing in shallow water" }),
     ).toBeVisible();

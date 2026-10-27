@@ -13,6 +13,7 @@ import {
   webExporter,
   xapiExporter,
 } from "@course-suite/exporters";
+import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Course } from "@course-suite/format";
 import { fullCourse, mediaCourse, sampleCourse } from "@course-suite/format/test/courses";
 import { loadBlocksCorpus, TEST_COURSES_DIR } from "../src/corpus.js";
@@ -81,6 +82,7 @@ export async function blocksZip(
     player: blocksPlayer({ language: course.sourceLanguage ?? "en" }),
     exporter,
     media,
+    fonts: nodeFonts,
     packageVersion: 1,
   });
   if (!built.ok) throw new Error(JSON.stringify(built.problems, null, 2));

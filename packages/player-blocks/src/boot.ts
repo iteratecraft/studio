@@ -35,6 +35,7 @@ import { fileUrl, hooks } from "./hooks.js";
 import { ChunkLoadError, createLoader } from "./loader.js";
 import { startRuntime, type TimedEvent } from "./runtime.js";
 import { startShell } from "./shell.js";
+import { applyTheme } from "./theme.js";
 
 /** What chunks, plugins and the data file see on the global registry. */
 export interface PlayerRegistry {
@@ -132,6 +133,7 @@ function boot(): void {
       }
       labels = resolveLabels(data.labels);
       document.documentElement.lang = data.course.sourceLanguage ?? data.labels?.language ?? "en";
+      applyTheme(document.documentElement, data.course, data.fonts);
       // The standard is fixed at publish (standards.md P-1). Without an LMS or LRS a Blocks
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.

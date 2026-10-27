@@ -35,6 +35,7 @@ export interface Course {
   /** Media index: every media file the document references, by storage key. */
   media: MediaEntry[];
   customBlocks?: CustomBlockDocument[];
+  theme?: Theme;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   ext?: Ext;
@@ -205,6 +206,8 @@ export interface LessonEntry {
   headerImage?: MediaRef;
   /** Author shown on this lesson instead of the course authors. */
   author?: Author;
+  /** No author on this lesson's header. Default false. */
+  authorHidden?: boolean;
   blocks: Block[];
   ext?: Ext;
 }
@@ -357,6 +360,12 @@ export type Background =
       image: MediaRef;
       overlay?: "light" | "dark";
       opacity?: Percent;
+    }
+  | {
+      kind: "theme";
+    }
+  | {
+      kind: "tint";
     };
 
 /** Audio narration of a block (AI provenance is on the media entry). */
@@ -541,3 +550,120 @@ export interface CustomBlockDocument {
   id: Id;
   ext?: Ext;
 }
+
+/** The course's look (rise.md 3E, blocks-editor.md 2.18): one for every language of the course. Every setting is optional; the default is given with each. */
+export interface Theme {
+  /** Layout style: a preset of cover and lesson header layouts. Default classic. */
+  layout?: "classic" | "rounded" | "bold";
+  /** The cover page. */
+  cover?: {
+    /** Image on the left or right of the title, the image behind it, or no image. Default split-left. */
+    layout?: "split-left" | "split-right" | "full-image" | "plain";
+    /** Over a cover image behind the title. Default dark at 50 %. */
+    overlay?: Overlay;
+    /** The start or resume button; without it learners start from the outline. Default true. */
+    startButton?: boolean;
+    /** Authors on the cover. Default true. */
+    author?: boolean;
+    /** Published courses open at the first lesson, or where the learner stopped, instead of the cover. Default false. */
+    skip?: boolean;
+    /** The part of the course's cover image shown; another image than the one it was made for shows whole. */
+    crop?: Crop;
+    /** Above the title. Default none. */
+    logo?: ThemeImage;
+    /** The logo's height: small 1x, medium 1.5x, large 2x. Default small. */
+    logoSize?: "small" | "medium" | "large";
+    /** The logo in a square, cut to fit from its middle. Default false. */
+    logoSquare?: boolean;
+  };
+  /** Lesson headers (courses only). */
+  headers?: {
+    /** Hides the lesson count, title and author; the title stays for screen readers. Default false. */
+    hidden?: boolean;
+    /** Header background. Default light. */
+    layout?: "light" | "gray" | "theme" | "tint" | "dark" | "black" | "color" | "image";
+    /** Behind the title in the image layout; a lesson's own header image comes first. */
+    image?: ThemeImage;
+    /** Over the image of the image layout. Default dark at 60 %. */
+    overlay?: Overlay;
+    /** Background of the color layout. */
+    color?: Color;
+    /** Text on the color layout. Default auto. */
+    contrast?: "auto" | "light" | "dark";
+    /** Default medium. */
+    height?: "small" | "medium" | "large";
+    /** The lesson n of m label. Default true. */
+    lessonCount?: boolean;
+    /** The lesson's author, or the course's. Default true. */
+    author?: boolean;
+  };
+  /** Theme colour, for everything set to theme or theme tint, links, buttons and marks. Default #ff631e. */
+  color?: Color;
+  /** Text on the theme colour: auto keeps 4.5:1 (rise.md rule 18), light and dark are fixed. Default auto. */
+  contrast?: "auto" | "light" | "dark";
+  /** A role without a font shows in the learner's device fonts, so the package carries no font for it; the interface font follows the heading font. */
+  fonts?: {
+    heading?: FontRef;
+    body?: FontRef;
+    ui?: FontRef;
+  };
+  /** Blocks whose entrance animation is on fade in as they scroll into view. Default true. */
+  animations?: boolean;
+  /** Block corners. Default rounded. */
+  corners?: "rounded" | "square";
+  /** Button corners. Default rounded. */
+  buttons?: "rounded" | "square";
+  /** Default text sizes in CSS pixels, which follow the learner's own text size setting. */
+  textSizes?: {
+    /** Default 17. */
+    body?: number;
+    /** Default 32. */
+    heading?: number;
+    /** Default 24. */
+    subheading?: number;
+  };
+}
+
+/** An image of the theme from the media index, with its crop. */
+export interface ThemeImage {
+  key: MediaKeyRef;
+  /** Alternative text; empty marks the image as decorative. */
+  alt?: string;
+  crop?: Crop;
+}
+
+/** The part of an image shown: a rectangle in percent of the image's width and height, from its top left corner. */
+export interface Crop {
+  /** The image it was made for, where the image is set apart from the crop. */
+  key?: MediaKeyRef;
+  x: Percent;
+  y: Percent;
+  width: number;
+  height: number;
+}
+
+export interface Overlay {
+  color: "light" | "dark" | "theme";
+  opacity: Percent;
+}
+
+/** A bundled open-licence font, or a font of the author's own font library (another container), resolved by its id when the course is shown or published; a font the library no longer has shows as the default font. */
+export type FontRef =
+  | {
+      kind: "builtin";
+      id:
+        | "inter"
+        | "montserrat"
+        | "noto-sans"
+        | "open-sans"
+        | "work-sans"
+        | "crimson-pro"
+        | "literata"
+        | "noto-serif";
+    }
+  | {
+      kind: "custom";
+      id: ExternalId;
+      /** Its name when it was chosen. */
+      name: string;
+    };

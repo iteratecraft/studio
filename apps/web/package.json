@@ -13,6 +13,7 @@
   "dependencies": {
     "@course-suite/blocks-editor": "workspace:*",
     "@course-suite/doc-ops": "workspace:*",
+    "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/host": "workspace:*",
     "@course-suite/ui": "workspace:*",

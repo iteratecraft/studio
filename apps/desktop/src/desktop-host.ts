@@ -101,6 +101,15 @@ export function createDesktopHost(): HostInterface {
       modified: async (file) =>
         (await call<number | null>("file_modified", { path: file.id })) ?? undefined,
       write: (file, data) => writeFile(file.id, data),
+      // The shell refuses to remove a picked file; the data folder check is here, before the call.
+      remove: async (file) => {
+        dataDir ??= call<string>("data_folder");
+        const folder = `${await dataDir}${sep()}`;
+        if (!file.id.startsWith(folder)) {
+          throw new HostError("not-allowed", `Not an app data file: ${file.id}`);
+        }
+        await call<void>("remove_path", { path: file.id });
+      },
       projectFiles: (file) => {
         const folder = file.id.slice(0, file.id.length - file.name.length);
         const path = (parts: string[]) => folder + parts.join(sep());

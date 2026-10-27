@@ -8,7 +8,9 @@ import {
   type Block,
   type BlockSettings,
   FULL_BLEED,
+  nearestReadable,
   SURFACE,
+  themeColors,
 } from "@course-suite/format";
 import {
   Button,
@@ -34,8 +36,6 @@ const SWATCHES = {
   black: "#000000",
 } as const;
 type Background = keyof typeof SWATCHES | "theme" | "tint" | "custom" | "image";
-/** Swatches that need the course theme (M2-17). */
-const LATER = ["theme", "tint"];
 const COLOR = /^#[0-9a-f]{6}$/;
 
 /** UI-BLOCKS-EDITOR-R18: padding is 30 px top and bottom, linked, from 0 to 200 px. */
@@ -79,6 +79,8 @@ export function useReturnFocus() {
 function backgroundOf(settings: BlockSettings): Background {
   const background = settings.background;
   if (background?.kind === "image") return "image";
+  // The course theme colour or its tint (M2-17, UI-BLOCKS-EDITOR-R45).
+  if (background?.kind === "theme" || background?.kind === "tint") return background.kind;
   if (background?.kind !== "color") return "light";
   const swatch = Object.entries(SWATCHES).find(([, color]) => color === background.color);
   return (swatch?.[0] as Background | undefined) ?? "custom";
@@ -106,11 +108,11 @@ export function BackgroundFields({
       : "#2f6f9f";
   const [typed, setTyped] = useState(color);
   useEffect(() => setTyped(color), [color]);
-  const options: { id: Background; label: string; later?: string }[] = [
+  const options: { id: Background; label: string }[] = [
     { id: "light", label: t("style.light") },
     { id: "gray", label: t("style.gray") },
-    { id: "theme", label: t("style.theme"), later: t("style.themeLater") },
-    { id: "tint", label: t("style.themeTint"), later: t("style.themeLater") },
+    { id: "theme", label: t("style.theme") },
+    { id: "tint", label: t("style.themeTint") },
     { id: "dark", label: t("style.dark") },
     { id: "black", label: t("style.black") },
     { id: "custom", label: t("style.custom") },
@@ -126,9 +128,15 @@ export function BackgroundFields({
       return;
     }
     const swatch = SWATCHES[id as keyof typeof SWATCHES];
-    // A swatch picks its text automatically; a fixed text choice belongs to a custom colour.
+    // A swatch picks its text automatically, and theme colours follow the theme's contrast; a fixed
+    // text choice belongs to a custom colour.
     onChange({
-      background: swatch ? { kind: "color", color: swatch } : undefined,
+      background:
+        id === "theme" || id === "tint"
+          ? { kind: id }
+          : swatch
+            ? { kind: "color", color: swatch }
+            : undefined,
       textContrast: undefined,
     });
   };
@@ -144,14 +152,9 @@ export function BackgroundFields({
         label={t("style.background")}
         items={options}
         selectedKey={picking ? "image" : chosen}
-        disabledKeys={LATER}
         onSelectionChange={(key) => setBackground(key as Background)}
       >
-        {(option) => (
-          <ListBoxItem id={option.id} {...(option.later && { description: option.later })}>
-            {option.label}
-          </ListBoxItem>
-        )}
+        {(option) => <ListBoxItem id={option.id}>{option.label}</ListBoxItem>}
       </Select>
       {(picking || chosen === "image") && (
         <ImageBackground
@@ -274,7 +277,18 @@ export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
   const [typed, setTyped] = useState(accent);
   useEffect(() => setTyped(accent), [accent]);
   const value = typed.trim().toLowerCase();
-  const surface = settings.background?.kind === "color" ? settings.background.color : SURFACE;
+  const background = settings.background;
+  const colors = themeColors(editor.document.theme);
+  const surface =
+    background?.kind === "color"
+      ? background.color
+      : background?.kind === "theme"
+        ? colors.theme
+        : background?.kind === "tint"
+          ? colors.tint
+          : SURFACE;
+  const unreadable = COLOR.test(value) && !accentReadable(value, surface);
+  const nearest = unreadable ? nearestReadable(value, surface, 4.5) : undefined;
   const keepAccent = () => {
     if (value !== accent && (value === "" || COLOR.test(value))) {
       change({ accentColor: value || undefined });
@@ -305,9 +319,21 @@ export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
               if (event.key === "Enter") keepAccent();
               else event.continuePropagation();
             }}
-            isInvalid={value !== "" && (!COLOR.test(value) || !accentReadable(value, surface))}
+            isInvalid={value !== "" && (!COLOR.test(value) || unreadable)}
             errorMessage={t(COLOR.test(value) ? "style.accentUnreadable" : "style.colorError")}
           />
+          {/* M2-17: the nearest colour that keeps 4.5:1 on the block's surface. */}
+          {nearest && (
+            <Button
+              variant="secondary"
+              onPress={() => {
+                setTyped(nearest);
+                change({ accentColor: nearest });
+              }}
+            >
+              {t("theme.colors.useNearest", { color: nearest })}
+            </Button>
+          )}
         </div>
       </Popover>
     </DialogTrigger>

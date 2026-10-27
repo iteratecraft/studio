@@ -30,6 +30,29 @@ export {
   RICH_TEXT_DROPPED,
   RICH_TEXT_ELEMENTS,
 } from "./richtext.js";
+export type { BuiltinFontId, FontRole, ThemeColors } from "./theme.js";
+export {
+  BUILTIN_FONTS,
+  contrastOf,
+  cropOf,
+  DEFAULT_HEADER_OVERLAY,
+  DEFAULT_OVERLAY,
+  DEFAULT_THEME_COLOR,
+  FONT_PAIRINGS,
+  fontKey,
+  fontsOf,
+  LAYOUT_STYLES,
+  mix,
+  nearestReadable,
+  overlayColors,
+  overlayFloor,
+  PANEL,
+  TEXT_SIZES,
+  THEME_COLORS,
+  textColor,
+  themeColors,
+  withLayoutStyle,
+} from "./theme.js";
 export type { CompiledSchema, Schema, ValidateOptions, ValidationError } from "./validate.js";
 export { checkSchema, compileSchema, courseSchema, validateCourse } from "./validate.js";
 export type { EmbedProvider, Setting } from "./variants.js";

@@ -20,6 +20,7 @@ export function createBrowserHost(
       dataFile: unsupported,
       read: unsupported,
       modified: unsupported,
+      remove: unsupported,
       write: unsupported,
       projectFiles: () => ({
         read: unsupported,

@@ -3,14 +3,17 @@
 // `build` puts it: in a Web Worker on desktop (runInWorker with the export worker), in-process on
 // Node.js (buildExport). Of the exporters this module takes only packagedMediaKeys, so a page that
 // builds in a worker does not carry the exporters and the player too.
+
 import {
+  type FontSource,
   type PackageWarning,
   packagedMediaKeys,
   type Scorm12Options,
   type Standard,
   type XapiOptions,
 } from "@course-suite/exporters";
-import type { Course } from "@course-suite/format";
+import type { FontFiles } from "@course-suite/fonts";
+import { type Course, fontKey, fontsOf } from "@course-suite/format";
 import type { JobContext, JobHandler } from "./jobs.js";
 
 export const EXPORT_JOB = "export";
@@ -39,6 +42,8 @@ export interface ExportBuild {
   packageVersion: number;
   /** The bytes of every media file the package holds, by storage key (`packagedMediaKeys`). */
   media: Record<string, Uint8Array>;
+  /** The files of the theme's fonts and of the default fonts, by font key (`fontKey`). */
+  fonts: Record<string, FontFiles>;
   options?: ExportOptions;
   allowedUrls?: string[];
 }
@@ -61,6 +66,8 @@ export interface ExportSource {
   course: Course;
   /** A media file's bytes by storage key; undefined when the project lacks it. */
   media(key: string): Promise<Uint8Array | undefined>;
+  /** The files of a font: bundled, or from the author's font library (ENG-08). */
+  fonts: FontSource;
 }
 
 export interface ExportJobOptions {
@@ -79,7 +86,7 @@ export function exportJob({
 }: ExportJobOptions): JobHandler<ExportInput, ExportResult> {
   return {
     async run(input, { signal, progress, temp, files }) {
-      const { course, media } = await load(input.source);
+      const { course, media, fonts } = await load(input.source);
       const mediaKeys = packagedMediaKeys(course);
       const total = mediaKeys.length + 2;
       const bytes: Record<string, Uint8Array> = {};
@@ -89,6 +96,13 @@ export function exportJob({
         if (data) bytes[key] = data;
         progress({ done: i + 1, total });
       }
+      // The fonts the theme chose; a role without one shows in the learner's device fonts.
+      const fontFiles: Record<string, FontFiles> = {};
+      for (const font of Object.values(fontsOf(course.theme))) {
+        const key = fontKey(font);
+        const found = key in fontFiles ? undefined : await fonts(font);
+        if (found) fontFiles[key] = found;
+      }
       signal.throwIfAborted();
       const built = await build(
         {
@@ -96,6 +110,7 @@ export function exportJob({
           standard: input.standard,
           packageVersion: input.packageVersion,
           media: bytes,
+          fonts: fontFiles,
           ...(input.options && { options: input.options }),
           ...(input.allowedUrls && { allowedUrls: input.allowedUrls }),
         },

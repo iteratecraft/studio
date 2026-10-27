@@ -13,6 +13,7 @@ import { createPreview } from "@course-suite/preview";
 const preview = createPreview(container, {
   source: editor, // a doc-ops Editor: `document` and `subscribe`
   media: (key) => assetBytes(key), // project media by storage key
+  fonts: (font) => fontFiles(font), // the theme's fonts: bundled, or from the author's library
   start: lessonId, // optional: the overview when left out
   title: "Course preview", // the frame's accessible name
 });
@@ -24,9 +25,10 @@ preview.dispose();
 
 ## How it works
 
-- `previewPackage(course, media)` builds the plain web output of the course in memory from the
-  exporters' own pieces (`blocksPlayer`, `courseDataFor`, `packagedMediaKeys`): the same index page,
-  player script, style sheet, course data file and media bytes that an exported web package holds
+- `previewPackage(course, media, fonts)` builds the plain web output of the course in memory from
+  the exporters' own pieces (`blocksPlayer`, `courseDataFor`, `packagedMediaKeys`, `packagedFonts`):
+  the same index page, player script, style sheet, course data file, theme fonts (M2-17) and media
+  bytes that an exported web package holds
   (a unit test compares them byte for byte). Nothing is written to disk.
 - `createPreview` puts it in an `<iframe sandbox="allow-scripts">` whose document is a `data:` page
   with one fixed script (`FRAME_SCRIPT`). The frame has an opaque origin: no storage, cookies, forms,
@@ -45,10 +47,11 @@ preview.dispose();
 ## Content security policy
 
 The frame inherits the editor's policy. The desktop app's policy (`apps/desktop/README.md`) adds
-for it: `FRAME_SCRIPT_HASH` and `blob:` in `script-src`, `blob:` in `style-src`, `img-src` and
-`media-src` (audio, video and caption tracks, M2-13), and `frame-src data:`. A web embed shows
-where it plays and loads nothing in the preview (the player sees the in-memory files hook).
-`FRAME_SCRIPT` is a literal whose hash is pinned there; change both together
+for it: `FRAME_SCRIPT_HASH` and `blob:` in `script-src`, `blob:` in `style-src`, `img-src`,
+`media-src` (audio, video and caption tracks, M2-13) and `font-src` (the theme's fonts, M2-17), and
+`frame-src data:`. A web embed shows where it plays and loads nothing in the preview (the player
+sees the in-memory files hook). `FRAME_SCRIPT` is a literal whose hash is pinned there; change both
+together
 (`src/files.test.ts` and `apps/desktop/test/shell.test.ts` fail until they match).
 
 ## Measured

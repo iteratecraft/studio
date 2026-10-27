@@ -28,9 +28,18 @@ describe.each([
     const using = (scheme: string) =>
       Object.keys(csp).filter((directive) => csp[directive]?.split(" ").includes(scheme));
     // media-src: audio, video and caption files in the preview and while adding them (M2-13).
-    expect(using("blob:")).toEqual(["script-src", "style-src", "img-src", "media-src"]);
+    // font-src: the theme's fonts in the preview frame (M2-17, ENG-08).
+    expect(using("blob:")).toEqual(["script-src", "style-src", "img-src", "media-src", "font-src"]);
     expect(using("data:")).toEqual(["frame-src"]);
     expect(csp["frame-src"]).toBe("data:");
+  });
+
+  test("connects only to the app's own files (its bundled fonts, M2-17) and Tauri's IPC", () => {
+    expect(csp["connect-src"]?.split(" ").slice(0, 3)).toEqual([
+      "'self'",
+      "ipc:",
+      "http://ipc.localhost",
+    ]);
   });
 
   test("allows no eval and no remote origin", () => {

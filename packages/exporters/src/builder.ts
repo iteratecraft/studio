@@ -1,8 +1,16 @@
 // The package builder (STD-02): validates the course, collects the player, the course data and the
 // media, lets the exporter for the chosen standard write its descriptor, checks the result and zips
 // it. Same course, player, media and options always give the same bytes.
-import type { Course, PublishSettings } from "@course-suite/format";
-import { EMBED_PROVIDERS, usedMediaKeys, validateCourse } from "@course-suite/format";
+import { FONT_FACES, type FontFiles, fontFormat } from "@course-suite/fonts";
+import type { Course, FontRef, FontRole, PublishSettings } from "@course-suite/format";
+import {
+  EMBED_PROVIDERS,
+  fontKey,
+  fontsOf,
+  usedMediaKeys,
+  validateCourse,
+} from "@course-suite/format";
+import type { CourseFonts, PackagedFace } from "@course-suite/player-blocks";
 import type { DropPart, LrsSettings, ResumeState } from "@course-suite/tracking";
 import { checkResume, resumeCapFor } from "@course-suite/tracking";
 import { writeZip, ZIP_MAX_BYTES, ZIP_MAX_ENTRIES } from "@course-suite/zip";
@@ -46,7 +54,15 @@ export interface CourseData {
   media: Record<string, string>;
   /** xAPI: the LRS the author set, for launches that name none (standards.md E-17). */
   lrs?: LrsSettings;
+  /** The fonts the package carries for the theme, by package path (ENG-08). */
+  fonts?: CourseFonts;
 }
+
+/**
+ * A font's files, by its reference: a bundled one (`readBuiltinFont` of @course-suite/fonts) or one
+ * of the author's font library; undefined when the library no longer has it.
+ */
+export type FontSource = (font: FontRef) => FontFiles | undefined | Promise<FontFiles | undefined>;
 
 /** What an exporter is given to write its descriptor. */
 export interface DescribeInput {
@@ -74,6 +90,8 @@ export interface BuildInput {
   exporter: Exporter;
   /** The bytes of a media file in the project container, by storage key; undefined when missing. */
   media(key: string): Uint8Array | undefined | Promise<Uint8Array | undefined>;
+  /** The files of each font the theme uses (ENG-08): the package carries those and no others. */
+  fonts: FontSource;
   /** A whole number from 1, raised by the app for every published update (rise.md §4). */
   packageVersion: number;
   /**
@@ -118,6 +136,7 @@ export type PackageWarning = Problem &
   );
 
 export const MEDIA_FOLDER = "media";
+export const FONTS_FOLDER = "fonts";
 
 /** The storage key a package takes a media entry's bytes from: its optimised variant when it has one. */
 const packagedKey = (entry: Course["media"][number]) => entry.variantKey ?? entry.key;
@@ -142,11 +161,86 @@ export function courseDataFor(
   standard: Standard,
   packageVersion: number,
   lrs?: LrsSettings,
+  fonts?: CourseFonts,
 ): CourseData {
   const media = Object.fromEntries(
     usedMedia(course).map((entry) => [entry.key, `${MEDIA_FOLDER}/${packagedKey(entry)}`]),
   );
-  return { course: withoutExt(course), standard, packageVersion, media, ...(lrs && { lrs }) };
+  return {
+    course: withoutExt(course),
+    standard,
+    packageVersion,
+    media,
+    ...(lrs && { lrs }),
+    ...(fonts && { fonts }),
+  };
+}
+
+/** The fonts a package of a course carries: the course data's account of them, and their files. */
+export interface PackagedFonts {
+  fonts: CourseFonts;
+  files: PackageFile[];
+  problems: Problem[];
+}
+
+const ROLES: readonly FontRole[] = ["heading", "body", "ui"];
+
+/**
+ * Every font the theme of `course` chose and only those (ENG-08, D-45), each face as a file in
+ * `fonts/`, named by font key so a package never names a font by an address elsewhere, with the
+ * licence that must travel with it (OFL-1.1 section 2) as `fonts/<key>-OFL.txt`. A role without a
+ * font, or whose custom font the library no longer has, shows in the learner's device fonts
+ * (UI-BLOCKS-EDITOR-R48), so the package carries nothing for it.
+ */
+export async function packagedFonts(course: Course, source: FontSource): Promise<PackagedFonts> {
+  const chosen = fontsOf(course.theme);
+  const read = new Map<string, Promise<FontFiles | undefined>>();
+  const fonts: CourseFonts = { families: {} };
+  const files: PackageFile[] = [];
+  const problems: Problem[] = [];
+  for (const role of ROLES) {
+    const font = chosen[role];
+    if (!font) continue;
+    const key = fontKey(font);
+    if (!read.has(key))
+      read.set(
+        key,
+        Promise.resolve().then(() => source(font)),
+      );
+    const found = await read.get(key);
+    if (!found) {
+      // A bundled font is part of the app, so its files missing is a broken build, not a choice.
+      if (font.kind === "builtin") {
+        problems.push({
+          file: `${FONTS_FOLDER}/${key}`,
+          message: "is a font whose files are missing",
+        });
+      }
+      continue;
+    }
+    fonts[role] = key;
+    if (fonts.families[key]) continue;
+    const faces: PackagedFace[] = [];
+    for (const face of FONT_FACES) {
+      const bytes = found[face];
+      if (!bytes) continue;
+      const format = fontFormat(bytes);
+      const path = `${FONTS_FOLDER}/${key}-${face}.${format ?? "font"}`;
+      if (!format) {
+        problems.push({ file: path, message: "is not a WOFF or WOFF2 font" });
+        continue;
+      }
+      files.push({ path, data: bytes });
+      faces.push({
+        file: path,
+        weight: face === "bold" ? 700 : 400,
+        style: face === "italic" ? "italic" : "normal",
+      });
+    }
+    if (found.licence) files.push({ path: `${FONTS_FOLDER}/${key}-OFL.txt`, data: found.licence });
+    fonts.families[key] = faces;
+  }
+  return { fonts, files, problems };
 }
 
 /** Validates and builds a package. Every problem found is reported, not only the first. */
@@ -197,8 +291,12 @@ export async function buildPackage(input: BuildInput): Promise<Result<BuiltPacka
     } else add(path, data);
   }
 
+  const fonts = await packagedFonts(course, input.fonts);
+  problems.push(...fonts.problems);
+  for (const file of fonts.files) add(file.path, file.data);
+
   const data = player.courseDataScript(
-    courseDataFor(course, exporter.standard, packageVersion, exporter.lrs),
+    courseDataFor(course, exporter.standard, packageVersion, exporter.lrs, fonts.fonts),
   );
   add(data.path, data.data);
 

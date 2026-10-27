@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
     "@course-suite/tracking": "workspace:*",
