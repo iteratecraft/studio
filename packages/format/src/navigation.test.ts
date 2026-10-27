@@ -1,7 +1,7 @@
 // M2-16 (BLK-08): the navigation settings and the rules that tie them together, and the continue
 // block's own look.
 import { describe, expect, test } from "vitest";
-import type { Course, QuizEntry } from "./course.js";
+import type { Course, LessonEntry, QuizEntry } from "./course.js";
 import {
   hasSearch,
   isRestricted,
@@ -14,7 +14,7 @@ import {
 import { validateCourse } from "./validate.js";
 import { variantSettings } from "./variants.js";
 
-const lesson = { id: "lessonaaa1", kind: "lesson", title: "First", blocks: [] } as const;
+const lesson: LessonEntry = { id: "lessonaaa1", kind: "lesson", title: "First", blocks: [] };
 const course = (navigation?: Course["navigation"], extra: Partial<Course> = {}): Course => ({
   schemaVersion: "1.0",
   id: "3f1c2a4b-5d6e-4f70-8a9b-0c1d2e3f4a5b",

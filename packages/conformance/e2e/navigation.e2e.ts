@@ -66,6 +66,11 @@ for (const [standard, build, finish, exit] of [
     expect(run.trace.filter((call) => call.args[0] === exit).map((call) => call.args[1])).toContain(
       "suspend",
     );
-    expect(run.trace.every((call) => call.errorCode === "0")).toBe(true);
+    // Every write the course made was accepted (a read of an unset value may report "not set").
+    expect(
+      run.trace.filter(
+        (call) => /Set|Commit|Finish|Terminate/.test(call.method) && call.errorCode !== "0",
+      ),
+    ).toEqual([]);
   });
 }

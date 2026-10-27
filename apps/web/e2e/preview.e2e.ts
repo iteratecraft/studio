@@ -151,7 +151,9 @@ const appHtml = (frame: Frame) =>
     const files = (window as { blocksPlayerHooks?: { files?: Record<string, string> } })
       .blocksPlayerHooks?.files;
     for (const [path, url] of Object.entries(files ?? {})) html = html.replaceAll(url, path);
-    return html;
+    // Chromium gives a text field of an http page, not of a file, an empty style attribute (the
+    // search field of M2-16); it carries nothing.
+    return html.replaceAll(' style=""', "");
   });
 
 /** Every call to the debug adapter, with the session time left out (it is the wall clock's). */
