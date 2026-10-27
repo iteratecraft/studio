@@ -727,7 +727,6 @@ function App({ host }: { host: HostInterface }) {
             <EditorFrame
               session={session}
               library={fontLibrary}
-              host={host}
               toasts={toasts}
               onSave={() => void save()}
               onSaveAs={() => void saveAs().catch(failure)}

@@ -27,7 +27,6 @@ import {
   themeColors,
   withLayoutStyle,
 } from "@course-suite/format";
-import type { HostInterface } from "@course-suite/host";
 import {
   Button,
   type FontSource,
@@ -142,7 +141,6 @@ function cleaned(theme: Loose<Theme>): Theme | undefined {
 }
 
 export function ThemeView({
-  host,
   session,
   library,
   fonts,
@@ -150,7 +148,6 @@ export function ThemeView({
   toasts,
   onClose,
 }: {
-  host: HostInterface;
   session: CourseSession;
   library: FontLibrary;
   fonts: FontSource;
@@ -193,7 +190,9 @@ export function ThemeView({
   );
 
   const change = (next: Loose<Theme>, picture?: MediaEntry) => {
-    const media = picture ? [...added, picture] : added;
+    // One entry per file, however often it is chosen.
+    const media =
+      picture && !added.some((entry) => entry.key === picture.key) ? [...added, picture] : added;
     if (picture) setAdded(media);
     setDraft(next as Theme);
     source.show(cleaned(next), media);
@@ -287,22 +286,10 @@ export function ThemeView({
             <div className="be-theme-fields">
               {section === "layout" && <LayoutFields draft={draft} change={change} />}
               {section === "cover" && (
-                <CoverFields
-                  draft={draft}
-                  change={change}
-                  host={host}
-                  session={session}
-                  entryOf={entryOf}
-                />
+                <CoverFields draft={draft} change={change} session={session} entryOf={entryOf} />
               )}
               {section === "headers" && (
-                <HeaderFields
-                  draft={draft}
-                  change={change}
-                  host={host}
-                  session={session}
-                  entryOf={entryOf}
-                />
+                <HeaderFields draft={draft} change={change} session={session} entryOf={entryOf} />
               )}
               {section === "colors" && <ColorFields draft={draft} change={change} />}
               {section === "fonts" && (
@@ -361,9 +348,8 @@ interface FieldsProps {
   change: (next: Loose<Theme>, picture?: MediaEntry) => void;
 }
 
-/** What the sections with pictures need: the host's dialogs, the course and its media entries. */
+/** What the sections with pictures need: the course and its media entries. */
 interface PictureProps {
-  host: HostInterface;
   session: CourseSession;
   entryOf: (key: string | undefined) => MediaEntry | undefined;
 }
@@ -455,7 +441,7 @@ function LayoutFields({ draft, change }: FieldsProps) {
  * T4: the cover layout, the crop of the cover picture and its overlay, the logo with its size and
  * square, the start button, the authors and skipping the cover.
  */
-function CoverFields({ draft, change, host, session, entryOf }: FieldsProps & PictureProps) {
+function CoverFields({ draft, change, session, entryOf }: FieldsProps & PictureProps) {
   const t = useStrings();
   const cover = draft.cover ?? {};
   const set = (next: Loose<Cover>, picture?: MediaEntry) =>
@@ -499,7 +485,6 @@ function CoverFields({ draft, change, host, session, entryOf }: FieldsProps & Pi
         />
       )}
       <ThemePictureField
-        host={host}
         session={session}
         label={t("theme.cover.logo")}
         image={cover.logo}
@@ -569,7 +554,7 @@ function CoverFields({ draft, change, host, session, entryOf }: FieldsProps & Pi
  * T6: hide headers (R46 greys out the rest), layout, colour and text or picture and overlay,
  * height, count, author.
  */
-function HeaderFields({ draft, change, host, session, entryOf }: FieldsProps & PictureProps) {
+function HeaderFields({ draft, change, session, entryOf }: FieldsProps & PictureProps) {
   const t = useStrings();
   const headers = draft.headers ?? {};
   const set = (next: Loose<Headers>, picture?: MediaEntry) =>
@@ -620,7 +605,6 @@ function HeaderFields({ draft, change, host, session, entryOf }: FieldsProps & P
       {layout === "image" && !hidden && (
         <>
           <ThemePictureField
-            host={host}
             session={session}
             label={t("theme.headers.image")}
             image={headers.image}

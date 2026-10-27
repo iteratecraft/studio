@@ -457,11 +457,7 @@ export const english = {
   "theme.fonts.deviceHelp":
     "The fonts of each learner's device. Courses carry no font files, so they download fastest.",
   "theme.fonts.deviceOne": "Device font",
-  "themeImage.choose": "Choose a picture",
-  "themeImage.replace": "Replace the picture",
   "themeImage.remove": "Remove the picture",
-  "themeImage.filter": "Pictures",
-  "themeImage.notImage": "{file} is not a picture this app can show.",
   "themeImage.alt": "Alternative text",
   "themeImage.altHelp":
     "What the picture shows, for screen readers. Leave it empty if it is decoration.",
@@ -644,6 +640,8 @@ export const english = {
   "code.wrap": "Wrap long lines",
   "code.background": "Code colour",
   "media.removeHeader": "Remove the header image",
+  "media.headerShown":
+    "Learners see it when the theme's lesson headers use the image layout (Theme, Lesson headers).",
   "media.thumbnail": "Thumbnail",
   "media.chooseThumbnail": "Choose a thumbnail image",
   "media.replaceThumbnail": "Replace the thumbnail",

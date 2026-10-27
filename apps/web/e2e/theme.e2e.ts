@@ -891,7 +891,7 @@ const cropStyle = (picture: Locator) =>
     })),
   );
 
-test("[rise:3E] blocks-editor T4 2.18 BLK-09: a logo is chosen through the open dialog with its alternative text, size and square, shown on the cover; a file that is no picture is refused; it saves with its media entry as one undo step", async ({
+test("[rise:3E] blocks-editor T4 2.18 BLK-09, W15: a logo is chosen through the media intake with its alternative text, size and square, shown on the cover; a file that is no picture is refused; it saves with its media entry as one undo step", async ({
   page,
 }) => {
   const errors = errorsOf(page);
@@ -899,14 +899,17 @@ test("[rise:3E] blocks-editor T4 2.18 BLK-09: a logo is chosen through the open 
   await openTheme(page);
   await openSection(page, "Cover page");
   const logo = pictureGroup(page, "Logo");
-  await willPick(page, "Downloads/notes.txt", new TextEncoder().encode("not a picture"));
-  await logo.getByRole("button", { name: "Choose a picture" }).click();
-  await expect(logo.getByRole("alert")).toHaveText("notes.txt is not a picture this app can show.");
+  // The one picker of every picture (M2-13): a file that is no picture is refused in its notice.
+  await willPick(page, "Downloads/notes.png", new TextEncoder().encode("not a picture"));
+  await logo.getByRole("button", { name: "Choose an image" }).click();
+  const refused = page.getByRole("alertdialog", { name: "A file was not added" });
+  await expect(refused).toContainText("notes.png is not a readable image.");
+  await refused.getByRole("button", { name: "OK" }).click();
+  await expect(logo.getByRole("button", { name: "Replace the image" })).toHaveCount(0);
 
   await willPick(page, "Downloads/hive-logo.png", await png(page, 120, 60));
-  await logo.getByRole("button", { name: "Choose a picture" }).click();
-  await expect(logo.getByRole("button", { name: "Replace the picture" })).toBeVisible();
-  await expect(logo.getByRole("alert")).toHaveCount(0);
+  await logo.getByRole("button", { name: "Choose an image" }).click();
+  await expect(logo.getByRole("button", { name: "Replace the image" })).toBeVisible();
   const alt = logo.getByRole("textbox", { name: "Alternative text" });
   await alt.fill("Hive and Co.");
   await alt.press("Enter");
@@ -963,7 +966,7 @@ test("[rise:3E] [rise:R18] blocks-editor T6 2.18 BLK-09, keyboard only: the imag
   await chooseByKeyboard(page, "Header background", "Image");
   const picture = pictureGroup(page, "Header picture");
   await willPick(page, "Downloads/comb.png", await png(page, 200, 100));
-  await tabTo(page, picture.getByRole("button", { name: "Choose a picture" }));
+  await tabTo(page, picture.getByRole("button", { name: "Choose an image" }));
   await page.keyboard.press("Enter");
   const alt = picture.getByRole("textbox", { name: "Alternative text" });
   await tabTo(page, alt);
@@ -1064,7 +1067,7 @@ test("[rise:3E] blocks-editor T4 2.18 BLK-09: the cover picture is cropped, the 
       '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18"/></svg>',
     ),
   );
-  await pictureGroup(page, "Logo").getByRole("button", { name: "Choose a picture" }).click();
+  await pictureGroup(page, "Logo").getByRole("button", { name: "Choose an image" }).click();
   await expect(
     pictureGroup(page, "Logo").getByText("Drawings (SVG) and animations (GIF) cannot be cropped."),
   ).toBeVisible();
