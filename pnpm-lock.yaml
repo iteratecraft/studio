@@ -175,6 +175,9 @@ importers:
       '@course-suite/host':
         specifier: workspace:*
         version: link:../host
+      '@course-suite/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@course-suite/labels':
         specifier: workspace:*
         version: link:../labels

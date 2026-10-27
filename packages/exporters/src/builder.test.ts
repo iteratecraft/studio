@@ -1,6 +1,14 @@
+import type { Block, LessonEntry } from "@course-suite/format";
+import { EMBED_ATTACKS, mediaCourse } from "@course-suite/format/test/courses";
 import { describe, expect, test } from "vitest";
 import { stubCourse, stubInput, stubMedia, stubPlayer } from "../test/stub.js";
-import { buildPackage, type CourseData, type PlayerBundle, unsafePath } from "./index.js";
+import {
+  buildPackage,
+  type CourseData,
+  courseDataFor,
+  type PlayerBundle,
+  unsafePath,
+} from "./index.js";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
@@ -72,6 +80,28 @@ describe("buildPackage", () => {
     ]);
   });
 
+  test.each(EMBED_ATTACKS)(
+    "D-44: refuses to publish an embed named YouTube on %s",
+    async (_trick, embedUrl) => {
+      const course = mediaCourse();
+      const entry = course.entries.findIndex(
+        (entry) =>
+          entry.kind === "lesson" && entry.blocks.some((block) => block.variant === "embed"),
+      );
+      const blocks = (course.entries[entry] as LessonEntry).blocks;
+      const index = blocks.findIndex((block) => block.variant === "embed");
+      const embed = blocks[index] as Block;
+      embed.variantSettings = { ...embed.variantSettings, embedUrl, provider: "YouTube" };
+      expect(await problems({ course })).toEqual([
+        {
+          file: "course",
+          path: `/entries/${entry}/blocks/${index}/variantSettings/embedUrl`,
+          message: "is not a player address of YouTube",
+        },
+      ]);
+    },
+  );
+
   test("rejects a package version that is not a whole number from 1", async () => {
     for (const packageVersion of [0, 1.5, -2]) {
       expect(await problems({ packageVersion })).toEqual([
@@ -88,6 +118,28 @@ describe("buildPackage", () => {
         file: "media/diagram.svg",
         message: "is missing from the project (media file 'diagram.svg')",
       },
+    ]);
+  });
+
+  test("BLK-05: leaves out media the course no longer uses, and gives the player no path for it", async () => {
+    const course = stubCourse();
+    course.media.push({ id: "media00009", key: "old-photo.jpg", source: "upload" });
+    const asked: string[] = [];
+    const { files } = await built({
+      course,
+      media: (key) => {
+        asked.push(key);
+        return stubMedia[key];
+      },
+    });
+    expect(asked.sort()).toEqual(["cover-small.jpg", "diagram.svg"]);
+    expect(files.filter((path) => path.startsWith("media/"))).toEqual([
+      "media/cover-small.jpg",
+      "media/diagram.svg",
+    ]);
+    expect(Object.keys(courseDataFor(course, "scorm12", 1).media).sort()).toEqual([
+      "cover.jpg",
+      "diagram.svg",
     ]);
   });
 
@@ -173,11 +225,21 @@ describe("buildPackage", () => {
 Read more at https://example.org/guide-two
 `;
 
-    /** The stub input with extra media files (storage key to text) in the course's media index. */
+    /**
+     * The stub input with extra media files (storage key to text) in the course's media index, each
+     * used by a block (unused files stay out of packages).
+     */
     function withMedia(files: Record<string, string>) {
       const course = stubCourse();
+      const lesson = course.entries[0] as LessonEntry;
       for (const [index, key] of Object.keys(files).entries()) {
         course.media.push({ id: `media1000${index}`, key, source: "upload" });
+        lesson.blocks.push({
+          id: `block1000${index}`,
+          category: "multimedia",
+          variant: "attachment",
+          media: [{ key }],
+        });
       }
       const media = (key: string) => (key in files ? bytes(files[key] ?? "") : stubMedia[key]);
       return { course, media };
@@ -222,6 +284,29 @@ Read more at https://example.org/guide-two
       const player = withFiles({ "player/notes.js": "// docs: https://tracker.example.net/x\n" });
       expect(await problems({ player })).toEqual([
         { file: "player/notes.js", message: expect.stringContaining("tracker.example.net") },
+      ]);
+    });
+
+    test("D-44: the player's code may name each embed provider's player address, exactly; nothing under it, and no media file", async () => {
+      const prefix = "https://www.youtube-nocookie.com/embed/";
+      await expect(
+        built({
+          player: withFiles({
+            "player/embed.js": `const p = "${prefix}";
+`,
+          }),
+        }),
+      ).resolves.toBeTruthy();
+      const player = withFiles({
+        "player/embed.js": `const p = "${prefix}aqz-KE-bpKQ";
+`,
+      });
+      expect(await problems({ player })).toEqual([
+        { file: "player/embed.js", message: expect.stringContaining(`${prefix}aqz-KE-bpKQ`) },
+      ]);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg"><image href="${prefix}"/></svg>`;
+      expect(await problems(withMedia({ "remote.svg": svg }))).toEqual([
+        { file: "media/remote.svg", message: expect.stringContaining(prefix) },
       ]);
     });
   });

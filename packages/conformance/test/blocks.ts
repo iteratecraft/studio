@@ -14,7 +14,7 @@ import {
   xapiExporter,
 } from "@course-suite/exporters";
 import type { Course } from "@course-suite/format";
-import { fullCourse, sampleCourse } from "@course-suite/format/test/courses";
+import { fullCourse, mediaCourse, sampleCourse } from "@course-suite/format/test/courses";
 import { loadBlocksCorpus, TEST_COURSES_DIR } from "../src/corpus.js";
 import { type CoursePackage, readPackage } from "../src/package.js";
 
@@ -41,6 +41,8 @@ const standIn = (key: string) =>
 export const fixtureCourses = (): TestCourse[] => [
   { name: "fixtures/sample", course: sampleCourse(), media: standIn },
   { name: "fixtures/full", course: fullCourse(), media: standIn },
+  // Every media block (M2-13), with an embed that must load nothing until the learner asks.
+  { name: "fixtures/media", course: mediaCourse(), media: standIn },
 ];
 
 /** Every course of the Blocks conformance corpus (M1-28), or undefined without a test-courses checkout. */

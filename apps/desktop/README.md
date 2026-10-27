@@ -12,6 +12,7 @@ at a time in the editor.
 | `src-tauri/` | The Rust shell: window, default menu, the dialog plugin, our file commands (`src/files.rs`) and the remembered picks (`src/picks.rs`) |
 | `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities |
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
+| `src-tauri/src/media.rs`, `src-tauri/media-tool.json` | The media converter (M2-13, D-12, D-43): the pinned FFmpeg build, its download, check and fixed conversion |
 
 ## Security boundary
 
@@ -23,12 +24,16 @@ at a time in the editor.
   `script-src`, `style-src` and `img-src` for the package files the frame holds in memory. A
   `blob:` address exists only once script already running in that page made it, so injected markup
   gains nothing from it. `apps/web/preview.html` runs the preview under the release policy.
+  `media-src 'self' blob:` lets the preview play audio, video and caption files from memory, and the
+  editor read a video's size while adding it (M2-13). No third-party frame is allowed: the preview
+  shows where a web embed plays without loading it.
 - **Commands:** app name and version, the open and save dialogs, the shell's own file commands
   (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
-  `list_folder`), and listening for the window's close request with `destroy` to close it, so the
-  editor can offer to save first (`HostInterface.onCloseRequested`). Nothing else, and only for the
-  `main` window. No file system plugin command is granted: the plugin only records the files the
-  user picks in a dialog.
+  `list_folder`), the media converter's commands (`media_converter`, `media_install`,
+  `media_convert`, `media_cancel`; below), and listening for the window's close request with
+  `destroy` to close it, so the editor can offer to save first (`HostInterface.onCloseRequested`).
+  Nothing else, and only for the `main` window. No file system plugin command is granted: the
+  plugin only records the files the user picks in a dialog.
 - **Remembered picks:** `src/picks.rs` keeps the newest 100 files picked in a dialog in
   `picked.txt` beside the data folder, out of the page's reach, and allows them again at the next
   start, so the editor's course list reopens them without a dialog. Only a dialog adds to it.
@@ -46,6 +51,21 @@ at a time in the editor.
     renaming a file from there over the picked file. Nothing else in that folder.
 
   Paths must be absolute, without `..` and without parts ending in a dot or space.
+- **Media converter (`src/media.rs`):** the pinned LGPL FFmpeg build named in `media-tool.json`
+  (address, size, SHA-256). After the editor asked the author, `media_install` downloads it with
+  Windows' own `curl.exe` (https only), checks size and SHA-256, unpacks it with Windows' own
+  `tar.exe` and keeps it in `tools\<build>` in the app local data folder, beside `data` and so out of
+  the page's reach. `media_convert` runs `ffmpeg.exe` with arguments built in Rust around two paths:
+  a file the page may read (the scope rule above) and an output in the Rust-only `media-work`
+  folder, whose bytes it returns and deletes; a data file under `data\media-work` (a dropped file) is
+  deleted once read. Progress comes back through a channel; `media_cancel` kills the child process,
+  and a cancel that arrives before its task started stops that task as it starts. The page's job id
+  names the task's files in `media-work`, so every media command first checks it is a plain id (1 to
+  64 letters, digits and hyphens), never a path. Nothing is unpacked unless the download's size and
+  SHA-256 are the pin's. No shell is involved. The build is not in the app or its installer.
+- **Drag and drop:** the window's own file-drop handling is off (`dragDropEnabled: false`), so
+  files dragged from the desktop reach the editor's drop zones as the browser's `File`s, which it
+  reads; a drop grants no path.
 
 `test/shell.test.ts` pins the policy and the capability; `e2e/app.e2e.ts` checks them in the built
 app, along with the editor starting without a policy violation, the window title and closing.

@@ -701,3 +701,225 @@ export function staticBlocksCourse(): Course {
     ],
   };
 }
+
+/**
+ * Embed addresses named YouTube that are not a YouTube player (D-44), by the trick each tries: the
+ * format refuses them and the player frames none of them.
+ */
+export const EMBED_ATTACKS: readonly (readonly [trick: string, embedUrl: string])[] = [
+  ["another host", "https://login.example.net/phish"],
+  ["a look-alike host", "https://www.youtube-nocookie.com.example.net/embed/aqz-KE-bpKQ"],
+  [
+    "the provider's host as a user name",
+    "https://www.youtube-nocookie.com@login.example.net/embed/aqz-KE-bpKQ",
+  ],
+  ["a user name and password", "https://user:pass@www.youtube-nocookie.com/embed/aqz-KE-bpKQ"],
+  ["another port", "https://www.youtube-nocookie.com:8443/embed/aqz-KE-bpKQ"],
+  ["a dot segment", "https://www.youtube-nocookie.com/embed/../phish"],
+  ["an encoded dot segment", "https://www.youtube-nocookie.com/embed/%2e%2e/phish"],
+  ["an encoded slash", "https://www.youtube-nocookie.com/embed/x%2F..%2F..%2Fphish"],
+  ["backslashes", "https://www.youtube-nocookie.com\\embed\\aqz-KE-bpKQ"],
+  ["a path past the video", "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ/phish"],
+  ["no video", "https://www.youtube-nocookie.com/embed/"],
+  ["another provider's player", "https://player.vimeo.com/video/76979871"],
+];
+
+/**
+ * Every media block (M2-13, BLK-05): image variants, galleries, audio, video with caption tracks in
+ * two languages, a web embed, a file to download and a code snippet, a block with narration, a
+ * cover and a lesson header image. Its media are stand-ins the tests write next to it.
+ */
+export function mediaCourse(): Course {
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "A walk by the river",
+    cover: { key: "cover.svg", alt: "A footpath beside a slow river" },
+    sourceLanguage: "en",
+    entries: [
+      {
+        id: "lessonpics",
+        kind: "lesson",
+        title: "What you will see",
+        headerImage: { key: "header.svg", alt: "" },
+        blocks: [
+          {
+            id: "blkcentred",
+            category: "image",
+            variant: "centered",
+            media: [{ key: "heron.svg", alt: "A grey heron standing in shallow water" }],
+            items: [{ id: "itmcentred", kind: "content", text: "<p>Herons fish at dawn.</p>" }],
+          },
+          {
+            id: "blkfullwid",
+            category: "image",
+            variant: "full-width",
+            media: [{ key: "bank.svg", alt: "" }],
+          },
+          {
+            id: "blkimgtext",
+            category: "image",
+            variant: "image-text",
+            variantSettings: { position: "right", size: "small", zoom: false },
+            media: [{ key: "heron.svg", alt: "The heron again, closer" }],
+            items: [{ id: "itmimgtext", kind: "content", text: "<p>Look for its long neck.</p>" }],
+          },
+          {
+            id: "blkonimage",
+            category: "image",
+            variant: "text-on-image",
+            variantSettings: { overlayOpacity: 60 },
+            media: [{ key: "bank.svg", alt: "" }],
+            items: [{ id: "itmonimage", kind: "content", text: "<p>Keep to the path.</p>" }],
+          },
+          {
+            id: "blkbanner1",
+            category: "image",
+            variant: "banner",
+            media: [{ key: "bank.svg", alt: "Reeds along the bank" }],
+          },
+          {
+            id: "blkcarouse",
+            category: "gallery",
+            variant: "carousel",
+            items: [
+              {
+                id: "itmslide01",
+                kind: "content",
+                media: { key: "heron.svg", alt: "A heron" },
+                text: "<p>Heron</p>",
+              },
+              { id: "itmslide02", kind: "content", media: { key: "bank.svg", alt: "The bank" } },
+              {
+                id: "itmslide03",
+                kind: "content",
+                media: { key: "cover.svg", alt: "The path" },
+                text: "<p>Path</p>",
+              },
+            ],
+          },
+          {
+            id: "blkgrid003",
+            category: "gallery",
+            variant: "grid-3",
+            variantSettings: { cornerRadius: 12 },
+            items: [
+              { id: "itmgrid001", kind: "content", media: { key: "heron.svg", alt: "A heron" } },
+              { id: "itmgrid002", kind: "content", media: { key: "bank.svg", alt: "The bank" } },
+              { id: "itmgrid003", kind: "content", media: { key: "cover.svg", alt: "The path" } },
+            ],
+          },
+        ],
+      },
+      {
+        id: "lessonsoun",
+        kind: "lesson",
+        title: "Listen and watch",
+        blocks: [
+          {
+            id: "blkaudio01",
+            category: "multimedia",
+            variant: "audio",
+            variantSettings: { forwardSeeking: false, transcript: "Water runs over stones." },
+            media: [{ key: "stream.mp3" }],
+            items: [{ id: "itmaudio01", kind: "content", text: "<p>The stream at dawn.</p>" }],
+          },
+          {
+            id: "blkvideo01",
+            category: "multimedia",
+            variant: "video",
+            variantSettings: {
+              poster: { key: "bank.svg" },
+              transcript: "Two otters roll in the shallows.",
+            },
+            media: [
+              {
+                key: "otters.webm",
+                captions: [
+                  { key: "otters-en.vtt", language: "en" },
+                  { key: "otters-fr.vtt", language: "fr" },
+                ],
+              },
+            ],
+            items: [{ id: "itmvideo01", kind: "content", text: "<p>Otters at play.</p>" }],
+          },
+          {
+            id: "blknarrate",
+            category: "text",
+            variant: "paragraph",
+            settings: {
+              background: {
+                kind: "image",
+                image: { key: "bank.svg", alt: "" },
+                overlay: "dark",
+                opacity: 70,
+              },
+              narration: {
+                audio: { key: "stream.mp3" },
+                transcript: "<p>Listen as you read.</p>",
+                position: "top",
+              },
+            },
+            items: [{ id: "itmnarrate", kind: "content", text: "<p>Read along.</p>" }],
+          },
+        ],
+      },
+      {
+        id: "lessonlink",
+        kind: "lesson",
+        title: "Take it further",
+        blocks: [
+          {
+            id: "blkembed01",
+            category: "multimedia",
+            variant: "embed",
+            variantSettings: {
+              url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+              embedUrl: "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ",
+              provider: "YouTube",
+            },
+            items: [{ id: "itmembed01", kind: "content", text: "<p>A river film.</p>" }],
+          },
+          {
+            id: "blkattach1",
+            category: "multimedia",
+            variant: "attachment",
+            variantSettings: { fileName: "River map.pdf", fileSize: 24576 },
+            media: [{ key: "map.pdf" }],
+            items: [{ id: "itmattach1", kind: "content", text: "<p>Print it for the walk.</p>" }],
+          },
+          {
+            id: "blkcode001",
+            category: "multimedia",
+            variant: "code-snippet",
+            variantSettings: {
+              code: 'const pace = "slow";\nconsole.log("The river is " + pace + " today.");',
+              language: "JavaScript",
+              wrap: true,
+            },
+            items: [{ id: "itmcode001", kind: "content", text: "<p>Log the river's pace.</p>" }],
+          },
+        ],
+      },
+    ],
+    media: [
+      ["mediacover", "cover.svg", "image/svg+xml", 1200, 600],
+      ["mediahead", "header.svg", "image/svg+xml", 1600, 400],
+      ["mediaheron", "heron.svg", "image/svg+xml", 800, 600],
+      ["mediabank", "bank.svg", "image/svg+xml", 1600, 900],
+      ["mediastream", "stream.mp3", "audio/mpeg"],
+      ["mediaotter", "otters.webm", "video/webm", 1280, 720],
+      ["mediacapen", "otters-en.vtt", "text/vtt"],
+      ["mediacapfr", "otters-fr.vtt", "text/vtt"],
+      ["mediamap", "map.pdf", "application/pdf"],
+      ["mediaunused", "unused.svg", "image/svg+xml", 10, 10],
+    ].map(([id, key, mimeType, width, height]) => ({
+      id: String(id).padEnd(10, "0").slice(0, 10),
+      key: String(key),
+      mimeType: String(mimeType),
+      source: "upload" as const,
+      ...(width !== undefined && { width: Number(width), height: Number(height) }),
+    })),
+  };
+}

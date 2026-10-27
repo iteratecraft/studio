@@ -596,12 +596,12 @@ test.describe("block settings and preview", () => {
     await paragraph.getByRole("button", { name: "Style" }).click();
     const style = page.getByRole("dialog", { name: "Style" });
     await style.getByRole("button", { name: /Background/ }).click();
-    // Theme colours and images arrive with themes and media.
+    // Theme colours arrive with themes; images are here (M2-13).
     await expect(page.getByRole("option", { name: /^Theme colour/ })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(page.getByRole("option", { name: /^Image/ })).toContainText("Comes with images");
+    await expect(page.getByRole("option", { name: "Image" })).not.toHaveAttribute("aria-disabled");
     await page.getByRole("option", { name: "Dark" }).click();
     let block = lessonIn(await saved(page), "lessplan01").blocks[1];
     expect(block?.settings).toEqual({ background: { kind: "color", color: "#2b3038" } });

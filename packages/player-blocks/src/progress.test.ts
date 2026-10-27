@@ -22,6 +22,25 @@ import {
 
 const texts = (count: number) => Array.from({ length: count }, text);
 
+/** A clip in the media index, and a multimedia block that plays `key` (null: no file chosen). */
+const clip = {
+  id: "mediaclip1",
+  key: "clip.mp4",
+  mimeType: "video/mp4",
+  source: "upload",
+} as const;
+const media = (
+  variant: string,
+  forwardSeeking?: boolean,
+  key: string | null = clip.key,
+): Block => ({
+  id: newId("m"),
+  category: "multimedia",
+  variant,
+  ...(forwardSeeking !== undefined && { variantSettings: { forwardSeeking } }),
+  ...(key !== null && { media: [{ key }] }),
+});
+
 describe("lesson and course percentages", () => {
   test("[rise:R5] 2 of 3 blocks is 67% and 13 of 20 is 65%", () => {
     const short = lesson(text(), text(), continueBlock());
@@ -147,6 +166,42 @@ describe("continue blocks", () => {
     expect(progress.continueReady(accordion, accordion.blocks[1] as Block)).toBe(false);
     expect(progress.continueReady(checklist, checklist.blocks[1] as Block)).toBe(false);
     expect(progress.continueReady(button, button.blocks[1] as Block)).toBe(true);
+  });
+
+  test("[rise:3G] UI-BLOCKS-EDITOR-R37, UI-BLOCKS-R45: audio and video are requirable only with forward seeking off, and finish when played through", () => {
+    const free = lesson(media("video"), continueBlock("block-above"));
+    const locked = lesson(media("audio", false), continueBlock("block-above"));
+    const file = lesson(media("attachment"), continueBlock("block-above"));
+    const progress = createProgress(course([free, locked, file], { media: [clip] }));
+    for (const page of [free, locked, file]) progress.view(page);
+    expect(progress.continueReady(free, free.blocks[1] as Block)).toBe(true);
+    expect(progress.continueReady(file, file.blocks[1] as Block)).toBe(true);
+    expect(progress.continueReady(locked, locked.blocks[1] as Block)).toBe(false);
+    const audio = locked.blocks[0] as Block;
+    progress.itemDone(locked, audio, audio.id);
+    expect(progress.continueReady(locked, locked.blocks[1] as Block)).toBe(true);
+    // A block that needs no action is never saved as done by its own id.
+    const attachment = file.blocks[0] as Block;
+    progress.itemDone(file, attachment, attachment.id);
+    expect(progress.isDone(attachment.id)).toBe(false);
+    expect(largestResume(course([locked], { media: [clip] })).done).toContain(audio.id);
+  });
+
+  test("UI-BLOCKS-R45: audio or video with forward seeking off but no file to play is finished when seen, so it never holds the course", () => {
+    const unplayable = [
+      media("audio", false, null),
+      media("video", false, null),
+      media("video", false, "gone.mp4"),
+    ];
+    const pages = unplayable.map((block) => lesson(block, continueBlock("block-above")));
+    const progress = createProgress(course(pages, { media: [clip] }));
+    for (const page of pages) {
+      progress.view(page);
+      expect(progress.continueReady(page, page.blocks[1] as Block)).toBe(true);
+      progress.itemDone(page, page.blocks[0] as Block, (page.blocks[0] as Block).id);
+      expect(progress.isDone((page.blocks[0] as Block).id)).toBe(false);
+    }
+    expect(largestResume(course(pages, { media: [clip] })).done).not.toContain(unplayable[0]?.id);
   });
 });
 

@@ -36,7 +36,7 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonwhat");
     await expect(h1(page)).toHaveText("What compost is");
     const order: string[] = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       await page.keyboard.press("Tab");
       order.push(
         await page.evaluate(() => {
@@ -62,6 +62,7 @@ test.describe("keyboard-only journeys", () => {
       // The lesson's image can be enlarged (blocks-editor.md 2.10: zoom on click, on by default).
       "main: Enlarge image",
       "main: Continue",
+      "main: Next lesson Greens and browns",
     ]);
   });
 

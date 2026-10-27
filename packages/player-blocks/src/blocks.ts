@@ -7,6 +7,14 @@ import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-
 import type { Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
+import {
+  attachmentBlock,
+  audioBlock,
+  codeSnippetBlock,
+  embedBlock,
+  narrationOf,
+  videoBlock,
+} from "./media.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
 import { STATIC_RENDERERS, type StaticContext } from "./static.js";
@@ -22,7 +30,11 @@ export interface LessonHooks {
   saved(questionId: string): Response | undefined;
   /** Runs `update` now and after every progress change. */
   watch(update: () => void): void;
-  /** An item of a checklist or carousel was done (a box ticked, a slide shown) or undone. */
+  /**
+   * An item of a checklist or carousel was done (a box ticked, a slide shown) or undone; or, given
+   * the block's own id, a block finished by one action was (audio or video with forward seeking
+   * off, played to the end).
+   */
   itemDone(block: Block, item: string, isDone?: boolean): void;
   /** Whether a block or an item is done, to show again on return. */
   isDone(id: string): boolean;
@@ -45,6 +57,12 @@ const RENDERERS: Record<string, Renderer> = {
   "knowledge-check/multiple-response": check,
   "knowledge-check/fill-in": check,
   "knowledge-check/matching": check,
+  // Multimedia blocks (M2-13; media.ts).
+  "multimedia/audio": audioBlock,
+  "multimedia/video": videoBlock,
+  "multimedia/embed": embedBlock,
+  "multimedia/attachment": attachmentBlock,
+  "multimedia/code-snippet": codeSnippetBlock,
 };
 
 /**
@@ -55,9 +73,10 @@ const RENDERERS: Record<string, Renderer> = {
  */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
+  const staticContext = { ...context, mediaUrl: context.mediaUrl ?? mediaUrl };
   let content: HTMLElement | undefined;
   try {
-    content = render?.(block, { ...context, mediaUrl: context.mediaUrl ?? mediaUrl });
+    content = render?.(block, staticContext);
   } catch (error) {
     // A block the builder let through but this renderer cannot read must not take the lesson down.
     console.error(`Block ${block.id} could not be shown`, error);
@@ -66,13 +85,17 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
     block.settings ?? {};
   const full = FULL_BLEED.has(`${block.category}/${block.variant}`);
+  const narration = narrationOf(block, staticContext);
+  const top = narration && block.settings?.narration?.position === "top";
   const frame = h(
     "div",
     { class: `block block-${block.category}`, "data-block": block.id },
     h(
       "div",
       { class: full ? "block-inner width-full" : `block-inner width-${contentWidth ?? "medium"}` },
+      top ? narration : undefined,
       content,
+      top ? undefined : narration,
     ),
   );
   // Through the style object, not a style attribute, which a page's content security policy may
@@ -81,7 +104,22 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.paddingTop = `${padding.top}px`;
     frame.style.paddingBottom = `${padding.bottom}px`;
   }
-  // shortcut: an image background shows as no background until media blocks arrive (M2-13).
+  // An image background with its overlay: a dark one makes the text light, a light one dark
+  // (UI-BLOCKS-EDITOR-R22).
+  const image =
+    background?.kind === "image" &&
+    context.course.media.find((media) => media.key === background.image.key);
+  if (background?.kind === "image" && image) {
+    const dark = background.overlay !== "light";
+    const alpha = Math.min(100, Math.max(0, background.opacity ?? 50));
+    const tint = dark ? `rgb(0 0 0 / ${alpha}%)` : `rgb(255 255 255 / ${alpha}%)`;
+    const url = staticContext.mediaUrl(image.variantKey ?? image.key);
+    frame.style.backgroundImage = `linear-gradient(${tint}, ${tint}), url("${url}")`;
+    frame.style.backgroundSize = "cover";
+    frame.style.backgroundPosition = "center";
+    frame.classList.add("has-background", dark ? "text-light" : "text-dark");
+    if (cardStyle !== "transparent") frame.classList.add("cards-white");
+  }
   if (background?.kind === "color") {
     frame.style.backgroundColor = background.color;
     frame.classList.add("has-background", `text-${textOn(background.color, textContrast)}`);

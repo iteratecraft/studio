@@ -10,6 +10,14 @@ import { type ComponentType, useId } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
 import {
+  AttachmentFields,
+  AudioFields,
+  CodeSnippetFields,
+  CodeSnippetFormat,
+  EmbedFields,
+  VideoFields,
+} from "./media-fields.js";
+import {
   DIVIDER_TYPES,
   GALLERY_TYPES,
   IMAGE_TYPES,
@@ -94,7 +102,7 @@ const content = (block: Block): ContentItem | undefined =>
  * The edit of the block's first content item, or the one adding it (a block made by an importer
  * may have none); none for no text in a block without one.
  */
-function setContent(
+export function setContent(
   block: Block,
   id: () => string,
   field: "title" | "text",
@@ -302,6 +310,41 @@ const answer = (id: () => string, t: Translate, key: StringKey, correct: boolean
   correct,
 });
 
+/**
+ * Multimedia blocks (M2-13; blocks-editor.md 2.12). A new one waits for its file, which the player
+ * needs before it shows anything.
+ */
+const MULTIMEDIA_TYPES: readonly BlockType[] = (
+  [
+    ["audio", AudioFields],
+    ["video", VideoFields],
+    ["embed", EmbedFields],
+    ["attachment", AttachmentFields],
+  ] as const
+).map(
+  ([variant, Fields]): BlockType => ({
+    group: "multimedia",
+    variant,
+    label: `variant.multimedia.${variant}`,
+    create: (id) => ({ id: id(), category: "multimedia", variant }),
+    Fields,
+  }),
+);
+
+const CODE_SNIPPET: BlockType = {
+  group: "multimedia",
+  variant: "code-snippet",
+  label: "variant.multimedia.code-snippet",
+  create: (id, t) => ({
+    id: id(),
+    category: "multimedia",
+    variant: "code-snippet",
+    variantSettings: { code: t("sample.code") },
+  }),
+  Fields: CodeSnippetFields,
+  Format: CodeSnippetFormat,
+};
+
 const later = (group: Group, variants: string[]): BlockType[] =>
   variants.map((variant) => ({
     group,
@@ -361,10 +404,11 @@ export const BLOCK_TYPES: readonly BlockType[] = [
   ...STATEMENT_TYPES,
   ...QUOTE_TYPES,
   ...LIST_TYPES,
-  // Adding pictures comes with the media library (M2-13).
   ...IMAGE_TYPES,
   ...GALLERY_TYPES,
-  ...later("multimedia", ["audio", "video", "embed", "attachment", "code-snippet"]),
+  // Multimedia blocks (M2-13, media-fields.tsx).
+  ...MULTIMEDIA_TYPES,
+  CODE_SNIPPET,
   ...later("interactive", [
     "accordion",
     "tabs",

@@ -21,6 +21,7 @@ Apache-2.0, layer `engine`. No dependencies; it runs in a browser, a Web Worker 
 | `files.projectFiles(file)` | The project container's files for a picked project file (below) |
 | `storage` | Small string values kept between sessions (settings, recent files); never projects or media |
 | `onCloseRequested(allow)` | Asks `allow` before the app window closes, so the editor can offer to save; the window closes only when it resolves to true |
+| `media` (optional) | The media converter (D-12, D-43; M2-13): `converter()` says whether it is installed, its name, licence and download size; `installConverter(options)` downloads, checks and keeps it; `convert(file, "audio" \| "video", options)` turns a picked or data file into WebM (VP9 and Opus) or MP3. `options` carry an `AbortSignal` and a progress callback. Only the desktop host has it |
 
 `FileRef.id` is opaque: a path on desktop, a key in memory. Keep it and hand it back, never parse
 it. A file the user did not pick, outside the data folder, is refused with
@@ -47,7 +48,7 @@ them again for script that bypasses the host.
 
 | Adapter | Where | Use |
 |---|---|---|
-| `createMemoryHost(init)` | here | Tests. Files live in `disk`; dialogs answer from `onPickOpen` and `onPickSave`; `requestClose()` is the user closing the window; the same scope rule as the desktop app |
+| `createMemoryHost(init)` | here | Tests. Files live in `disk`; dialogs answer from `onPickOpen` and `onPickSave`; `requestClose()` is the user closing the window; the same scope rule as the desktop app; `init.media` gives it a stand-in converter, whose input must be a file the editor may read |
 | `createBrowserHost(app, localStorage)` | here | The editor in a browser until the server adapter (M3): app info and storage work, files refuse with `HostError("unsupported")`, closing is not guarded |
 | `createDesktopHost()` | `apps/desktop/src/desktop-host.ts` | The Tauri app: the dialog plugin and the shell's own file commands |
 

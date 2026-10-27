@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { type Course, openCourse } from "@course-suite/format";
 import {
   fullCourse,
+  mediaCourse,
   minimalCourse,
   sampleCourse,
   staticBlocksCourse,
@@ -116,6 +117,7 @@ const fixtures: [string, () => Course][] = [
   ["minimal", minimalCourse],
   ["every block", () => everyBlockCourse()],
   ["must pass", mustPass],
+  ["media", mediaCourse],
   ["text and static blocks", staticBlocksCourse],
 ];
 

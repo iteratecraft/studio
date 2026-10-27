@@ -35,7 +35,9 @@ describe("text and static block variants (BLK-04)", () => {
     ];
     const defined = Object.entries(VARIANTS)
       .flatMap(([category, variants]) => Object.keys(variants).map((v) => `${category}/${v}`))
-      .filter((type) => !older.includes(type));
+      .filter((type) => !older.includes(type))
+      // Multimedia blocks are BLK-05's, covered by the media course (variants-media.test.ts).
+      .filter((type) => !type.startsWith("multimedia/"));
     for (const type of defined) expect(used, type).toContain(type);
   });
 
@@ -150,7 +152,9 @@ describe("text and static block variants (BLK-04)", () => {
   });
 
   test("[rise:3C] UI-BLOCKS-EDITOR-R25: sibling variants share their settings, so a switch keeps them valid", () => {
-    for (const variants of Object.values(VARIANTS)) {
+    // Multimedia variants never switch into each other (M2-13), so each has its own table.
+    for (const [category, variants] of Object.entries(VARIANTS)) {
+      if (category === "multimedia") continue;
       const tables = new Set(Object.values(variants));
       expect(tables.size).toBeLessThanOrEqual(3);
     }

@@ -236,12 +236,9 @@ test("[rise:3C] blocks-editor L4, W7, BLK-04: by keyboard each family inserts wi
     "<p>The second point</p>",
     "<p>The third point</p>",
   ]);
-  // A new image block waits for the media library for its pictures (M2-13).
+  // A new image block's pictures come from the media library (M2-13, media.e2e.ts).
   const gallery = row(page, "Empty", /^Image carousel/);
-  await expect(gallery.getByRole("button", { name: "Add picture" }).first()).toBeDisabled();
-  await expect(
-    gallery.getByText(/Adding pictures comes with the media library/).first(),
-  ).toBeVisible();
+  await expect(gallery.getByRole("button", { name: "Choose an image" }).first()).toBeEnabled();
 });
 
 test("[rise:3C] blocks-editor W9, 2.8, 2.9, BLK-04: quotes, list items and table cells are edited in place, added, moved and removed, each one undo step", async ({

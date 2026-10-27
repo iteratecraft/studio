@@ -124,6 +124,112 @@ const CONTINUE: Record<string, Setting> = {
   hintText: { schema: { type: "string" } },
 };
 
+// Multimedia (M2-13, BLK-05; blocks-editor.md 2.5, 2.12). Each variant has a table of its own: the
+// editor does not switch among them.
+
+/**
+ * The embed providers (D-44) and the start of each one's player address, as their public embed
+ * instructions give it: the published course frames only these players.
+ */
+export const EMBED_PROVIDERS = {
+  YouTube: "https://www.youtube-nocookie.com/embed/",
+  Vimeo: "https://player.vimeo.com/video/",
+  Loom: "https://www.loom.com/embed/",
+  // Dailymotion's documented embed address for a video id (its newer player takes the id in a
+  // query instead; this one keeps the id in the path, where the check below can hold it).
+  Dailymotion: "https://www.dailymotion.com/embed/video/",
+} as const;
+
+export type EmbedProvider = keyof typeof EMBED_PROVIDERS;
+
+// The WHATWG URL parser every browser and Node.js provide; this package takes no DOM or Node types.
+declare const URL: new (
+  url: string,
+) => Readonly<Record<"href" | "origin" | "pathname" | "username" | "password", string>>;
+
+/**
+ * The provider whose player `embedUrl` is (D-44), or undefined: the address, written exactly as the
+ * URL parser writes it, is https on the provider's own host and port with no user name, and its
+ * path is the player path and one video id; a query and a fragment (start times) may follow. A
+ * named `provider` must be that one. The player frames only such an address, and the format
+ * accepts no other.
+ */
+export function embedProvider(embedUrl: string, provider?: string): EmbedProvider | undefined {
+  let url: InstanceType<typeof URL>;
+  try {
+    url = new URL(embedUrl);
+  } catch {
+    return undefined;
+  }
+  // The written form rules out dot segments, backslashes, a spelled-out port and the like.
+  if (url.href !== embedUrl || url.username || url.password) return undefined;
+  for (const [name, prefix] of Object.entries(EMBED_PROVIDERS) as [EmbedProvider, string][]) {
+    const player = new URL(prefix);
+    if (
+      (provider === undefined || provider === name) &&
+      url.origin === player.origin &&
+      url.pathname.startsWith(player.pathname) &&
+      /^[\w-]+$/.test(url.pathname.slice(player.pathname.length))
+    ) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+/** Plain text, a paragraph per blank-line-separated part. */
+const PLAIN = { type: "string", maxLength: 100_000 };
+
+const AUDIO: Record<string, Setting> = {
+  // Learners can skip ahead; off, seeking past what was played is undone and the block is done
+  // once played through (UI-BLOCKS-EDITOR-R37).
+  forwardSeeking: { schema: FLAG, default: true },
+  // What is said, which learners open under the player.
+  transcript: { schema: PLAIN },
+};
+
+const VIDEO: Record<string, Setting> = {
+  ...AUDIO,
+  cornerRadius: { schema: int(0, 30), default: 0 },
+  // The picture shown until it plays: a media file of the course.
+  poster: {
+    schema: {
+      type: "object",
+      properties: { key: { $ref: "#/$defs/MediaKeyRef" } },
+      required: ["key"],
+      unevaluatedProperties: false,
+    },
+  },
+};
+
+const EMBED: Record<string, Setting> = {
+  // What the author pasted (an address or embed code's frame address), to edit it again.
+  url: { schema: { type: "string", maxLength: 2048 } },
+  // The provider's player that the published course frames, https only (ADR-0004) and checked
+  // against the provider by embedProvider, and the provider named on the button that loads it.
+  embedUrl: { schema: { type: "string", pattern: "^https://[^\\s\"'<>]+$", maxLength: 2048 } },
+  provider: { schema: choice(...Object.keys(EMBED_PROVIDERS)) },
+  border: { schema: FLAG, default: false },
+};
+
+const ATTACHMENT: Record<string, Setting> = {
+  // The file's name as learners download it, and its size in bytes.
+  fileName: { schema: { type: "string", minLength: 1, maxLength: 255 } },
+  fileSize: { schema: { type: "integer", minimum: 0 } },
+};
+
+const CODE: Record<string, Setting> = {
+  // The code as plain text, shown as written, and its language's name shown above it (text only:
+  // no colouring, BLK-05).
+  code: { schema: PLAIN },
+  language: { schema: { type: "string", maxLength: 40 } },
+  // Long lines wrap; off, the code scrolls sideways.
+  wrap: { schema: FLAG, default: false },
+  // The snippet's colour and the text on it.
+  background: { schema: COLOR, default: "#1f2430" },
+  contrast: { schema: CONTRAST, default: "auto" },
+};
+
 const each = (table: Record<string, Setting>, ...variants: string[]) =>
   Object.fromEntries(variants.map((variant) => [variant, table]));
 
@@ -151,6 +257,13 @@ export const VARIANTS: Readonly<Record<string, Readonly<Record<string, Record<st
     image: each(IMAGE, "centered", "full-width", "image-text", "text-on-image", "banner"),
     gallery: each(GALLERY, "carousel", "grid-2", "grid-3", "grid-4"),
     divider: { ...each(DIVIDER, "line", "numbered", "spacer"), continue: CONTINUE },
+    multimedia: {
+      audio: AUDIO,
+      video: VIDEO,
+      embed: EMBED,
+      attachment: ATTACHMENT,
+      "code-snippet": CODE,
+    },
   };
 
 /** The setting table of a block's variant, or undefined where the format leaves it open. */

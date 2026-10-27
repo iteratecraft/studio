@@ -24,6 +24,7 @@ import {
 } from "@course-suite/ui";
 import { useEffect, useId, useState } from "react";
 import { typeOf } from "./blocks.js";
+import { MediaDrop } from "./intake.js";
 
 /** Background swatches (2.4): a fixed colour for each, none for light, the default. */
 const SWATCHES = {
@@ -33,8 +34,8 @@ const SWATCHES = {
   black: "#000000",
 } as const;
 type Background = keyof typeof SWATCHES | "theme" | "tint" | "custom" | "image";
-/** Swatches that need the course theme (M2-17) or images (M2-13). */
-const LATER = ["theme", "tint", "image"];
+/** Swatches that need the course theme (M2-17). */
+const LATER = ["theme", "tint"];
 const COLOR = /^#[0-9a-f]{6}$/;
 
 /** UI-BLOCKS-EDITOR-R18: padding is 30 px top and bottom, linked, from 0 to 200 px. */
@@ -85,15 +86,16 @@ function backgroundOf(settings: BlockSettings): Background {
 
 /**
  * A block's background (2.4, W10): a swatch or a custom colour with its text, which may then be
- * fixed light or dark. `onChange` gets the new background settings; the manage-blocks list gives
- * them to every selected block at once (L16, W13 step 4).
+ * fixed light or dark, or an image with a light or dark overlay (M2-13). `onChange` gets the new
+ * background settings, and the commands that add a new image's media index entry; the manage-blocks
+ * list gives them to every selected block at once (L16, W13 step 4).
  */
 export function BackgroundFields({
   settings,
   onChange,
 }: {
   settings: BlockSettings;
-  onChange: (next: Settings) => void;
+  onChange: (next: Settings, media?: Command[]) => void;
 }) {
   const t = useStrings();
   const chosen = backgroundOf(settings);
@@ -112,10 +114,13 @@ export function BackgroundFields({
     { id: "dark", label: t("style.dark") },
     { id: "black", label: t("style.black") },
     { id: "custom", label: t("style.custom") },
-    { id: "image", label: t("style.image"), later: t("style.imageLater") },
+    { id: "image", label: t("style.image") },
   ];
+  // Choosing "image" asks for the image first; the background changes once there is one.
+  const [picking, setPicking] = useState(false);
   const setBackground = (id: Background) => {
-    if (id === chosen) return;
+    setPicking(id === "image" && chosen !== "image");
+    if (id === chosen || id === "image") return;
     if (id === "custom") {
       onChange({ background: { kind: "color", color } });
       return;
@@ -138,7 +143,7 @@ export function BackgroundFields({
       <Select
         label={t("style.background")}
         items={options}
-        selectedKey={chosen}
+        selectedKey={picking ? "image" : chosen}
         disabledKeys={LATER}
         onSelectionChange={(key) => setBackground(key as Background)}
       >
@@ -148,6 +153,15 @@ export function BackgroundFields({
           </ListBoxItem>
         )}
       </Select>
+      {(picking || chosen === "image") && (
+        <ImageBackground
+          settings={settings}
+          onChange={(next, media) => {
+            setPicking(false);
+            onChange(next, media);
+          }}
+        />
+      )}
       {chosen === "custom" && (
         <>
           <TextField
@@ -181,6 +195,72 @@ export function BackgroundFields({
 }
 
 /**
+ * An image behind the block (2.4, W10, UI-BLOCKS-EDITOR-R22; M2-13): the image, which is
+ * decoration, and a light or dark overlay with its opacity (dark at 50 % unless set). A dark overlay
+ * makes the block's text light and a light one dark.
+ */
+function ImageBackground({
+  settings,
+  onChange,
+}: {
+  settings: BlockSettings;
+  onChange: (next: Settings, media?: Command[]) => void;
+}) {
+  const t = useStrings();
+  const background = settings.background?.kind === "image" ? settings.background : undefined;
+  const opacity = background?.opacity ?? 50;
+  const [live, setLive] = useState(opacity);
+  useEffect(() => setLive(opacity), [opacity]);
+  return (
+    <>
+      <MediaDrop
+        kind="image"
+        label={t(background ? "media.replaceImage" : "media.chooseImage")}
+        onAdded={([added]) =>
+          added &&
+          onChange(
+            {
+              background: {
+                overlay: "dark",
+                opacity: 50,
+                ...background,
+                kind: "image",
+                image: { key: added.key, alt: "" },
+              },
+              textContrast: undefined,
+            },
+            added.commands,
+          )
+        }
+      />
+      {background && (
+        <>
+          <Select
+            label={t("style.overlay")}
+            selectedKey={background.overlay ?? "dark"}
+            onSelectionChange={(key) =>
+              onChange({ background: { ...background, overlay: key as "light" | "dark" } })
+            }
+          >
+            <ListBoxItem id="dark">{t("style.overlayDark")}</ListBoxItem>
+            <ListBoxItem id="light">{t("style.overlayLight")}</ListBoxItem>
+          </Select>
+          <SliderField
+            label={t("style.overlayOpacity")}
+            unit="%"
+            minValue={0}
+            maxValue={100}
+            value={live}
+            onChange={setLive}
+            onChangeEnd={(next) => onChange({ background: { ...background, opacity: next } })}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+/**
  * The style menu (L9, W10): the block's background; for a block with item cards whether they stay
  * white (on by default); and its accent colour (rise.md 3D, BLK-03), which the player uses only
  * where it keeps 4.5:1 on the block's surface, with white or black text on it.
@@ -188,7 +268,8 @@ export function BackgroundFields({
 export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
   const t = useStrings();
   const settings = block.settings ?? {};
-  const change = (next: Settings) => editor.dispatch(withSettings(block, next));
+  const change = (next: Settings, media: Command[] = []) =>
+    editor.dispatch([...media, withSettings(block, next)]);
   const accent = settings.accentColor ?? "";
   const [typed, setTyped] = useState(accent);
   useEffect(() => setTyped(accent), [accent]);

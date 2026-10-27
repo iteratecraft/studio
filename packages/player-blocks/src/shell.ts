@@ -288,9 +288,21 @@ export function startShell(
       wasDone = done;
     });
 
+    // The lesson's header image (rise.md §3 B, §3 E lesson headers); empty alt text is decorative.
+    const headerImage = page.kind === "lesson" ? page.headerImage : undefined;
+    const header = headerImage && course.media.find((media) => media.key === headerImage.key);
     const element = h(
       "article",
       { class: `lesson lesson-${page.kind}`, "aria-labelledby": titleId },
+      header && headerImage
+        ? h("img", {
+            class: "lesson-header-image",
+            src: mediaUrl(header.variantKey ?? header.key),
+            alt: headerImage.alt ?? "",
+            width: header.width,
+            height: header.height,
+          })
+        : undefined,
       h(
         "header",
         { class: "lesson-header" },

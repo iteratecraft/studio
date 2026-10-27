@@ -27,6 +27,8 @@ export interface Course {
     restricted?: boolean;
     /** While navigation is free, learners may mark an unfinished lesson (not a quiz) done. Default false. */
     learnerMarkDone?: boolean;
+    /** Learners may play videos from 0.25 to 2 times their speed. Default true. */
+    videoSpeed?: boolean;
   };
   /** Ordered course outline. */
   entries: Entry[];
@@ -123,6 +125,14 @@ export interface MediaRef {
   key: MediaKeyRef;
   /** Alternative text; empty marks the image as decorative. */
   alt?: string;
+  /** Caption tracks of a video, one WebVTT file per language. */
+  captions?: CaptionTrack[];
+}
+
+/** A WebVTT caption file of a video, in one language. */
+export interface CaptionTrack {
+  key: MediaKeyRef;
+  language: Language;
 }
 
 export interface Author {
@@ -353,6 +363,8 @@ export type Background =
 export interface Narration {
   audio: MediaRef;
   transcript?: RichText;
+  /** Where the narration player sits in the block. Default bottom. */
+  position?: "top" | "bottom";
 }
 
 /** One record inside a block. */

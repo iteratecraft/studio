@@ -4,8 +4,8 @@
 // brings sample content (`create`), its content edited in place (`Fields`) and its own format
 // options (`Format`, shown in the format menu after the common ones, L10). Settings and their
 // defaults come from the format (`variantSettings`), which closes them for these variants.
-// Pictures use the media slots of the format; adding a picture comes with the media library
-// (M2-13), so until then a slot without one says so.
+// Pictures use the media slots of the format and come in through the media intake (M2-13,
+// media-fields.tsx).
 import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type Block,
@@ -32,10 +32,11 @@ import {
   type Translate,
   useStrings,
 } from "@course-suite/ui";
-import { type ComponentType, type ReactNode, useContext, useEffect, useId, useState } from "react";
+import { type ComponentType, type ReactNode, useContext, useEffect, useState } from "react";
 import type { BlockType, FieldsProps } from "./blocks.js";
 import { DraftField, inlineHtml, LinkTargets, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
+import { type AddedMedia, MediaDrop, useMediaIntake } from "./intake.js";
 
 const COLOR = /^#[0-9a-f]{6}$/;
 const contents = (block: Block): ContentItem[] =>
@@ -86,7 +87,7 @@ function setItem(
 // Format options
 
 /** One format option of a variant: a switch, a choice, a number or a colour. */
-type Control = { name: string; label: StringKey; show?: boolean } & (
+export type Control = { name: string; label: StringKey; show?: boolean } & (
   | { kind: "switch" }
   | { kind: "choice"; options: readonly (readonly [value: string | number, label: StringKey])[] }
   | { kind: "number"; min: number; max: number; unit?: StringKey }
@@ -161,7 +162,7 @@ function ColorControl({
 }
 
 /** The format options `controls` of a block, each change one undo step. */
-function Controls({ block, editor, controls }: FieldsProps & { controls: Control[] }) {
+export function Controls({ block, editor, controls }: FieldsProps & { controls: Control[] }) {
   const t = useStrings();
   const settings = variantSettings(block);
   const change = (name: string, value: unknown) =>
@@ -234,7 +235,7 @@ const SIZES = [
   ["medium", "format.medium"],
   ["large", "format.large"],
 ] as const;
-const CONTRASTS = [
+export const CONTRASTS = [
   ["auto", "style.contrastAuto"],
   ["light", "style.contrastLight"],
   ["dark", "style.contrastDark"],
@@ -681,42 +682,60 @@ function DividerFormat(props: FieldsProps) {
 // Content
 
 /**
- * A picture of the block or of an item (blocks-editor.md W15 step 3, BLK-04): its alt text, or
- * marked decorative (empty alt, ADR-0002), with a warning while it has neither. Without a picture
- * yet, the add button waits for the media library (M2-13).
+ * A picture of the block or of an item (blocks-editor.md W15, BLK-04, BLK-05): chosen in the host's
+ * open dialog or dropped, then replaced or removed; its alt text, or marked decorative (empty alt,
+ * ADR-0002), with a warning while it has neither. A new picture has no alt text yet. Its file's
+ * media index entry and the edit that uses it are one undo step.
  */
-function ImageSlot({
+export function ImageSlot({
   label,
   image,
   editor,
   command,
+  remove,
 }: {
   label: string;
   image: MediaRef | undefined;
   editor: Editor;
   /** The edit that keeps the picture with its new alt text: "" is decorative, none is not set. */
   command: (image: MediaRef) => Command;
+  /** The button that takes the picture away, where a slot may be empty. */
+  remove?: { label: string; command: Command };
 }) {
   const t = useStrings();
-  const noteId = useId();
+  const intake = useMediaIntake();
+  const mediaName = (key: string) => intake.name(key) ?? key;
+  const choose = ([added]: AddedMedia[]) => {
+    if (added) editor.dispatch([...added.commands, command({ key: added.key })]);
+  };
+  const drop = (
+    <MediaDrop
+      kind="image"
+      label={t(image ? "media.replaceImage" : "media.chooseImage")}
+      onAdded={choose}
+    />
+  );
   if (!image) {
     return (
-      <div className="be-image-slot">
+      // biome-ignore lint/a11y/useSemanticElements: a fieldset would add its own frame and legend layout.
+      <div className="be-image-slot" role="group" aria-label={label}>
         <span className="cs-Label">{label}</span>
-        <Button isDisabled aria-describedby={noteId}>
-          {t("image.add")}
-        </Button>
-        <p id={noteId} className="be-note">
-          {t("image.addLater")}
-        </p>
+        {drop}
       </div>
     );
   }
   const { alt, ...rest } = image;
   const decorative = alt === "";
   return (
-    <div className="be-image-slot">
-      <span className="cs-Label">{t("image.file", { label, name: image.key })}</span>
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset would add its own frame and legend layout.
+    <div className="be-image-slot" role="group" aria-label={label}>
+      <span className="cs-Label">{t("image.file", { label, name: mediaName(image.key) })}</span>
+      {drop}
+      {remove && (
+        <Button variant="quiet" onPress={() => editor.dispatch(remove.command)}>
+          {remove.label}
+        </Button>
+      )}
       {!decorative && (
         <DraftField
           label={t("image.alt", { label })}
@@ -754,6 +773,13 @@ function BlockImage({ block, editor, label }: FieldsProps & { label: StringKey }
         id: block.id,
         set: { media: [image, ...others] },
       })}
+      remove={{
+        label: t("media.removeImageFile"),
+        command:
+          others.length > 0
+            ? { type: "updateBlock", id: block.id, set: { media: others } }
+            : { type: "updateBlock", id: block.id, unset: ["media"] },
+      }}
     />
   );
 }
@@ -1143,20 +1169,37 @@ function ImageFields({ block, editor }: FieldsProps) {
 function GalleryFields({ block, editor }: FieldsProps) {
   const t = useStrings();
   const name = (number: number) => t("items.image", { number });
+  // Several pictures at once (M2-13): one new image each, after the others, in one undo step.
+  const add = (added: AddedMedia[]) => {
+    const newId = idMaker(editor.document);
+    editor.dispatch([
+      ...added.flatMap((one) => one.commands),
+      ...added.map(
+        (one): Command => ({
+          type: "insertItem",
+          parent: block.id,
+          value: { id: newId(), kind: "content", media: { key: one.key } },
+        }),
+      ),
+    ]);
+  };
   return (
-    <Items
-      block={block}
-      editor={editor}
-      name={name}
-      sample={() => ({ text: `<p>${inlineHtml(t("sample.caption"))}</p>` })}
-    >
-      {(item) => (
-        <>
-          <ItemImage item={item} editor={editor} label={t("image.image")} />
-          <ItemText block={block} editor={editor} item={item} label={t("field.caption")} />
-        </>
-      )}
-    </Items>
+    <>
+      <MediaDrop kind="image" label={t("media.addImages")} multiple onAdded={add} />
+      <Items
+        block={block}
+        editor={editor}
+        name={name}
+        sample={() => ({ text: `<p>${inlineHtml(t("sample.caption"))}</p>` })}
+      >
+        {(item) => (
+          <>
+            <ItemImage item={item} editor={editor} label={t("image.image")} />
+            <ItemText block={block} editor={editor} item={item} label={t("field.caption")} />
+          </>
+        )}
+      </Items>
+    </>
   );
 }
 

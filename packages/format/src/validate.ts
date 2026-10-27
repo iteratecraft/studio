@@ -7,7 +7,7 @@
 // strict content security policy), and it needs two things libraries do not give: unknown
 // properties tolerated for a newer MINOR, and the ids and references it saw for the integrity pass.
 import courseSchemaJson from "./course.schema.json" with { type: "json" };
-import { type Setting, VARIANTS } from "./variants.js";
+import { embedProvider, type Setting, VARIANTS } from "./variants.js";
 
 /** One problem in a document. `path` is a JSON Pointer (RFC 6901) into it; "" is the root. */
 export interface ValidationError {
@@ -427,6 +427,20 @@ function variantErrors(
         for (const error of found) {
           const at = `${path}/variantSettings${error.path}`;
           if (!reported.has(at)) errors.push({ ...error, path: at });
+        }
+        // D-44: the address an embed frames is a player of its provider.
+        const { embedUrl, provider } = settings;
+        if (
+          block.category === "multimedia" &&
+          block.variant === "embed" &&
+          typeof embedUrl === "string" &&
+          !found.some((error) => ["/embedUrl", "/provider"].includes(error.path)) &&
+          !embedProvider(embedUrl, provider as string | undefined)
+        ) {
+          errors.push({
+            path: `${path}/variantSettings/embedUrl`,
+            message: `is not a player address of ${provider ?? "a listed provider"}`,
+          });
         }
       }
       if (block.category === "divider") return;

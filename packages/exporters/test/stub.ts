@@ -60,6 +60,12 @@ export function stubCourse(): Course {
             ],
             ext: { "org.example.plugin": { note: "stays out of the package" } },
           },
+          {
+            id: "block00002",
+            category: "image",
+            variant: "centered",
+            media: [{ key: "diagram.svg", alt: "The bench from above" }],
+          },
         ],
       },
     ],

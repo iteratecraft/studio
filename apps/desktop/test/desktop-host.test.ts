@@ -6,7 +6,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { createDesktopHost } from "../src/desktop-host.js";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke,
+  Channel: class {
+    onmessage: (message: unknown) => void = () => {};
+  },
+}));
 vi.mock("@tauri-apps/api/path", () => ({ sep: () => "\\" }));
 vi.mock("@tauri-apps/api/app", () => ({ getName: vi.fn(), getVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -76,6 +81,7 @@ test("the desktop host has no job port: long tasks keep the one contract of @cou
   expect(Object.keys(createDesktopHost()).sort()).toEqual([
     "appInfo",
     "files",
+    "media",
     "onCloseRequested",
     "storage",
   ]);
@@ -106,4 +112,45 @@ test("closing the window waits for the editor's answer and stays open when it sa
   expect(event.preventDefault).toHaveBeenCalledTimes(1);
   stop();
   await vi.waitFor(() => expect(unlisten).toHaveBeenCalled());
+});
+
+test("D-43: the media converter runs through the shell's media commands, with progress and cancel", async () => {
+  const { media } = createDesktopHost();
+  if (!media) throw new Error("the desktop host converts media");
+  const progress: number[][] = [];
+  invoke.mockImplementationOnce(async (_command, args) => {
+    args.onProgress.onmessage([500, 2000]);
+    return new Uint8Array([1, 2, 3]).buffer;
+  });
+  const clip = { id: String.raw`D:\Media\clip.mov`, name: "clip.mov" };
+  const converted = await media.convert(clip, "video", {
+    onProgress: (done, total) => progress.push([done, total]),
+  });
+  expect(converted).toEqual({
+    data: new Uint8Array([1, 2, 3]),
+    type: "video/webm",
+    extension: "webm",
+  });
+  expect(progress).toEqual([[500, 2000]]);
+  const [command, args] = invoke.mock.calls[0] as [string, Record<string, unknown>];
+  expect(command).toBe("media_convert");
+  expect(args).toMatchObject({ input: clip.id, kind: "video", job: expect.any(String) });
+
+  // Cancel: the shell is told to stop that job, and the call rejects with the abort reason.
+  const controller = new AbortController();
+  let finish: (error: unknown) => void = () => {};
+  invoke.mockReset();
+  invoke.mockImplementation((name: string) =>
+    name === "media_install"
+      ? new Promise((_, reject) => {
+          finish = reject;
+        })
+      : Promise.resolve(),
+  );
+  const install = media.installConverter({ signal: controller.signal });
+  controller.abort(new DOMException("Stopped", "AbortError"));
+  finish("cancelled");
+  await expect(install).rejects.toMatchObject({ name: "AbortError" });
+  const job = (invoke.mock.calls[0] as [string, { job: string }])[1].job;
+  expect(invoke.mock.calls[1]).toEqual(["media_cancel", { job }]);
 });

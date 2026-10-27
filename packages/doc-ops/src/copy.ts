@@ -2,7 +2,7 @@
 // source"): a new project id and a new content id for every object, with references kept. And
 // copying one lesson to another course (rise.md 3B, BLK-02).
 import type { Block, Course, Entry, MediaEntry } from "@course-suite/format";
-import { newContentId, newProjectId } from "@course-suite/format";
+import { mediaKeysIn, newContentId, newProjectId } from "@course-suite/format";
 import type { Command } from "./commands.js";
 import type { Kind } from "./walk.js";
 import { idsIn, indexDocument } from "./walk.js";
@@ -95,7 +95,7 @@ export function clipBlocks(course: Course, ids: Iterable<string>): BlockClip {
   const blocks = course.entries.flatMap((entry) =>
     entry.kind === "lesson" ? entry.blocks.filter((block) => wanted.has(block.id)) : [],
   );
-  const keys = new Set(mediaKeysIn(blocks));
+  const keys = mediaKeysIn(blocks);
   return { course: course.id, blocks, media: course.media.filter((media) => keys.has(media.key)) };
 }
 
@@ -134,20 +134,6 @@ export function pasteBlocks(
       value: value as Block,
     })),
   );
-}
-
-/** Storage keys of the media files used by `values`: every `key` of a media reference. */
-function mediaKeysIn(values: unknown): string[] {
-  const keys: string[] = [];
-  const visit = (value: unknown, name?: string) => {
-    if (typeof value === "string" && name === "key") keys.push(value);
-    else if (Array.isArray(value)) for (const item of value) visit(item);
-    else if (value && typeof value === "object" && !Object.hasOwn(value, "containerId")) {
-      for (const [field, item] of Object.entries(value)) visit(item, field);
-    }
-  };
-  visit(values);
-  return keys;
 }
 
 /**

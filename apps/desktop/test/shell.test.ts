@@ -27,7 +27,8 @@ describe.each([
   test("allows blob: only for the preview's in-memory files and data: only for its frame", () => {
     const using = (scheme: string) =>
       Object.keys(csp).filter((directive) => csp[directive]?.split(" ").includes(scheme));
-    expect(using("blob:")).toEqual(["script-src", "style-src", "img-src"]);
+    // media-src: audio, video and caption files in the preview and while adding them (M2-13).
+    expect(using("blob:")).toEqual(["script-src", "style-src", "img-src", "media-src"]);
     expect(using("data:")).toEqual(["frame-src"]);
     expect(csp["frame-src"]).toBe("data:");
   });
@@ -63,6 +64,11 @@ test("the app turns on only the main capability, for the main window", () => {
   expect(read("capabilities/main.json").windows).toEqual(["main"]);
 });
 
+test("M2-13: files dragged from the desktop reach the page's drop zones, not the shell", () => {
+  // On Windows the shell's own drop handling keeps drag and drop events from the page.
+  expect(config.app.windows[0].dragDropEnabled).toBe(false);
+});
+
 test("the main capability grants only the commands the desktop host uses", () => {
   expect(read("capabilities/main.json").permissions).toEqual([
     "core:app:allow-name",
@@ -82,7 +88,23 @@ test("the main capability grants only the commands the desktop host uses", () =>
     "allow-rename-file",
     "allow-remove-path",
     "allow-list-folder",
+    // The media converter (src-tauri/src/media.rs, M2-13): its pinned download, a conversion with
+    // fixed arguments of a file the page may read, and cancel.
+    "allow-media-converter",
+    "allow-media-install",
+    "allow-media-convert",
+    "allow-media-cancel",
   ]);
+});
+
+test("D-43: the media converter is a pinned LGPL build from a public GitHub release, never bundled", () => {
+  const pin = read("media-tool.json");
+  expect(pin.url).toMatch(/^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\//);
+  expect(pin.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(pin.licence).toMatch(/^LGPL-/);
+  expect(pin.bundled).toBe(false);
+  // Nothing of it goes into the app or its installer.
+  expect(JSON.stringify(config.bundle)).not.toMatch(/ffmpeg|media-tool|resources|externalBin/i);
 });
 
 test("no file system plugin command or scope is granted, so WebView2's profile next to the data folder stays out of reach", () => {

@@ -112,6 +112,55 @@ export interface HostStorage {
   delete(key: string): Promise<void>;
 }
 
+/** Progress and cancel of a long media task. */
+export interface MediaTaskOptions {
+  /** Aborting it stops the task: it rejects with the signal's reason and leaves nothing behind. */
+  signal?: AbortSignal;
+  /** `done` of `total`: bytes while downloading, milliseconds of media while converting. */
+  onProgress?: (done: number, total: number) => void;
+}
+
+/** The media converter: whether it is on this computer, and what it is. */
+export interface ConverterInfo {
+  installed: boolean;
+  /** Its name and version, such as `FFmpeg n9.0.2`, to show before the download. */
+  name: string;
+  /** SPDX licence id. */
+  licence: string;
+  /** Bytes the download takes. */
+  size: number;
+}
+
+/** A web-ready file made by the converter. */
+export interface ConvertedMedia {
+  data: Uint8Array;
+  /** Media type: `video/webm` (VP9 and Opus) or `audio/mpeg` (MP3). */
+  type: string;
+  /** Extension without the dot: `webm` or `mp3`. */
+  extension: string;
+}
+
+/**
+ * Converting audio and video that is not web-ready (D-12, D-43): the desktop app downloads a
+ * pinned LGPL converter build the first time it is needed, after the editor asks the author, checks
+ * its SHA-256 and keeps it in the app's own data folder. The editions that cannot convert have no
+ * `media`; the editor then asks for a web-ready file instead.
+ */
+export interface HostMedia {
+  converter(): Promise<ConverterInfo>;
+  /** Downloads, checks and keeps the converter; resolves at once when it is there already. */
+  installConverter(options?: MediaTaskOptions): Promise<void>;
+  /**
+   * Converts a file the user picked, or a data file, with fixed settings: video to WebM (VP9 and
+   * Opus, at most 1920 by 1080), audio to MP3. A data file under `media-work/` is removed once read.
+   */
+  convert(
+    input: FileRef,
+    kind: "audio" | "video",
+    options?: MediaTaskOptions,
+  ): Promise<ConvertedMedia>;
+}
+
 /**
  * What the editors get from the edition they run in. Long tasks are not here: they keep the one
  * job contract of @course-suite/jobs (ENG-15), which wave G wires to the host's files.
@@ -120,6 +169,8 @@ export interface HostInterface {
   appInfo(): Promise<AppInfo>;
   readonly files: HostFiles;
   readonly storage: HostStorage;
+  /** Converting audio and video; only where the edition can (the desktop app). */
+  readonly media?: HostMedia;
   /**
    * Asks `allow` before the app window closes, for example to offer to save unsaved work: the
    * window closes when it resolves to true and stays open otherwise. One listener at a time, the

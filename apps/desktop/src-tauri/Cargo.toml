@@ -14,6 +14,11 @@ tauri-build = { version = "=2.7.2", features = [] }
 tauri = { version = "=2.12.3", features = [] }
 tauri-plugin-dialog = "=2.8.2"
 tauri-plugin-fs = "=2.7.0"
+# Already built for Tauri itself; the media converter (src/media.rs) reads its pin and checks the
+# download's SHA-256 with them.
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"
 
 [features]
 # Serves the built frontend from inside the executable. `cargo run --no-default-features` loads the

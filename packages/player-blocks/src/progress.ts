@@ -7,6 +7,8 @@ import type {
   ContentItem,
   Course,
   LessonEntry,
+  MediaEntry,
+  MediaRef,
   Question,
   QuizEntry,
   QuizResult,
@@ -41,8 +43,8 @@ const isGate = (block: Block) => isContinue(block) || requiresCorrect(block);
 
 /**
  * Blocks a continue block can wait for, by `category/variant`: each is finished by an interaction,
- * not by being seen (UI-BLOCKS-R45). Buttons and attachments never are (UI-BLOCKS-R19). Audio,
- * video and slide-app blocks join when their blocks and settings exist.
+ * not by being seen (UI-BLOCKS-R45). Buttons and attachments never are (UI-BLOCKS-R19). Audio and
+ * video join only with forward seeking off (below); slide-app blocks when their blocks exist.
  */
 const REQUIRABLE = new Set([
   "interactive/accordion",
@@ -57,6 +59,21 @@ const REQUIRABLE = new Set([
   "gallery/carousel",
   "quote/carousel",
 ]);
+
+/** The media index entry a reference names; without one the player shows no file for it. */
+export const mediaEntry = (course: Course, ref: MediaRef | undefined): MediaEntry | undefined =>
+  ref && course.media.find((media) => media.key === ref.key);
+
+/**
+ * Audio and video with forward seeking off and a file the player shows: played to the end, not seen
+ * (UI-BLOCKS-EDITOR-R37, UI-BLOCKS-R45). Without a file the player shows nothing to play, so the
+ * block is finished by being seen like any other.
+ */
+export const lockedMedia = (course: Course, block: Block) =>
+  block.category === "multimedia" &&
+  (block.variant === "audio" || block.variant === "video") &&
+  block.variantSettings?.forwardSeeking === false &&
+  mediaEntry(course, block.media?.[0]) !== undefined;
 
 /**
  * Blocks finished item by item: a checklist when every box is ticked, a carousel when every slide
@@ -80,10 +97,11 @@ const allItemsDone = (block: Block, done: ReadonlySet<string>) =>
   byItem(block) && shownItems(block).every((item) => done.has(item.id));
 
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
-const needsAction = (block: Block) =>
+const needsAction = (course: Course, block: Block) =>
   isContinue(block) ||
   block.category === "knowledge-check" ||
-  REQUIRABLE.has(`${block.category}/${block.variant}`);
+  REQUIRABLE.has(`${block.category}/${block.variant}`) ||
+  lockedMedia(course, block);
 
 /** How a page shows in the outline. */
 export type PageStatus = "not-started" | "in-progress" | "done" | "failed" | "locked";
@@ -117,7 +135,8 @@ export interface Progress {
   /**
    * An item of a block finished item by item (BY_ITEM) was done (a box ticked, a slide shown) or
    * undone (a box cleared). The block is done once every item is, and stays done; from then on
-   * only the block's id is kept.
+   * only the block's id is kept. Given the block's own id, a block finished by one action is done
+   * (audio or video with forward seeking off, played to the end).
    */
   itemDone(lesson: LessonEntry, block: Block, item: string, isDone?: boolean): void;
   /** A knowledge check was answered; a required one is done only when the answer is right. */
@@ -193,7 +212,7 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     done.has(block.id) || (seen(lesson, block) && !isGate(block));
   const finished = (lesson: LessonEntry, block: Block) =>
     done.has(block.id) ||
-    (seen(lesson, block) && (!needsAction(block) || allItemsDone(block, done)));
+    (seen(lesson, block) && (!needsAction(course, block) || allItemsDone(block, done)));
 
   function shownBlocks(lesson: LessonEntry): number {
     const gate = lesson.blocks.findIndex((block) => isGate(block) && !done.has(block.id));
@@ -299,6 +318,11 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     },
 
     itemDone(lesson, block, item, isDone = true) {
+      if (item === block.id && lockedMedia(course, block) && isDone && !done.has(block.id)) {
+        done.add(block.id);
+        view(lesson);
+        return;
+      }
       const items = shownItems(block);
       // A finished block keeps no item state: its id alone says every item is done, which keeps
       // the saved state small (standards.md §4.2).
@@ -451,10 +475,15 @@ export function largestResume(course: Course): ResumeState {
     done: [
       ...pages.map((page) => page.id),
       // Continue blocks are pressed, knowledge checks answered, checklists ticked and carousels
-      // seen to the end, with their items; no other block is saved as done.
+      // seen to the end, with their items, and locked audio and video played through; no other
+      // block is saved as done.
       ...blocks
         .filter(
-          (block) => isContinue(block) || block.category === "knowledge-check" || byItem(block),
+          (block) =>
+            isContinue(block) ||
+            block.category === "knowledge-check" ||
+            byItem(block) ||
+            lockedMedia(course, block),
         )
         .flatMap((block) => {
           // A block finished item by item saves all its items but one while in progress, then

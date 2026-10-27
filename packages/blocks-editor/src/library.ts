@@ -16,6 +16,8 @@ export interface LibraryItem {
   updated: number;
   /** When the author deleted it: it shows in the Deleted list. */
   deleted?: number;
+  /** The data file holding a small copy of its cover image (cover.tsx), when it has one. */
+  cover?: string;
 }
 
 export type SortKey = "updated" | "created" | "title";
@@ -53,12 +55,21 @@ function isItem(value: unknown): value is LibraryItem {
     Number.isFinite(item.lessons) &&
     Number.isFinite(item.created) &&
     Number.isFinite(item.updated) &&
-    (item.deleted === undefined || Number.isFinite(item.deleted))
+    (item.deleted === undefined || Number.isFinite(item.deleted)) &&
+    (item.cover === undefined || typeof item.cover === "string")
   );
 }
 
-/** The card of a course file, from its document; `created` stays when the list already has it. */
-export function itemOf(file: FileRef, course: Course, updated: number): LibraryItem {
+/**
+ * The card of a course file, from its document and the data file of its cover's copy; `created`
+ * stays when the list already has it.
+ */
+export function itemOf(
+  file: FileRef,
+  course: Course,
+  updated: number,
+  cover?: string,
+): LibraryItem {
   const created = course.createdAt ? Date.parse(course.createdAt) : updated;
   return {
     file: { id: file.id, name: file.name },
@@ -67,6 +78,7 @@ export function itemOf(file: FileRef, course: Course, updated: number): LibraryI
     lessons: course.entries.filter((entry) => entry.kind !== "section").length,
     created,
     updated,
+    ...(cover && { cover }),
   };
 }
 
