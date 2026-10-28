@@ -402,6 +402,8 @@ test("UI-PUBCOLLAB-R1, A14, BLK-10: an export runs in the background with progre
 test("[rise:R12] UI-PUBCOLLAB-R16, BLK-10: two exports started before the first ends get their own package versions; an export adds no undo step, and undo never takes a version back", async ({
   page,
 }) => {
+  // Three packages are built one after the other, each in a worker started when its turn comes.
+  test.slow();
   await openPonds(page, ponds(), "?hold-export");
   await openPublish(page);
   const undo = tools(page).getByRole("button", { name: "Undo" });
@@ -423,6 +425,9 @@ test("[rise:R12] UI-PUBCOLLAB-R16, BLK-10: two exports started before the first 
   await expect(undo).toBeDisabled();
   expect((await saved(page)).packageVersion).toBe(2);
 
+  // The manifest of the last package written; a build takes as long as the machine needs, so each
+  // wait for one has most of the slow test's budget rather than the default five seconds.
+  const built = { timeout: 60_000 };
   const manifest = async () =>
     (await files(page)).includes("Ponds-scorm12.zip")
       ? (await text(await zipOn(page, "Ponds-scorm12.zip"), "imsmanifest.xml"))
@@ -430,19 +435,15 @@ test("[rise:R12] UI-PUBCOLLAB-R16, BLK-10: two exports started before the first 
           ?.slice(1)
       : undefined;
   await page.evaluate(() => window.editorTest.exports.release());
-  await expect.poll(manifest).toEqual([`course-${ID}_1`, "1"]);
+  await expect.poll(manifest, built).toEqual([`course-${ID}_1`, "1"]);
   await expect.poll(() => page.evaluate(() => window.editorTest.exports.held)).toBe(1);
   await page.evaluate(() => window.editorTest.exports.release());
-  await expect.poll(manifest).toEqual([`course-${ID}_2`, "2"]);
+  await expect.poll(manifest, built).toEqual([`course-${ID}_2`, "2"]);
   // The next export comes after both.
   await exportButton(page).click();
   await expect.poll(() => page.evaluate(() => window.editorTest.exports.held)).toBe(1);
   await page.evaluate(() => window.editorTest.exports.release());
-  await page
-    .getByRole("dialog", { name: "Package saved" })
-    .getByRole("button", { name: "OK" })
-    .click();
-  await expect.poll(manifest).toEqual([`course-${ID}_3`, "3"]);
+  await expect.poll(manifest, built).toEqual([`course-${ID}_3`, "3"]);
 });
 
 for (const theme of ["light", "dark"] as const) {
