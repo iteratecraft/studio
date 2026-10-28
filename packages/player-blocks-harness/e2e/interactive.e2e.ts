@@ -41,9 +41,18 @@ function gated(id: string): Course {
   );
 }
 
-const gate = (page: Page) => page.getByRole("button", { name: "Continue" });
-const expectLocked = (page: Page) => expect(gate(page)).toHaveAttribute("aria-disabled", "true");
-const expectOpen = (page: Page) => expect(gate(page)).not.toHaveAttribute("aria-disabled");
+// Until its requirement is met the continue block's hint stands in its button's place (M2-16,
+// UI-BLOCKS-R55).
+const gate = (page: Page) => page.locator("[data-block=cgate00001] .continue");
+const hint = (page: Page) => page.locator("[data-block=cgate00001] .continue-hint");
+async function expectLocked(page: Page): Promise<void> {
+  await expect(hint(page)).toBeVisible();
+  await expect(gate(page)).toBeHidden();
+}
+async function expectOpen(page: Page): Promise<void> {
+  await expect(gate(page)).toBeVisible();
+  await expect(hint(page)).toBeHidden();
+}
 
 for (const [theme, name] of [
   [undefined, "the default theme"],

@@ -195,6 +195,8 @@ async function chooseByKeyboard(page: Page, label: string, option: string): Prom
   }
   await expect(target).toBeFocused();
   await page.keyboard.press("Enter");
+  // The list fades out; one opened again before it is gone does not take the focus.
+  await expect(page.getByRole("listbox")).toHaveCount(0);
 }
 
 /** The axe violations in the frame on show. */
@@ -675,6 +677,8 @@ async function chooseIn(page: Page, scope: Locator, label: string, option: strin
   }
   await expect(target).toBeFocused();
   await page.keyboard.press("Enter");
+  // The list fades out; one opened again before it is gone does not take the focus.
+  await expect(page.getByRole("listbox")).toHaveCount(0);
 }
 
 test("[rise:3F] [rise:R18] BLK-08: an exported web package honours the menu, search, buttons, a styled continue button and steps from disk, with no network and no axe violation", async ({
