@@ -36,7 +36,7 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonwhat");
     await expect(h1(page)).toHaveText("What compost is");
     const order: string[] = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 12; i++) {
       await page.keyboard.press("Tab");
       order.push(
         await page.evaluate(() => {
@@ -55,8 +55,12 @@ test.describe("keyboard-only journeys", () => {
     expect(order).toEqual([
       "page: Skip to the course content",
       "header: Hide contents",
+      // M2-16: course search, then each section group's button before its lessons (D4).
+      "outline: ",
+      "outline: The basics",
       "outline: What compost is",
       "outline: Greens and browns",
+      "outline: In practice",
       "outline: Check what you know",
       "outline: Looking after the heap",
       // The lesson's image can be enlarged (blocks-editor.md 2.10: zoom on click, on by default).
@@ -84,9 +88,11 @@ test.describe("keyboard-only journeys", () => {
     await expect(outline(page)).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-    // Escape closes the contents and returns to the button.
+    // Escape closes the contents and returns to the button; course search comes first (M2-16).
     await page.keyboard.press("Tab");
-    await expect(outline(page).getByRole("link").first()).toBeFocused();
+    await expect(
+      outline(page).getByRole("searchbox", { name: "Search this course" }),
+    ).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(outline(page)).toBeHidden();
     await expect(toggle).toBeFocused();
@@ -165,7 +171,7 @@ test.describe("keyboard-only journeys", () => {
     await expect(h1(page)).toBeFocused();
   });
 
-  test("UI-ACCESSIBILITY-R46: a continue gate, a knowledge check and its retry, all by keyboard", async ({
+  test("UI-ACCESSIBILITY-R46 UI-BLOCKS-R55: a continue gate, a knowledge check and its retry, all by keyboard", async ({
     write,
     open,
     page,
@@ -184,12 +190,13 @@ test.describe("keyboard-only journeys", () => {
     await open("#/lessons/lessonone1");
     await expect(h1(page)).toHaveText("First");
     const gate = page.getByRole("button", { name: "Continue" });
-    await tabTo(page, gate);
-    await page.keyboard.press("Enter"); // inactive until the check is answered
+    // Until the check is answered the hint stands in the button's place: nothing to press.
+    await expect(page.getByText("Finish the activities above to go on")).toBeVisible();
+    await expect(gate).toHaveCount(0);
     await expect(page.getByText("Behind the gate")).toBeHidden();
 
     // Choices: Tab reaches the group, arrows choose, Enter checks.
-    await tabTo(page, page.getByRole("radio", { name: "Yes" }), "Shift+Tab");
+    await tabTo(page, page.getByRole("radio", { name: "Yes" }));
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("radio", { name: "No" })).toBeChecked();
     await page.keyboard.press("Enter");
@@ -291,7 +298,9 @@ test.describe("keyboard-only journeys", () => {
         const box = (document.activeElement as HTMLElement).getBoundingClientRect();
         return bar !== undefined && box.top < bar.bottom - 1 && box.bottom > bar.top;
       });
-    await tabTo(page, page.getByRole("button", { name: "Continue" }));
+    // From the last control of the lesson (the continue block shows its hint until the
+    // activities above are done).
+    await tabTo(page, page.locator(".blocks :is(a[href], button, input):visible").last());
     for (let i = 0; i < 20; i++) {
       await page.keyboard.press("Shift+Tab");
       if (await page.evaluate(() => document.activeElement?.closest(".topbar") !== null)) break;
@@ -357,7 +366,7 @@ test.describe("learner-side rules", () => {
     expect(await levels()).toEqual(["h1 Compost check"]);
 
     await open("#/lessons/lessonall1");
-    await page.getByRole("button", { name: "Continue" }).waitFor();
+    await page.locator("[data-block=cgateall01] .continue-hint").waitFor();
     expect(await levels()).toEqual([
       "h1 Every block",
       "h2 Before you start",

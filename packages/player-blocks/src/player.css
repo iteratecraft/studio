@@ -233,12 +233,12 @@ h1:focus {
 }
 
 @media (min-width: 992px) {
-  .outline-open .layout {
+  .nav-sidebar.outline-open .layout {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
   }
 
-  .outline {
+  .nav-sidebar .outline {
     position: sticky;
     align-self: start;
     height: calc(100vh - var(--topbar));
@@ -598,8 +598,11 @@ h3.block-heading {
   letter-spacing: -0.01em;
 }
 
+/* Full width unless the author narrowed it (M2-16); a narrower button stays centred. */
 .continue {
+  display: flex;
   width: 100%;
+  margin-inline: auto;
 }
 
 .check fieldset {
@@ -741,6 +744,7 @@ h3.block-heading {
 
 .page-link {
   display: flex;
+  background: var(--surface);
   flex: 1 1 240px;
   flex-direction: column;
   min-width: 0;
@@ -851,18 +855,29 @@ h3.block-heading {
   cursor: pointer;
 }
 
-.continue[aria-disabled="true"] {
-  border-color: var(--border);
-  background: var(--panel);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-.continue-hint,
 .check-notice {
   margin: 8px 0 0;
   color: var(--muted);
   text-align: center;
+}
+
+/* UI-BLOCKS-R55, GL7: the hint line stands where the button will be. */
+.continue-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  min-height: 44px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.continue-hint-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .check-notice {
@@ -909,6 +924,425 @@ h3.block-heading {
 
 .page-link-reason {
   font-size: 0.875rem;
+}
+
+/* M2-16: the compact and overlay menus, course search, collapsible section groups, the colours
+   and floating placement of the previous and next lesson buttons, and stepped microlearning
+   (rise.md 3F, rule 17; blocks-editor.md 2.18 navigation). A bar or card fixed over the content
+   keeps the focused control clear of it (WCAG 2.4.11). */
+html:has(.nav-compact, .page-buttons-floating, .page-buttons-floating-full-width) {
+  scroll-padding-bottom: 96px;
+}
+
+html:has(.stepped) {
+  scroll-padding-top: calc(var(--topbar) + 72px);
+  scroll-padding-bottom: 88px;
+}
+
+.compact-card {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 16;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+}
+
+.nav-compact main {
+  padding-bottom: 120px;
+}
+
+.nav-compact .outline,
+.nav-overlay .outline {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.nav-compact .outline {
+  top: auto;
+  bottom: 88px;
+  left: 16px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - var(--topbar) - 104px);
+}
+
+.nav-overlay .outline {
+  top: calc(var(--topbar) + 8px);
+  right: 16px;
+  bottom: auto;
+  left: 16px;
+  width: auto;
+  max-width: 720px;
+  max-height: calc(100vh - var(--topbar) - 24px);
+  margin-inline: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nav-overlay .outline {
+    animation-name: overlay-in;
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.search {
+  margin: 0 12px 12px;
+}
+
+.search label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.search-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.search-none {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.outline-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 12px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.outline-group::after {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.outline-group[aria-expanded="false"]::after {
+  transform: rotate(-45deg);
+}
+
+.page-buttons-dark .page-link:not(.is-locked) {
+  border-color: #2b3038;
+  background: #2b3038;
+  color: #ffffff;
+}
+
+.page-buttons-theme .page-link:not(.is-locked) {
+  border-color: var(--button);
+  background: var(--button);
+  color: var(--button-text);
+}
+
+/* Theme tint: the light tint with its own text; the grey border keeps the button's edge at 3:1. */
+.page-buttons-theme-tint .page-link:not(.is-locked) {
+  background: var(--tint);
+  color: var(--tint-text);
+}
+
+.page-buttons-dark .page-link:not(.is-locked) .page-link-label,
+.page-buttons-theme .page-link:not(.is-locked) .page-link-label,
+.page-buttons-theme-tint .page-link:not(.is-locked) .page-link-label {
+  color: inherit;
+}
+
+/* Floating full width: a bar across the bottom of the screen, with both lesson titles shown. */
+.lesson-nav-floating-full-width {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  max-width: none;
+  padding: 8px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+}
+
+.lesson-nav-floating-full-width .page-link {
+  flex: 1 1 0;
+}
+
+.lesson-nav-floating-full-width .page-link-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The menu's colour style (blocks-editor.md 2.18). Light is white and gray the player's panel, on
+   which its own colours keep their ratios. A filled style draws every text, mark and focus ring in
+   the menu and the compact card in the one text colour chosen for it (format menuLook, 4.5:1);
+   status words still tell done from failed. An image style lays the cover picture under its
+   overlay. */
+.menu-light .outline,
+.menu-light .compact-card {
+  background: var(--surface);
+}
+
+.menu-filled .outline,
+.menu-filled .compact-card {
+  --text: var(--menu-text);
+  --muted: var(--menu-text);
+  --accent: var(--menu-text);
+  --accent-text: var(--menu);
+  --accent-soft: transparent;
+  --focus: var(--menu-text);
+  --correct: var(--menu-text);
+  --wrong: var(--menu-text);
+  --rule: var(--menu-text);
+  background: var(--menu);
+  color: var(--menu-text);
+}
+
+.menu-image .outline,
+.menu-image .compact-card {
+  background-image: linear-gradient(var(--menu-shade), var(--menu-shade)), var(--menu-image);
+  background-position: center;
+  background-size: cover;
+  background-attachment: local;
+}
+
+/* The search field and the exit button keep a light field of their own on any menu. */
+.menu-filled .search-input {
+  --text: #1d1f23;
+  --surface: #ffffff;
+  --border: #6b7280;
+}
+
+.menu-filled .outline-exit {
+  background: transparent;
+}
+
+/* The lesson count sits beside the contents button, so the card keeps its height. */
+.compact-card:has(.compact-count:not([hidden])) {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.compact-count {
+  margin: 0 8px 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* Progress indicator: a circle that fills with the lesson's progress, or a done/not-done mark.
+   The status in words is still read with the link; it shows only when locked or failed. */
+.outline-mark {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+[data-status="locked"] > .outline-mark {
+  display: none;
+}
+
+.progress-circle .outline-mark {
+  background: conic-gradient(var(--accent) calc(var(--percent, 0) * 1%), transparent 0);
+}
+
+.progress-check [data-status="done"] > .outline-mark {
+  background: var(--accent);
+}
+
+.progress-check [data-status="done"] > .outline-mark::after {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-text);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.progress-circle .outline-list a,
+.progress-check .outline-list a {
+  padding-right: 40px;
+}
+
+:is(.progress-circle, .progress-check)
+  :is([data-status="done"], [data-status="in-progress"])
+  > .outline-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lesson-nav-floating {
+  position: sticky;
+  bottom: 16px;
+  z-index: 10;
+  flex-direction: row;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.lesson-nav-floating .page-link {
+  flex: 0 1 auto;
+  max-width: 48%;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+  pointer-events: auto;
+}
+
+/* A floating button is small: its lesson's title is read, not shown. */
+.lesson-nav-floating .page-link-title,
+.lesson-nav-floating .page-link-reason {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.steps-top,
+.steps-bottom {
+  position: sticky;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 0;
+  background: var(--surface);
+}
+
+.steps-top {
+  top: var(--topbar);
+  margin-bottom: 16px;
+}
+
+.steps-bottom {
+  bottom: 0;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.steps {
+  flex: 1 1 200px;
+}
+
+.steps ol {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps-bar li {
+  flex: 1;
+}
+
+.step-button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  font: inherit;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+/* The plain bar: one segment per step, filled once reached. */
+.steps-bar .step-button {
+  width: 100%;
+  border: 0;
+  background: linear-gradient(var(--border), var(--border)) center / 100% 4px no-repeat;
+}
+
+.steps-bar .step-button.is-done,
+.steps-bar .step-button[aria-current] {
+  background-image: linear-gradient(var(--accent), var(--accent));
+}
+
+.steps-bar .step-button[aria-current] {
+  background-size: 100% 8px;
+}
+
+.steps-numbers .step-button {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.steps-numbers .step-button[aria-current] {
+  border-color: var(--button);
+  background: var(--button);
+  color: var(--button-text);
+}
+
+.step-button[aria-disabled="true"] {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.step-arrow {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--button);
+  border-radius: var(--button-radius);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-arrow:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .fill-in input,

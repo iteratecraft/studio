@@ -21,8 +21,11 @@ export { fileUrl, HOOKS_GLOBAL, type PlayerHooks } from "./hooks.js";
 export { ChunkLoadError, createLoader, type Load } from "./loader.js";
 export {
   type Attempt,
+  // M2-16: what a continue block may wait for, and the steps of a stepped lesson.
+  canBeRequired,
   createProgress,
   ESTIMATED_ATTEMPTS,
+  isContinue,
   largestResume,
   type PageStatus,
   type Progress,
@@ -30,6 +33,7 @@ export {
   type Requirement,
   requirement,
   requiresCorrect,
+  stepsOf,
 } from "./progress.js";
 export {
   COVER_HASH,

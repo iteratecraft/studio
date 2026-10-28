@@ -69,7 +69,7 @@ async function workThrough(page: Page): Promise<boolean> {
   let acted = false;
   for (let step = 0; step < 50 && page.url() === url; step++) {
     const check = page.locator(".blocks form.check:has(button[type=submit]:visible)").first();
-    const gate = page.locator(".blocks button.continue:visible:not([aria-disabled])").first();
+    const gate = page.locator(".blocks button.continue:visible").first();
     if ((await check.count()) > 0) await answer(check);
     else if ((await gate.count()) > 0) await gate.click();
     else break;

@@ -1,18 +1,25 @@
-// The Blocks player shell (ENG-04): cover page, sidebar outline with progress, lesson pages
-// addressed by stable id, previous and next links (rise.md §3 B, E, F, G and N), and the goodbye
-// page. Every learner string comes from the label set; course text comes from the course document.
-import type { Block, Course, Entry, LessonEntry } from "@course-suite/format";
+// The Blocks player shell (ENG-04): cover page, the course menu with progress (a sidebar, a compact
+// or overlay menu, or none; M2-16 in navigation.ts), lesson pages addressed by stable id, previous
+// and next links (rise.md §3 B, E, F, G and N), and the goodbye page. Every learner string comes
+// from the label set; course text comes from the course document.
+import type { Block, Course, LessonEntry } from "@course-suite/format";
 import {
   cropOf,
   DEFAULT_HEADER_OVERLAY,
   DEFAULT_OVERLAY,
+  hasSearch,
+  isStepped,
+  menuLook,
+  menuOf,
   overlayColors,
+  pageButtonsOf,
   themeColors,
 } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { type LessonHooks, mediaUrl, renderBlock } from "./blocks.js";
 import { h, richText, uid } from "./dom.js";
 import { questionMedia } from "./media.js";
+import { type OutlineLink, outlineOf, searchBox, stepper } from "./navigation.js";
 import { isContinue, type PageStatus } from "./progress.js";
 import { quizView } from "./quiz.js";
 import { COVER_HASH, lessonNumber, type Page, pageHash, parseRoute } from "./route.js";
@@ -46,58 +53,89 @@ export function startShell(
   const { progress } = runtime;
   const pages = progress.pages;
   const wide = window.matchMedia(WIDE_LAYOUT);
+  // The author's navigation (M2-16; rise.md 3F; blocks-editor.md 2.18): which menu, if any, and the
+  // previous and next lesson buttons.
+  const menu = menuOf(course);
+  const buttons = pageButtonsOf(course);
+  const indicator = course.navigation?.progressIndicator ?? "theme";
+  root.classList.add(
+    `nav-${menu ?? "none"}`,
+    `page-buttons-${buttons ?? "off"}`,
+    `page-buttons-${course.navigation?.pageButtonColor ?? "white"}`,
+  );
+  if (menu) styleMenu(root, course, indicator);
   const main = h("main", { id: "content", tabindex: -1, "aria-label": labels["sr.content"] });
-  const toggle = h("button", {
-    type: "button",
-    class: "outline-toggle",
-    "aria-controls": "outline",
-  });
-  const links = new Map<string, { link: HTMLAnchorElement; status: HTMLElement }>();
-  const courseProgress = h("p", { class: "outline-progress" });
   const exit = course.publish?.exitLink
     ? h("button", { type: "button", class: "outline-exit" }, labels["course.exit"])
     : undefined;
-  const outline = h(
-    "nav",
-    { id: "outline", class: "outline", "aria-label": labels["sr.outline"] },
-    h("p", { class: "outline-course" }, course.title),
-    courseProgress,
-    outlineList(course.entries, links),
-    exit,
-  );
-  // Polite announcements: a lesson done, content revealed (UI-BLOCKS-R43).
+  // Polite announcements: a lesson done, content revealed (UI-BLOCKS-R43), lessons found.
   const announcer = h("p", { class: "visually-hidden", role: "status" });
   const announce = (text: string) => {
     announcer.textContent = text;
   };
+  const courseProgress = h("p", { class: "outline-progress" });
+  const contents = outlineOf(course.entries, {
+    collapsible: menu === "sidebar" || menu === "compact",
+    closed: course.navigation?.sectionsClosed === true,
+    marks: indicator !== "theme",
+  });
+  // The compact card names the open lesson by its number (blocks-editor.md 2.18), not on the cover.
+  const count =
+    menu === "compact" && course.navigation?.compactCount !== false
+      ? h("p", { class: "compact-count", hidden: true })
+      : undefined;
+  const links = menu ? contents.links : new Map<string, OutlineLink>();
+  const outline = menu
+    ? h(
+        "nav",
+        { id: "outline", class: "outline", "aria-label": labels["sr.outline"] },
+        h("p", { class: "outline-course" }, course.title),
+        courseProgress,
+        hasSearch(course) ? searchBox(pages, contents, labels, announce) : undefined,
+        contents.element,
+        exit,
+      )
+    : undefined;
+  const toggle = menu
+    ? h("button", { type: "button", class: "outline-toggle", "aria-controls": "outline" })
+    : undefined;
 
-  const setOpen = (open: boolean) => {
-    // Focus inside the outline as it hides would be lost; the button that opens it takes it.
-    const refocus = !open && outline.contains(document.activeElement);
-    outline.hidden = !open;
-    toggle.setAttribute("aria-expanded", String(open));
-    toggle.textContent = labels[open ? "outline.hide" : "outline.show"];
-    root.classList.toggle("outline-open", open);
-    if (refocus) toggle.focus();
-  };
-  setOpen(wide.matches);
-  wide.addEventListener("change", () => setOpen(wide.matches));
-  toggle.addEventListener("click", () => setOpen(toggle.getAttribute("aria-expanded") !== "true"));
-  outline.addEventListener("click", (event) => {
-    if (!wide.matches && (event.target as Element).closest("a[href]")) setOpen(false);
-  });
-  // On a narrow screen the open outline covers the content, so tabbing out of it closes it and the
-  // focused control is never hidden behind it (WCAG 2.4.11).
-  outline.addEventListener("focusout", (event) => {
-    const next = event.relatedTarget as Node | null;
-    if (!wide.matches && next && !outline.contains(next) && next !== toggle) setOpen(false);
-  });
-  root.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !wide.matches && !outline.hidden) {
-      setOpen(false);
-      toggle.focus();
-    }
-  });
+  if (outline && toggle) {
+    // The sidebar sits beside the content on a wide screen, open unless the author chose closed;
+    // the compact and overlay menus, and any menu on a narrow screen, cover the content when open.
+    const covers = () => menu !== "sidebar" || !wide.matches;
+    const startsOpen = () =>
+      menu === "sidebar" && wide.matches && course.navigation?.menuClosed !== true;
+    const setOpen = (open: boolean) => {
+      // Focus inside the outline as it hides would be lost; the button that opens it takes it.
+      const refocus = !open && outline.contains(document.activeElement);
+      outline.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.textContent = labels[open ? "outline.hide" : "outline.show"];
+      root.classList.toggle("outline-open", open);
+      if (refocus) toggle.focus();
+    };
+    setOpen(startsOpen());
+    wide.addEventListener("change", () => setOpen(startsOpen()));
+    toggle.addEventListener("click", () =>
+      setOpen(toggle.getAttribute("aria-expanded") !== "true"),
+    );
+    outline.addEventListener("click", (event) => {
+      if (covers() && (event.target as Element).closest("a[href]")) setOpen(false);
+    });
+    // An open menu that covers the content closes as focus leaves it, so the focused control is
+    // never hidden behind it (WCAG 2.4.11).
+    outline.addEventListener("focusout", (event) => {
+      const next = event.relatedTarget as Node | null;
+      if (covers() && next && !outline.contains(next) && next !== toggle) setOpen(false);
+    });
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && covers() && !outline.hidden) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+  }
 
   // The skip link focuses the content without touching the address, which holds the lesson.
   const skip = h("a", { class: "skip-link", href: "#content" }, labels["sr.skipToContent"]);
@@ -108,8 +146,22 @@ export function startShell(
 
   root.replaceChildren(
     skip,
-    h("header", { class: "topbar" }, toggle, h("p", { class: "topbar-title" }, course.title)),
+    h(
+      "header",
+      { class: "topbar" },
+      menu === "compact" ? undefined : toggle,
+      h("p", { class: "topbar-title" }, course.title),
+      // Without a menu, the exit link sits in the top bar.
+      outline ? undefined : exit,
+    ),
     h("div", { class: "layout" }, outline, main),
+    // The compact menu: a small card at the bottom left that opens the outline above it.
+    h(
+      "div",
+      { class: "compact-card", hidden: menu !== "compact" },
+      menu === "compact" && toggle,
+      count,
+    ),
     announcer,
   );
 
@@ -123,7 +175,8 @@ export function startShell(
       const state = progress.status(page);
       // A locked lesson stays in the outline as a disabled link whose name says why (UI-BLOCKS-R26,
       // UI-ACCESSIBILITY-R37); it has no address, so it is not a tab stop.
-      const { link, status } = entry;
+      const { link, status, mark } = entry;
+      mark?.style.setProperty("--percent", String(progress.percent(page)));
       if (state === "locked") {
         link.removeAttribute("href");
         link.removeAttribute("aria-describedby");
@@ -182,7 +235,13 @@ export function startShell(
       if (id === page?.id) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    view = page ? lessonView(page) : coverView();
+    if (page) contents.reveal(page.id);
+    if (count) {
+      const number = page && lessonNumber(pages, page);
+      count.textContent = number ? formatLabel(labels, "lesson.position", number) : "";
+      count.hidden = !number;
+    }
+    view = page ? lessonView(page, route.kind === "page" ? route.block : undefined) : coverView();
     main.replaceChildren(view.element);
     refresh();
     document.title = page ? [page.title, course.title].join(" - ") : course.title;
@@ -291,7 +350,8 @@ export function startShell(
     return { element, refresh() {}, leave() {} };
   }
 
-  function lessonView(page: Page): PageView {
+  /** A lesson or quiz page; `block`, the block its address names. */
+  function lessonView(page: Page, block?: string): PageView {
     const index = pages.indexOf(page);
     const previous = pages[index - 1];
     const next = pages[index + 1];
@@ -314,7 +374,7 @@ export function startShell(
         ),
       );
     } else if (page.kind === "lesson") {
-      const blocks = lessonBlocks(page, next, updates);
+      const blocks = lessonBlocks(page, next, updates, block);
       body = blocks.element;
       leave = blocks.stop;
     } else {
@@ -346,8 +406,15 @@ export function startShell(
       });
     }
 
-    const nav = h("nav", { class: "lesson-nav", "aria-label": labels["sr.lessonNavigation"] });
+    // Full-width or floating, or none at all (M2-16; rise.md 3F).
+    const nav = buttons
+      ? h("nav", {
+          class: `lesson-nav lesson-nav-${buttons}`,
+          "aria-label": labels["sr.lessonNavigation"],
+        })
+      : undefined;
     updates.push(() => {
+      if (!nav) return;
       nav.hidden = !previous && !next;
       nav.replaceChildren(
         ...(previous ? [pageLink(previous, "previous", labels)] : []),
@@ -414,7 +481,8 @@ export function startShell(
           .filter(Boolean)
           .join(" "),
       },
-      previous ? pageLink(previous, "previous", labels) : undefined,
+      // Full-width buttons sit at the top of the lesson as well as at its foot (rise.md 3F).
+      previous && buttons === "full-width" ? pageLink(previous, "previous", labels) : undefined,
       number && !hidden && options.lessonCount !== false
         ? h("p", { class: "lesson-number" }, formatLabel(labels, "lesson.position", number))
         : undefined,
@@ -489,24 +557,48 @@ export function startShell(
     );
   }
 
-  /** The blocks of a lesson, each shown once the gates above it are passed (rule 13, UI-BLOCKS-R43). */
-  function lessonBlocks(page: LessonEntry, next: Page | undefined, updates: (() => void)[]) {
+  /**
+   * The blocks of a lesson, each shown once the gates above it are passed (rule 13, UI-BLOCKS-R43);
+   * in a stepped microlearning, one step at a time, starting at the step of block `start`.
+   */
+  function lessonBlocks(
+    page: LessonEntry,
+    next: Page | undefined,
+    updates: (() => void)[],
+    start?: string,
+  ) {
     const rendered: [Block, HTMLElement | undefined][] = [];
     const changed = () => {
       runtime.changed();
       refresh();
     };
+    const steps = isStepped(course)
+      ? stepper(page, {
+          labels,
+          progress,
+          indicator: course.navigation?.stepIndicator ?? "bar",
+          first: Math.max(
+            0,
+            page.blocks.findIndex((block) => block.id === start),
+          ),
+          elements: () => rendered.map(([, element]) => element),
+          changed,
+          announce,
+        })
+      : undefined;
     const hooks: LessonHooks = {
       continueReady: (block) => progress.continueReady(page, block),
       pressContinue(block) {
         const before = progress.shownBlocks(page);
         progress.pressContinue(page, block);
         changed();
-        // The last block of a lesson finishes it and opens the next lesson.
+        // The last block of a lesson finishes it and opens the next lesson; the last of a step
+        // opens the next step.
         if (page.blocks.at(-1) === block && next && !progress.lockedBy(next)) {
           location.hash = pageHash(next.id);
           return;
         }
+        if (steps?.advanceFrom(page.blocks.indexOf(block))) return;
         focusFirst(rendered.slice(before));
       },
       answered(block, response, correct) {
@@ -535,19 +627,30 @@ export function startShell(
       rendered.forEach(([block, element], i) => {
         // A pressed continue block has done its job and steps aside.
         if (element)
-          element.hidden = i >= shown || (isContinue(block) && progress.isDone(block.id));
+          element.hidden =
+            i >= shown ||
+            (isContinue(block) && progress.isDone(block.id)) ||
+            (steps !== undefined && !steps.shows(i));
       });
+      steps?.update();
     });
-    const element = h(
+    const blocks = h(
       "div",
       { class: "blocks" },
       ...rendered.flatMap(([, element]) => (element ? [element] : [])),
     );
     // Blocks fade in as they scroll into view, by the course's switch and their own (rise.md 3D).
-    const stop = animateOnScroll(
+    const animation = animateOnScroll(
       rendered.flatMap(([block, el]) => (el && animates(block, course) ? [el] : [])),
     );
-    return { element, stop };
+    if (!steps) return { element: blocks, stop: animation };
+    return {
+      element: h("div", { class: "stepped" }, steps.top, blocks, steps.bottom),
+      stop: () => {
+        animation();
+        steps.stop();
+      },
+    };
   }
 
   /** Focus moves to the first block a gate revealed, so keyboard users carry on from there. */
@@ -560,6 +663,29 @@ export function startShell(
 
   window.addEventListener("hashchange", show);
   show();
+}
+
+/**
+ * The menu's colour style and progress indicator (blocks-editor.md 2.18): classes on the player
+ * for player.css, and the fill, its text and the picture from the format's `menuLook`.
+ */
+function styleMenu(root: HTMLElement, course: Course, indicator: string): void {
+  const look = menuLook(course);
+  root.classList.add(`menu-${look.style}`, `progress-${indicator}`);
+  if (!look.fill) return;
+  root.classList.add("menu-filled");
+  setVariables(root, { "--menu": look.fill.color, "--menu-text": look.fill.text });
+  const ref = look.image?.ref;
+  const entry = ref && course.media.find((media) => media.key === ref.key);
+  if (!look.image || !entry) return;
+  const [r, g, b] = [1, 3, 5].map((at) =>
+    Number.parseInt(look.fill?.color.slice(at, at + 2) ?? "0", 16),
+  );
+  root.classList.add("menu-image");
+  setVariables(root, {
+    "--menu-image": `url(${JSON.stringify(mediaUrl(entry.variantKey ?? entry.key))})`,
+    "--menu-shade": `rgb(${r} ${g} ${b} / ${look.image.opacity / 100})`,
+  });
 }
 
 /** What the outline says beside a page (rise.md §3 F, UI-BLOCKS-R26, R36). */
@@ -576,34 +702,6 @@ function statusText(status: PageStatus, percent: number, labels: Labels): string
     case "not-started":
       return "";
   }
-}
-
-function outlineList(
-  entries: readonly Entry[],
-  links: Map<string, { link: HTMLAnchorElement; status: HTMLElement }>,
-): HTMLElement {
-  const top = h("ul", { class: "outline-list" });
-  let list = top;
-  for (const entry of entries) {
-    if (entry.kind === "section") {
-      const titleId = uid("section");
-      list = h("ul", { "aria-labelledby": titleId });
-      top.append(
-        h("li", { class: "outline-section" }, h("span", { id: titleId }, entry.title), list),
-      );
-      continue;
-    }
-    const statusId = uid("status");
-    const status = h("span", { class: "outline-status", id: statusId });
-    const link = h(
-      "a",
-      { id: uid("page"), href: pageHash(entry.id), "aria-describedby": statusId },
-      entry.title,
-    );
-    links.set(entry.id, { link, status });
-    list.append(h("li", {}, link, status));
-  }
-  return top;
 }
 
 /** A link to the previous or next page that names it (rise.md §3 F). */

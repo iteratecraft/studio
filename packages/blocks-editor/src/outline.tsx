@@ -125,9 +125,18 @@ export function Outline({ session, toasts, focusEntry, onOpen, onCopy }: Outline
     const target = row.querySelector<HTMLElement>(
       wanted.part === "title" ? "input" : "[data-part=open]",
     );
-    // The row first, so the list takes it as its current row and leaves focus inside it.
-    row.closest<HTMLElement>("[role=row]")?.focus();
-    (target ?? row.querySelector<HTMLElement>("input"))?.focus();
+    const move = () => {
+      // A row menu that is still fading out keeps focus inside it and then hands it back to its
+      // button, so the focus waits until no menu is left (it lost to it on slow machines).
+      if (document.querySelector("[role=menu]")) {
+        requestAnimationFrame(move);
+        return;
+      }
+      // The row first, so the list takes it as its current row and leaves focus inside it.
+      row.closest<HTMLElement>("[role=row]")?.focus();
+      (target ?? row.querySelector<HTMLElement>("input"))?.focus();
+    };
+    move();
   };
 
   // The delete notice offers undo while the delete is still the latest change.

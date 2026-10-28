@@ -264,6 +264,8 @@ test("blocks-editor T1 BLK-09, M2-17: the theme button opens its sections in ord
   await expect(sections(page).getByRole("button")).toHaveText([
     "Layout styleClassic",
     "Cover pagePicture on the left",
+    // M2-16 (T1 order): navigation after the cover page.
+    "NavigationSidebar",
     "Lesson headersLight",
     "Colours#ff631e",
     "FontsDevice fonts",

@@ -34,36 +34,29 @@ test.describe("gated-continue", () => {
     expect(visit.badRequests).toEqual([]);
   });
 
-  test("[rise:R13] UI-BLOCKS-R44: completion type none works at once; block-above stays inactive with its hint", async ({
+  test("[rise:R13] UI-BLOCKS-R44 R55 GL7: completion type none works at once; block-above shows its hint in place of the button", async ({
     open,
     page,
   }) => {
     await open("#/lessons/spvbz6j2yy");
     const first = page.getByRole("button", { name: "Continue" });
-    await expect(first).not.toHaveAttribute("aria-disabled");
+    await expect(first).toBeVisible();
     await expect(page.getByText("Open each panel above to carry on.")).toBeHidden();
     await first.click();
 
     // The accordion above is not opened, so the requirement is not met.
-    const gate = page.getByRole("button", { name: "I have read all three" });
-    await expect(gate).toBeVisible();
-    await expect(gate).toHaveAttribute("aria-disabled", "true");
-    await expect(gate).toHaveAccessibleDescription("Open each panel above to carry on.");
     await expect(page.getByText("Open each panel above to carry on.")).toBeVisible();
-    // Pressing it does nothing yet.
-    await gate.focus();
-    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "I have read all three" })).toHaveCount(0);
     await expect(page.getByRole("img", { name: /A ridge tent/ })).toBeHidden();
   });
 
-  test("UI-BLOCKS-R44: all-above stays inactive with its hint while the blocks since the last continue are not done", async ({
+  test("UI-BLOCKS-R44 R55: all-above shows its hint in place of the button while the blocks since the last continue are not done", async ({
     open,
     page,
   }) => {
     await open("#/lessons/bojq736j6e");
-    const gate = page.getByRole("button", { name: "Continue" });
-    await expect(gate).toHaveAttribute("aria-disabled", "true");
-    await expect(gate).toHaveAccessibleDescription("Go through every step above to carry on.");
+    await expect(page.getByText("Go through every step above to carry on.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
     await expect(page.getByText("Packing away")).toBeHidden();
   });
 });

@@ -71,7 +71,7 @@ test("UI-BLOCKS-R43: a continue block that ends a lesson finishes it and opens t
   );
 });
 
-test("UI-BLOCKS-R44: a continue block with a requirement stays inactive, with its hint, until it is met", async ({
+test("UI-BLOCKS-R44 R55 GL7: a continue block with a requirement shows its hint as plain text in place of the button until it is met", async ({
   write,
   open,
   page,
@@ -89,17 +89,20 @@ test("UI-BLOCKS-R44: a continue block with a requirement stays inactive, with it
   });
   await open("#/lessons/lessonone1");
   const gate = page.getByRole("button", { name: "Continue" });
-  await expect(gate).toHaveAttribute("aria-disabled", "true");
-  await expect(gate).toHaveAccessibleDescription("Finish the activities above to go on");
-  // Still focusable, so keyboard users reach the hint; pressing it does nothing yet.
-  await gate.focus();
-  await page.keyboard.press("Enter");
+  const hint = page.locator("[data-block=cgateone01] .continue-hint");
+  // The hint line stands in the button's place: plain text with a decorative icon, no button yet.
+  await expect(hint).toHaveText("Finish the activities above to go on");
+  await expect(hint).toBeVisible();
+  await expect(hint.locator("svg")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator("[data-block=cgateone01] button")).toBeHidden();
+  await expect(gate).toHaveCount(0);
   await expect(page.getByText("Behind the gate")).toBeHidden();
 
+  // Met: the button takes the hint's spot at once, without a reload (UI-BLOCKS-R55).
   await page.getByRole("radio", { name: "No" }).check();
   await page.getByRole("button", { name: "Check answer" }).click();
-  await expect(gate).not.toHaveAttribute("aria-disabled");
-  await expect(page.getByText("Finish the activities above to go on")).toBeHidden();
+  await expect(gate).toBeVisible();
+  await expect(hint).toBeHidden();
   await gate.click();
   await expect(page.getByText("Behind the gate")).toBeVisible();
 });
@@ -125,12 +128,12 @@ test("[rise:R13] UI-BLOCKS-R44: the author's button label and hint text replace 
   });
   await open("#/lessons/lessonone1");
   const gate = page.getByRole("button", { name: "On to the heap" });
-  await expect(gate).toHaveAttribute("aria-disabled", "true");
-  await expect(gate).toHaveAccessibleDescription("Answer the question above first.");
+  await expect(page.getByText("Answer the question above first.")).toBeVisible();
+  await expect(gate).toHaveCount(0);
   await expect(page.getByText("Finish the activities above to go on")).toHaveCount(0);
   await page.getByRole("radio", { name: "Yes" }).check();
   await page.getByRole("button", { name: "Check answer" }).click();
-  await expect(gate).not.toHaveAttribute("aria-disabled");
+  await expect(gate).toBeVisible();
   await expect(page.getByText("Answer the question above first.")).toBeHidden();
 });
 

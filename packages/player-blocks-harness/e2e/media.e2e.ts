@@ -76,7 +76,7 @@ test.describe("audio and video", () => {
     const players = page.locator("audio");
     // Forward seeking on: the block is done when seen, and seeking ahead is kept.
     const free = page.locator(".continue").first();
-    await expect(free).not.toHaveAttribute("aria-disabled");
+    await expect(free).toBeVisible();
     await players.first().evaluate(async (element) => {
       const media = element as HTMLAudioElement;
       if (media.readyState < 1) await new Promise((resolve) => (media.onloadedmetadata = resolve));
@@ -90,7 +90,7 @@ test.describe("audio and video", () => {
 
     // Forward seeking off: every way of seeking ahead lands back on what was played.
     const locked = page.locator(".continue").nth(1);
-    await expect(locked).toHaveAttribute("aria-disabled", "true");
+    await expect(locked).toBeHidden();
     const after = await players.nth(1).evaluate(async (element) => {
       const media = element as HTMLAudioElement;
       if (media.readyState < 1) await new Promise((resolve) => (media.onloadedmetadata = resolve));
@@ -125,7 +125,7 @@ test.describe("audio and video", () => {
     expect(after.ahead).toBeLessThanOrEqual(after.reached + 0.5);
     expect(after.ahead).toBeLessThan(1);
     expect(after.back).toBe(0.1);
-    await expect(locked).toHaveAttribute("aria-disabled", "true");
+    await expect(locked).toBeHidden();
     // Played to the end, at double speed (learners may change the speed), it opens the gate.
     await players.nth(1).evaluate((element) => {
       const media = element as HTMLAudioElement;
@@ -133,7 +133,7 @@ test.describe("audio and video", () => {
       media.playbackRate = 2;
       void media.play();
     });
-    await expect(locked).not.toHaveAttribute("aria-disabled");
+    await expect(locked).toBeVisible();
   });
 
   test("UI-BLOCKS-R45: audio or video with forward seeking off but no file to play shows nothing and holds no continue block", async ({
@@ -167,7 +167,6 @@ test.describe("audio and video", () => {
     for (const id of ["cgateaudio", "cgatevideo", "cgategone1"]) {
       const gate = page.locator(`[data-block=${id}] .continue`);
       await expect(gate).toBeVisible();
-      await expect(gate).not.toHaveAttribute("aria-disabled");
       await expect(page.locator(`[data-block=${id}] .continue-hint`)).toBeHidden();
       await gate.click();
     }

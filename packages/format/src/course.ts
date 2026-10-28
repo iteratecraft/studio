@@ -27,6 +27,38 @@ export interface Course {
     restricted?: boolean;
     /** While navigation is free, learners may mark an unfinished lesson (not a quiz) done. Default false. */
     learnerMarkDone?: boolean;
+    /** No course menu and no search: learners start from the cover and go on lesson by lesson. Default false. */
+    off?: boolean;
+    /** The course menu: a sidebar, a compact card at the bottom left, or an overlay card at the top. Default sidebar. */
+    menu?: "sidebar" | "compact" | "overlay";
+    /** The sidebar starts closed on wide screens too. Default false. */
+    menuClosed?: boolean;
+    /** Section groups of the sidebar and the compact menu start collapsed. Default false. */
+    sectionsClosed?: boolean;
+    /** The look of the menu and the compact card: light, gray, the theme colour, its tint, dark, a dark shade of the theme colour, or the cover picture under a light or dark overlay. Its text keeps 4.5:1. Default light. */
+    menuStyle?:
+      | "light"
+      | "gray"
+      | "theme"
+      | "tint"
+      | "dark"
+      | "dark-theme"
+      | "image-light"
+      | "image-dark";
+    /** The status mark beside each lesson in the menu: the theme's (its status in words), a circle that fills with its progress, or a done or not-done mark. Default theme. */
+    progressIndicator?: "theme" | "circle" | "check";
+    /** The compact menu's card shows which lesson is open, as its number of the total. Default true. */
+    compactCount?: boolean;
+    /** Course search in the sidebar; there is none with another menu, with navigation off or restricted. Default true. */
+    search?: boolean;
+    /** Previous and next lesson buttons: full-width at the top and bottom of each lesson, floating at the bottom of the screen, a floating bar across the bottom of the screen, or none (branching courses). Default full-width. */
+    pageButtons?: "full-width" | "floating" | "floating-full-width" | "off";
+    /** Colour of the previous and next lesson buttons: white, dark, the theme colour or its tint. Default white. */
+    pageButtonColor?: "white" | "dark" | "theme" | "theme-tint";
+    /** Microlearning: one step at a time instead of one continuous page. Default false. */
+    steps?: boolean;
+    /** Stepped microlearning: the step indicator as a plain bar, numbered, or none. Default bar. */
+    stepIndicator?: "bar" | "numbers" | "none";
     /** Learners may play videos from 0.25 to 2 times their speed. Default true. */
     videoSpeed?: boolean;
   };
