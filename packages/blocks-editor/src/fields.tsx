@@ -50,7 +50,9 @@ function useDraft(stored: string, command: DraftCommand, tidy: (text: string) =>
     open: boolean;
     /** The text this editing last put into the document, which the document now holds. */
     sent: string | undefined;
-  }>({ timer: undefined, since: undefined, open: false, sent: undefined });
+    /** `stored` when that text was sent, so a later `stored` is the document's own version. */
+    before: string | undefined;
+  }>({ timer: undefined, since: undefined, open: false, sent: undefined, before: undefined });
   // The document changed by other means (undo, redo): show it, unless the author is typing here.
   // While typing, the document may hold the text tidied (trimmed, say), which must not move the
   // text under the author's cursor.
@@ -82,7 +84,10 @@ function useDraft(stored: string, command: DraftCommand, tidy: (text: string) =>
     if (!next || text === held || (Array.isArray(next) && next.length === 0)) return;
     if (!state.open) editor.beginGroup();
     const result = editor.dispatch(next);
-    if (result.ok) state.sent = text;
+    if (result.ok) {
+      state.sent = text;
+      state.before = stored;
+    }
     if (result.ok && result.ops.length > 0) state.open = true;
     else if (!state.open) editor.endGroup();
   };
@@ -90,9 +95,12 @@ function useDraft(stored: string, command: DraftCommand, tidy: (text: string) =>
     commit();
     if (edit.current.open) editor.endGroup();
     edit.current.open = false;
-    // Show what the document holds now, without waiting for `stored`, which may still be the
-    // text from before this editing (see commit).
-    if (editing.current) show(edit.current.sent ?? stored);
+    // Show what the document holds now. Until `stored` moves on from where it was when the text
+    // was sent it is still the text from before this editing (see commit), and the text sent stands
+    // in for it; after that it is the document's own version, normalised by the command (a
+    // language code's case, say), which a send made by a pause in typing has already brought.
+    const { sent, before } = edit.current;
+    if (editing.current) show(sent !== undefined && stored === before ? sent : stored);
   };
   const latest = useRef(commit);
   latest.current = commit;

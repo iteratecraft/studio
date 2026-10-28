@@ -755,6 +755,9 @@ test.describe("course editor", () => {
     await field.press("Enter");
     await expect(status(page)).toHaveText("Saved");
     await field.fill("fr-ca");
+    // The pause in typing puts the code into the document first; Enter then shows its normalised
+    // form, not the text as typed.
+    await expect(status(page)).toHaveText("Unsaved changes");
     await field.press("Enter");
     await expect(field).toHaveValue("fr-CA");
     await page.keyboard.press("Control+S");
