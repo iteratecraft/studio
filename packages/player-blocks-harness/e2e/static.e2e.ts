@@ -145,27 +145,28 @@ test("[rise:3C] UI-BLOCKS-R45, R51, R52: a gallery carousel and a checklist hold
   );
   await write({ course: gated });
   await open("#/lessons/lessongate");
-  const first = page.getByRole("button", { name: "Continue" }).first();
-  await expect(first).toHaveAttribute("aria-disabled", "true");
+  // Each continue block shows its hint in the button's place until it is ready (UI-BLOCKS-R55).
+  const first = page.locator("[data-block=cgatepics1] .continue");
+  await expect(first).toBeHidden();
   const images = page.getByRole("region", { name: "Images" });
   await images.getByRole("button", { name: "Next image" }).focus();
   await page.keyboard.press("Enter");
-  await expect(first).toHaveAttribute("aria-disabled", "true");
+  await expect(first).toBeHidden();
   await page.keyboard.press("Enter");
   await expect(images.locator(".carousel-position")).toHaveText("Image 3 of 3");
-  await expect(first).not.toHaveAttribute("aria-disabled");
+  await expect(first).toBeVisible();
   await first.click();
   const boxes = page.getByRole("checkbox");
   await expect(boxes).toHaveCount(2);
-  const gate = page.getByRole("button", { name: "Continue" });
-  await expect(gate).toHaveAttribute("aria-disabled", "true");
+  const gate = page.locator("[data-block=cgatelist1] .continue");
+  await expect(gate).toBeHidden();
   await boxes.first().focus();
   await page.keyboard.press("Space");
   await expect(boxes.first()).toBeChecked();
-  await expect(gate).toHaveAttribute("aria-disabled", "true");
+  await expect(gate).toBeHidden();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Space");
-  await expect(gate).not.toHaveAttribute("aria-disabled");
+  await expect(gate).toBeVisible();
   await expectAccessible(page, "checklist done", [320]);
 });
 

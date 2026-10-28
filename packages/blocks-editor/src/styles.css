@@ -379,6 +379,21 @@ body,
   font-weight: var(--cs-weight-strong);
 }
 
+/* M2-16: a block a continue block may wait for, and the list of what one waits for. */
+.be-tag {
+  padding: 0 var(--cs-space-2);
+  border: 1px solid var(--cs-control-border);
+  border-radius: var(--cs-radius-full);
+  color: var(--cs-text);
+  font-size: var(--cs-text-xs);
+  white-space: nowrap;
+}
+
+.be-waits ul {
+  margin: 0;
+  padding-left: var(--cs-space-6);
+}
+
 .be-block-tools {
   padding: 2px;
 }

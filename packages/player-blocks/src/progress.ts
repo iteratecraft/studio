@@ -19,7 +19,13 @@ import type {
   Score,
   StepItem,
 } from "@course-suite/format";
-import { drawAttempt, quizResult, scoreAttempt } from "@course-suite/format";
+import {
+  drawAttempt,
+  isRestricted,
+  isStepped,
+  quizResult,
+  scoreAttempt,
+} from "@course-suite/format";
 import type { ResumeState } from "@course-suite/tracking";
 import { type Page, pagesOf } from "./route.js";
 
@@ -159,6 +165,31 @@ const needsAction = (course: Course, block: Block) =>
   REQUIRABLE.has(`${block.category}/${block.variant}`) ||
   lockedMedia(course, block);
 
+/**
+ * Whether a continue block may wait for `block` (rise.md 3G, UI-BLOCKS-R19, R45): every block
+ * finished by an action, as its type declares above (REQUIRABLE, knowledge checks, locked media),
+ * and no other. Buttons, attachments and blocks finished by being seen never can. The editor reads
+ * this, so a block type is offered as soon as it is declared here.
+ */
+export const canBeRequired = (course: Course, block: Block) =>
+  !isContinue(block) && needsAction(course, block);
+
+/**
+ * The steps of a stepped microlearning lesson (rise.md 3D, 3F; UI-BLOCKS-R58): the index of each
+ * step's first block and the index after its last. A block connected to the next shows in one
+ * step with it.
+ */
+export function stepsOf(blocks: readonly Block[]): { start: number; end: number }[] {
+  const steps: { start: number; end: number }[] = [];
+  let start = 0;
+  blocks.forEach((block, i) => {
+    if (block.settings?.connectToNext === true && i < blocks.length - 1) return;
+    steps.push({ start, end: i + 1 });
+    start = i + 1;
+  });
+  return steps;
+}
+
 /** How a page shows in the outline. */
 export type PageStatus = "not-started" | "in-progress" | "done" | "failed" | "locked";
 
@@ -186,6 +217,12 @@ export interface Progress {
   shownBlocks(lesson: LessonEntry): number;
   /** The learner sees the page: its shown blocks count as viewed (UI-BLOCKS-R46). */
   view(page: Page): void;
+  /**
+   * Stepped microlearning: step `step` of the lesson (an index into `stepsOf`) was shown. Only the
+   * blocks of steps shown count as viewed, so steps jumped over do not (rule 16, UI-BLOCKS-R46).
+   * Until another is shown, a stepped lesson shows its first step.
+   */
+  showStep(lesson: LessonEntry, step: number): void;
   /** A continue block was pressed. */
   pressContinue(lesson: LessonEntry, block: Block): void;
   /**
@@ -237,9 +274,10 @@ export interface Progress {
 /** A progress engine for `course`, resumed from `state` (pruned of ids the course no longer has). */
 export function createProgress(course: Course, state: ResumeState = {}): Progress {
   const pages = pagesOf(course);
-  const restricted =
-    course.navigation?.restricted === true ||
-    pages.some((page) => page.kind === "quiz" && page.settings?.skipAhead !== undefined);
+  const restricted = isRestricted(course);
+  const stepped = isStepped(course);
+  // Stepped microlearning: the steps of each lesson the learner was shown, by index.
+  const shownSteps = new Map<string, Set<number>>();
   const done = new Set(state.done);
   const viewed = new Map(
     Object.entries(state.visited ?? {}).map(([id, ids]) => [id, new Set(ids)]),
@@ -278,7 +316,16 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
   function view(page: Page): void {
     if (page.kind !== "lesson") return;
     const ids = viewed.get(page.id) ?? new Set<string>();
-    for (const block of page.blocks.slice(0, shownBlocks(page))) ids.add(block.id);
+    const limit = shownBlocks(page);
+    const ranges = stepped
+      ? [...(shownSteps.get(page.id) ?? [0])].map((step) => stepsOf(page.blocks)[step])
+      : [{ start: 0, end: page.blocks.length }];
+    for (const range of ranges) {
+      if (!range) continue;
+      for (const block of page.blocks.slice(range.start, Math.min(range.end, limit))) {
+        ids.add(block.id);
+      }
+    }
     viewed.set(page.id, ids);
     // A lesson without gates is done as soon as it is seen (rise.md §3 G).
     if (page.blocks.every((block) => counts(page, block))) done.add(page.id);
@@ -367,6 +414,13 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     restricted,
     shownBlocks,
     view,
+
+    showStep(lesson, step) {
+      const shown = shownSteps.get(lesson.id) ?? new Set([0]);
+      shown.add(step);
+      shownSteps.set(lesson.id, shown);
+      view(lesson);
+    },
 
     pressContinue(lesson, block) {
       done.add(block.id);

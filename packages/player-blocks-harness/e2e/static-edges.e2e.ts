@@ -46,12 +46,13 @@ test("[rise:3C] UI-BLOCKS-R45, R51, BLK-04: a checklist point whose text was cle
   });
   await open("#/lessons/lessoncler");
   const gate = page.getByRole("button", { name: "Continue" });
-  await expect(gate).toHaveAttribute("aria-disabled", "true");
+  await expect(page.locator("[data-block=cgatecler1] .continue-hint")).toBeVisible();
+  await expect(gate).toHaveCount(0);
   const boxes = page.getByRole("checkbox");
   await expect(boxes).toHaveCount(1);
   await boxes.focus();
   await page.keyboard.press("Space");
-  await expect(gate).not.toHaveAttribute("aria-disabled");
+  await expect(gate).toBeVisible();
   await gate.click();
   await expect(page.getByRole("heading", { name: "After the gate" })).toBeVisible();
 });

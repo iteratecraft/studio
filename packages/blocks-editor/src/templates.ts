@@ -166,7 +166,7 @@ export function lessonFrom(which: LessonTemplateId, taken: Set<string>, t: Trans
 
 /**
  * A new course or microlearning from a template, titled `title`; a microlearning's one lesson takes
- * the course title, as a blank one does (W2).
+ * the course title, as a blank one does (W2), and it moves in steps (UI-BLOCKS-EDITOR-R49).
  */
 export function courseFrom(
   template: Template,
@@ -184,7 +184,12 @@ export function courseFrom(
   );
   if (template.kind === "microlearning") {
     const [lesson] = entries;
-    return { ...course, entries: lesson ? [{ ...lesson, title } as LessonEntry] : course.entries };
+    // UI-BLOCKS-EDITOR-R49: one made from a template starts in steps (a blank one scrolls).
+    return {
+      ...course,
+      navigation: { steps: true },
+      entries: lesson ? [{ ...lesson, title } as LessonEntry] : course.entries,
+    };
   }
   return { ...course, entries };
 }

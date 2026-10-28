@@ -3,9 +3,17 @@
 // its element, or undefined for a block it cannot show; other block families arrive with their own
 // epics.
 import type { Block, Course, Response } from "@course-suite/format";
-import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-suite/format";
+import {
+  accentReadable,
+  FULL_BLEED,
+  isCorrect,
+  SURFACE,
+  textColor,
+  textOn,
+  variantSettings,
+} from "@course-suite/format";
 import type { Labels } from "@course-suite/labels";
-import { h, uid } from "./dom.js";
+import { h } from "./dom.js";
 import { fileUrl } from "./hooks.js";
 import { INTERACTIVE_RENDERERS } from "./interactive.js";
 import {
@@ -18,7 +26,7 @@ import {
 } from "./media.js";
 import { requiresCorrect } from "./progress.js";
 import { feedback, questionView } from "./question.js";
-import { STATIC_RENDERERS, type StaticContext } from "./static.js";
+import { icon, STATIC_RENDERERS, type StaticContext } from "./static.js";
 import { themeBackground } from "./theme.js";
 
 /** What a lesson page gives its blocks: progress, gates and saved answers. */
@@ -169,33 +177,46 @@ function authoredText(block: Block, name: string): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
+/** A padlock, drawn on a 24-unit grid. */
+const LOCK =
+  "M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3zm3 4a2 2 0 0 1 1 3.7V20h-2v-2.3A2 2 0 0 1 12 14z";
+
 /**
- * A continue block: holds back the blocks below until pressed, and stays inactive with a hint
- * while its requirement is not met (rise.md rule 13 and §3 G; UI-BLOCKS-R43, R44). The author's
- * button label and hint text win over the label set's.
+ * A continue block: holds back the blocks below until pressed (rise.md rule 13 and §3 G;
+ * UI-BLOCKS-R43, R44). While its requirement is not met, a hint line with an icon stands in the
+ * button's place, as plain text that screen readers read where it is; the button takes its spot as
+ * soon as the requirement is met (UI-BLOCKS-R55, GL7). The author's button label and hint text win
+ * over the label set's, and its own colour, with its text on it, width and corners over the theme's
+ * (blocks-interactions.md 2.11, M2-16).
  */
 function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElement {
-  const hintId = uid("hint");
   const button = h(
     "button",
     { type: "button", class: "continue" },
     authoredText(block, "buttonLabel") ?? labels["lesson.continue"],
   );
+  const { color, contrast, width, cornerRadius } = variantSettings<{
+    color?: string;
+    contrast: "auto" | "light" | "dark";
+    width: number;
+    cornerRadius?: number;
+  }>(block);
+  if (color) {
+    button.style.setProperty("--button", color);
+    button.style.setProperty("--button-text", textColor(color, contrast));
+  }
+  if (width < 100) button.style.width = `${width}%`;
+  if (cornerRadius !== undefined) button.style.setProperty("--button-radius", `${cornerRadius}px`);
   const hint = h(
     "p",
-    { class: "continue-hint", id: hintId, hidden: true },
-    authoredText(block, "hintText") ?? labels["lesson.continueLocked"],
+    { class: "continue-hint", hidden: true },
+    icon(LOCK, "continue-hint-icon"),
+    h("span", {}, authoredText(block, "hintText") ?? labels["lesson.continueLocked"]),
   );
   lesson?.watch(() => {
     const ready = lesson.continueReady(block);
     hint.hidden = ready;
-    if (ready) {
-      button.removeAttribute("aria-disabled");
-      button.removeAttribute("aria-describedby");
-    } else {
-      button.setAttribute("aria-disabled", "true");
-      button.setAttribute("aria-describedby", hintId);
-    }
+    button.hidden = !ready;
   });
   button.addEventListener("click", () => {
     if (lesson?.continueReady(block)) lesson.pressContinue(block);
