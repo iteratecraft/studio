@@ -423,9 +423,9 @@ Wave H, content (D-42: two halves, H1 = M2-12, M2-13, M2-17; H2 = M2-14, M2-15, 
 
 - [x] **M2-12** Text and static content blocks (BLK-04)
 - [x] **M2-13** Media intake, media blocks and VTT captions (ENG-14 basic, BLK-05, ENG-07 captions)
-- [ ] **M2-14** Core interactive blocks (BLK-06)
-- [ ] **M2-15** Knowledge checks and quiz lessons (BLK-07)
-- [ ] **M2-16** Completion gating and navigation settings (BLK-08)
+- [x] **M2-14** Core interactive blocks (BLK-06)
+- [x] **M2-15** Knowledge checks and quiz lessons (BLK-07)
+- [x] **M2-16** Completion gating and navigation settings (BLK-08)
 - [x] **M2-17** Theme, fonts and contrast (BLK-09, ENG-08)
 
 Wave I, release:
@@ -510,6 +510,13 @@ Wave I, release:
 | D-52 | Waves for deferred media items | **Decided 2026-10-27:** crop and alignment, video and embed width, video chapters, recorded narration in M2b; SRT, SBV and SUB caption import with SLD-10 in M5b; AI captions with LOC-09 in M6; AI speech with LOC-08 in M6b | done |
 | D-53 | Cover layouts | **Decided 2026-10-27:** four layouts: picture left, picture right, title over picture, no picture | done |
 | D-54 | Heading levels | **Decided 2026-10-27:** the editor disables or flags levels that skip one; the player publishes the level the author chose | done |
+| D-55 | Continue hint (UI-BLOCKS-R55) | **Default 2026-10-28:** the hint shows under the greyed-out continue button; the hint replacing the button comes in wave I | confirm |
+| D-56 | A required knowledge check whose tries run out | **Default 2026-10-28:** the rest of the lesson stays hidden and the editor warns the author; in a stepped microlearning the later steps stay locked, so it does not finish | confirm |
+| D-57 | Matching questions | **Default 2026-10-28:** the learner picks each match from a drop-down; drag-and-drop comes in M2b | confirm |
+| D-58 | Small interactive items left out of wave H2 | **Default 2026-10-28:** email and page-link buttons, audio and video inside interactive items, pulsing markers and crop in process cards move to M2b | confirm |
+| D-59 | Course search with other menus | **Default 2026-10-28:** search is off with the compact and overlay menus, as with a hidden sidebar, navigation off or restricted navigation | confirm |
+| D-60 | A knowledge check with no usable question | **Default 2026-10-28:** it shows nothing and counts as finished, so it never locks a course | confirm |
+| D-61 | Answer colours on a picture with clear cards | **Default 2026-10-28:** a check’s marks and the block accent use the overlay’s white or black, and the editor says so | confirm |
 
 ## How to read the backlog
 
