@@ -40,7 +40,14 @@ const test = base.extend<object, { internet: Internet }>({
       const started = Date.now();
       const say = (text: string) => console.log(`[teardown +${Date.now() - started} ms] ${text}`);
       for (const context of browser.contexts()) {
-        say(`context with ${context.pages().map((p) => p.url()).join(", ") || "no pages"}`);
+        say(
+          `context with ${
+            context
+              .pages()
+              .map((p) => p.url())
+              .join(", ") || "no pages"
+          }`,
+        );
         await context.close();
         say("context closed");
       }
