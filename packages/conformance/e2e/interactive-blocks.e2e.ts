@@ -36,27 +36,11 @@ const test = base.extend<object, { internet: Internet }>({
     async ({ playwright, internet }, use) => {
       const browser = await playwright.chromium.launch({ args: internet.args });
       await use(browser);
-      // DIAGNOSTIC (to be removed): what is still open when the worker's browser closes.
-      const started = Date.now();
-      const say = (text: string) => console.log(`[teardown +${Date.now() - started} ms] ${text}`);
-      for (const context of browser.contexts()) {
-        say(
-          `context with ${
-            context
-              .pages()
-              .map((p) => p.url())
-              .join(", ") || "no pages"
-          }`,
-        );
-        await context.close();
-        say("context closed");
-      }
-      const timer = setInterval(() => say("browser still closing"), 5000);
       await browser.close();
-      clearInterval(timer);
-      say("browser closed");
     },
-    { scope: "worker" },
+    // As Playwright's own browser fixture: closing Chromium on the Windows runner can take longer
+    // than a fixture's 30 seconds, and that is not a failure of any test.
+    { scope: "worker", timeout: 0 },
   ],
 });
 
