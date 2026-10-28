@@ -7,7 +7,7 @@
 //
 // Start Moodle first: `pnpm --filter @course-suite/conformance moodle:up` (docs/ci.md).
 import { scorm12Exporter } from "@course-suite/exporters";
-import type { Course } from "@course-suite/format";
+import { type Course, publishSettingsOf } from "@course-suite/format";
 import { PROJECT_ID } from "@course-suite/format/test/courses";
 import { english } from "@course-suite/labels";
 import { pageHash, pagesOf } from "@course-suite/player-blocks";
@@ -100,11 +100,13 @@ async function keptByTestLmsAfter(
   return kept;
 }
 
-// The format's fixtures, and the corpus when a test-courses checkout is present.
+// The format's fixtures, and the corpus when a test-courses checkout is present, each with the
+// settings the publish panel saves for it (M2-18): its own over the panel's defaults, LMS-only
+// launch included.
 for (const { name, media, ...fixture } of [...fixtureCourses(), ...(corpusCourses() ?? [])]) {
   const course: Course = {
     ...fixture.course,
-    publish: { ...fixture.course.publish, standard: "scorm12" },
+    publish: { ...publishSettingsOf(fixture.course), standard: "scorm12" },
   };
   test(`[standards:T-4] [standards:P-7] [standards:R9] [rise:R1] [rise:R2] ${name}: Moodle keeps what the test LMS keeps across a closed and resumed visit`, async ({
     browser,

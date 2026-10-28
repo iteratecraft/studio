@@ -86,5 +86,9 @@ Measured with rolldown 1.2.13, minified ESM, on 2026-10-25:
 The worker is most of the weight: it carries the Blocks player (144 KB) and the SCORM schema files
 (172 KB) that every package ships. The page loads it only when an export starts.
 
+The blocks editor (M2-18, `packages/blocks-editor/src/export.ts`) runs the export job with an
+in-memory store, builds in the app's worker, and moves the finished package to the file picked in
+the host's save dialog with one atomic host write.
+
 Limits: one export holds the course's media in memory twice while it builds (the page's copy and
 the worker's); a job's input is persisted, so it holds references, never the course itself.

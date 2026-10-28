@@ -16,6 +16,7 @@
   "dependencies": {
     "@course-suite/blocks-editor": "workspace:*",
     "@course-suite/host": "workspace:*",
+    "@course-suite/jobs": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "@tauri-apps/api": "2.12.3",
     "@tauri-apps/plugin-dialog": "2.8.2",

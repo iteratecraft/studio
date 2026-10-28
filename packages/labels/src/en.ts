@@ -166,6 +166,9 @@ export const english = {
     "error.loadFailed": "Part of this course could not load: {part}",
     "error.retry": "Retry",
     "error.partContent": "course content",
+    // M2-18: a package set to open only from a learning system, opened elsewhere.
+    "error.lmsOnly":
+      "This course opens from a learning system only. Open it from there to keep your progress.",
 
     "notice.saveFailed":
       "Your progress cannot be saved right now. You can keep going, but this visit may not be remembered.",

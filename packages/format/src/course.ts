@@ -199,6 +199,8 @@ export interface PublishSettings {
   tracking?:
     | {
         kind: "completion";
+        /** Percent of the lessons done that completes the course. Default 100. */
+        threshold?: number;
       }
     | {
         kind: "quiz";
@@ -211,6 +213,12 @@ export interface PublishSettings {
   /** cmi5: what the LMS waits for before it counts the course as done. Default Passed when a quiz decides the result, otherwise Completed. */
   moveOn?: "Passed" | "Completed" | "CompletedAndPassed" | "CompletedOrPassed" | "NotApplicable";
   lom?: LomMetadata;
+  /** At launch, a learner whose progress was saved by another package version starts again: bookmark and lesson progress are cleared, quiz results stay. Default false. */
+  resetOnUpdate?: boolean;
+  /** Opened outside a learning system, and not from disk, the course shows an error instead of running. Default false. */
+  lmsOnly?: boolean;
+  /** Version of the last package exported; the next export is one higher. */
+  packageVersion?: number;
   /** Show an exit-course link in the course menu. Default false. */
   exitLink?: boolean;
 }

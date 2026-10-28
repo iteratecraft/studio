@@ -55,7 +55,7 @@ export default defineConfig({
             // The editor and the engine packages it uses (doc-ops, format, host, project, zip).
             {
               name: "blocks",
-              test: /[/]packages[/](?!ui[/]|preview[/]|exporters[/]|player-blocks[/]|tracking[/]|labels[/]|blocks-editor[/]dist[/]player-view)/,
+              test: /[/]packages[/](?!ui[/]|preview[/]|exporters[/]|player-blocks[/]|tracking[/]|labels[/]|blocks-editor[/]dist[/](player-view|resume-size))/,
               priority: 1,
             },
             // The editor's block previews: the player's block renderer and style sheet, loaded
@@ -64,10 +64,11 @@ export default defineConfig({
               name: "block-preview",
               test: /[/]packages[/](blocks-editor[/]dist[/]player-view|player-blocks[/](dist[/](blocks|dom|question|progress|hooks)\.js|src[/]player\.css)|labels[/])/,
             },
-            // The preview and the player bundle it runs, loaded when a preview first opens.
+            // The preview and the player bundle it runs, loaded when a preview first opens, and the
+            // publish panel's estimate of learner progress, which runs the player's own code (M2-18).
             {
               name: "player",
-              test: /[/]packages[/](preview|exporters|player-blocks|tracking|labels)[/]/,
+              test: /[/]packages[/](preview|exporters|player-blocks|tracking|labels|blocks-editor[/]dist[/]resume-size)/,
             },
           ],
         },

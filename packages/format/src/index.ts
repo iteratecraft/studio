@@ -19,6 +19,21 @@ export {
 } from "./navigation.js";
 export type { OpenResult } from "./open.js";
 export { openCourse, serializeCourse } from "./open.js";
+// M2-18: publish settings, their defaults and the checks before an export.
+export type { CourseCheck, PublishProblem, Standard } from "./publish.js";
+export {
+  courseChecks,
+  defaultActivityId,
+  defaultManifestIdentifier,
+  exportSettingsOf,
+  isPackageIdentifier,
+  PUBLISH_DEFAULTS,
+  publishProblems,
+  publishSettingsOf,
+  quizzesOf,
+  STANDARDS,
+  trackedQuiz,
+} from "./publish.js";
 export type { AnswerIdOptions, Interaction, QuizResult, Response, Score } from "./quiz.js";
 export {
   answerId,

@@ -28,6 +28,7 @@
     "@course-suite/labels": "workspace:*",
     "@course-suite/player-blocks": "workspace:*",
     "@course-suite/project": "workspace:*",
+    "@course-suite/tracking": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "react": "catalog:"
   },

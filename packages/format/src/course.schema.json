@@ -363,7 +363,15 @@
           "oneOf": [
             {
               "type": "object",
-              "properties": { "kind": { "const": "completion" } },
+              "properties": {
+                "kind": { "const": "completion" },
+                "threshold": {
+                  "description": "Percent of the lessons done that completes the course. Default 100.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                }
+              },
               "required": ["kind"],
               "unevaluatedProperties": false
             },
@@ -401,6 +409,19 @@
           ]
         },
         "lom": { "$ref": "#/$defs/LomMetadata" },
+        "resetOnUpdate": {
+          "description": "At launch, a learner whose progress was saved by another package version starts again: bookmark and lesson progress are cleared, quiz results stay. Default false.",
+          "type": "boolean"
+        },
+        "lmsOnly": {
+          "description": "Opened outside a learning system, and not from disk, the course shows an error instead of running. Default false.",
+          "type": "boolean"
+        },
+        "packageVersion": {
+          "description": "Version of the last package exported; the next export is one higher.",
+          "type": "integer",
+          "minimum": 1
+        },
         "exitLink": {
           "description": "Show an exit-course link in the course menu. Default false.",
           "type": "boolean"

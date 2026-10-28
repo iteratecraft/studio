@@ -12,6 +12,7 @@ import {
 } from "@course-suite/doc-ops";
 import type { Course, Entry } from "@course-suite/format";
 import type { AppInfo, FileRef, HostInterface } from "@course-suite/host";
+import { runInWorker } from "@course-suite/jobs";
 import {
   type AssetInfo,
   addAsset,
@@ -37,6 +38,7 @@ import { coverThumbnail, coverUrl } from "./cover.js";
 import { Dashboard, type ItemAction, type LayoutKey } from "./dashboard.js";
 import { ChoiceDialog, PickerDialog, TitleDialog, useDialogs } from "./dialogs.js";
 import { EditorFrame } from "./editor.js";
+import { Exports } from "./export.js";
 import { FontLibrary } from "./fonts.js";
 import { MediaIntakeProvider } from "./intake.js";
 import type { Clipboard } from "./lesson-blocks.js";
@@ -58,12 +60,17 @@ export interface BlocksEditorAppProps {
   host: HostInterface;
   /** BCP 47 language of the editor UI. */
   locale?: string;
+  /**
+   * Starts the export worker (`@course-suite/jobs/export-worker`), which builds packages off the
+   * page (ADR-0006, M2-18). Without it the publish panel cannot export.
+   */
+  exportWorker?: () => Worker;
 }
 
-export function BlocksEditorApp({ host, locale = "en" }: BlocksEditorAppProps) {
+export function BlocksEditorApp({ host, locale = "en", exportWorker }: BlocksEditorAppProps) {
   return (
     <UiProvider locale={locale}>
-      <App host={host} />
+      <App host={host} {...(exportWorker && { exportWorker })} />
     </UiProvider>
   );
 }
@@ -73,8 +80,14 @@ type Answer = "save" | "discard" | "cancel";
 /** Copied blocks with the bytes of their media files, which outlive the course they came from. */
 type Clip = BlockClip & { assets: Map<string, { data: Uint8Array; info: AssetInfo }> };
 
-function App({ host }: { host: HostInterface }) {
+function App({ host, exportWorker }: { host: HostInterface; exportWorker?: () => Worker }) {
   const t = useStrings();
+  // Exports run one at a time in the background, in a worker per package (M2-18, ENG-15).
+  const [exports] = useState(() =>
+    exportWorker
+      ? new Exports(host, (build, context) => runInWorker(exportWorker, build, context))
+      : undefined,
+  );
   const { dialog, ask } = useDialogs();
   const [toasts] = useState(() => new ToastQueue({ maxVisibleToasts: 3 }));
   const [app, setApp] = useState<AppInfo>();
@@ -726,6 +739,8 @@ function App({ host }: { host: HostInterface }) {
           <ThemeFonts session={session} library={fontLibrary}>
             <EditorFrame
               session={session}
+              host={host}
+              exports={exports}
               library={fontLibrary}
               toasts={toasts}
               onSave={() => void save()}

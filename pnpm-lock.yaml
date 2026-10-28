@@ -62,6 +62,9 @@ importers:
       '@course-suite/host':
         specifier: workspace:*
         version: link:../../packages/host
+      '@course-suite/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@course-suite/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -129,6 +132,9 @@ importers:
       '@course-suite/host':
         specifier: workspace:*
         version: link:../../packages/host
+      '@course-suite/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@course-suite/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -196,6 +202,9 @@ importers:
       '@course-suite/project':
         specifier: workspace:*
         version: link:../project
+      '@course-suite/tracking':
+        specifier: workspace:*
+        version: link:../tracking
       '@course-suite/ui':
         specifier: workspace:*
         version: link:../ui
