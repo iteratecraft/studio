@@ -15,6 +15,7 @@ import {
 import { interactiveBlocksCourse } from "@course-suite/format/test/courses";
 import type { Page } from "@playwright/test";
 import { expectAccessible } from "./axe.ts";
+import { hex, pairs } from "./contrast.ts";
 import { continueBlock, course, lesson } from "./courses.ts";
 import { expect, test } from "./fixture.ts";
 
@@ -435,31 +436,6 @@ test("[rise:3G] UI-BLOCKS-R52, R56: a flashcard stack waits for turned cards, no
   }
   await expectOpen(page);
 });
-
-/** Text on the interactive blocks' fills and on the page, with the fill behind it. */
-async function pairs(page: Page, selectors: string[]) {
-  return page.evaluate((list) => {
-    const fillOf = (element: Element | null): string => {
-      for (let at = element; at; at = at.parentElement) {
-        const fill = getComputedStyle(at).backgroundColor;
-        if (fill !== "rgba(0, 0, 0, 0)" && fill !== "transparent") return fill;
-      }
-      return "rgb(255, 255, 255)";
-    };
-    return list.flatMap((selector) =>
-      [...document.querySelectorAll(selector)].map((found) => {
-        const style = getComputedStyle(found);
-        return { selector, fill: fillOf(found), text: style.color };
-      }),
-    );
-  }, selectors);
-}
-
-const hex = (color: string) =>
-  `#${(color.match(/\d+/g) ?? [])
-    .slice(0, 3)
-    .map((c) => Number(c).toString(16).padStart(2, "0"))
-    .join("")}`;
 
 for (const theme of [
   undefined,

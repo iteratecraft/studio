@@ -25,7 +25,7 @@ import {
   questionMedia,
   videoBlock,
 } from "./media.js";
-import { type CheckState, requiresCorrect } from "./progress.js";
+import { answerableCheck, type CheckState, requiresCorrect } from "./progress.js";
 import { answerColors, feedback, onAnswer, questionView } from "./question.js";
 import { icon, STATIC_RENDERERS, type StaticContext } from "./static.js";
 import { themeBackground } from "./theme.js";
@@ -242,8 +242,8 @@ interface CheckSettings {
  */
 function check(block: Block, context: StaticContext): HTMLElement | undefined {
   const { labels, lesson } = context;
+  if (!answerableCheck(block)) return undefined;
   const question = block.question;
-  if (!question || block.variant !== question.kind) return undefined;
   const settings = variantSettings<CheckSettings>(block);
   const view = questionView(question, labels, { media: questionMedia(question, context) });
   const result = h("div", { class: "feedback", tabindex: -1, hidden: true });

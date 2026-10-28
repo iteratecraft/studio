@@ -46,9 +46,17 @@ export function requirement(block: Block): Requirement {
   return value === "block-above" || value === "all-above" ? value : "none";
 }
 
+/**
+ * A knowledge check the player shows and the learner can answer: its question is of the block's own
+ * type (M2-15). The renderer, the gates and the continue blocks read this one rule; a check without
+ * such a question shows nothing, so it never gates and is finished by being seen.
+ */
+export const answerableCheck = (block: Block): block is Block & { question: Question } =>
+  block.category === "knowledge-check" && block.question?.kind === block.variant;
+
 /** A knowledge check that must be answered right before anything below it shows (UI-BLOCKS-R25). */
 export const requiresCorrect = (block: Block) =>
-  block.category === "knowledge-check" && block.variantSettings?.requireCorrect === true;
+  answerableCheck(block) && block.variantSettings?.requireCorrect === true;
 
 /** A knowledge check's tries after a wrong answer; undefined is unlimited (UI-BLOCKS-R24). */
 const checkRetries = (block: Block) => variantSettings<{ retries?: number }>(block).retries;
@@ -166,15 +174,15 @@ const allItemsDone = (course: Course, block: Block, done: ReadonlySet<string>) =
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (course: Course, block: Block) =>
   isContinue(block) ||
-  block.category === "knowledge-check" ||
+  answerableCheck(block) ||
   REQUIRABLE.has(`${block.category}/${block.variant}`) ||
   lockedMedia(course, block);
 
 /**
  * Whether a continue block may wait for `block` (rise.md 3G, UI-BLOCKS-R19, R45): every block
- * finished by an action, as its type declares above (REQUIRABLE, knowledge checks, locked media),
- * and no other. Buttons, attachments and blocks finished by being seen never can. The editor reads
- * this, so a block type is offered as soon as it is declared here.
+ * finished by an action, as its type declares above (REQUIRABLE, answerable knowledge checks,
+ * locked media), and no other. Buttons, attachments and blocks finished by being seen never can.
+ * The editor reads this, so a block type is offered as soon as it is declared here.
  */
 export const canBeRequired = (course: Course, block: Block) =>
   !isContinue(block) && needsAction(course, block);
@@ -636,7 +644,7 @@ export function largestResume(course: Course): ResumeState {
         .filter(
           (block) =>
             isContinue(block) ||
-            block.category === "knowledge-check" ||
+            answerableCheck(block) ||
             byItem(block) ||
             lockedMedia(course, block),
         )

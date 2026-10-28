@@ -569,6 +569,77 @@ test.describe("quiz lessons", () => {
   });
 });
 
+// Knowledge checks and quizzes with the continue blocks and the navigation panel of M2-16.
+test.describe("with continue blocks and the navigation panel", () => {
+  test("[rise:3G] UI-BLOCKS-R45, R54, R55, keyboard only: a knowledge check can be required by the continue block below it, and in the preview the hint gives way to the button once the check is answered", async ({
+    page,
+  }) => {
+    await openPond(page);
+    await addBlock(page, "Single choice");
+    await addBlock(page, "Continue");
+    const rows = blocksOf(page).getByRole("row");
+    await expect(rows.filter({ hasText: "Which answer is right?" })).toContainText(
+      "Can be required",
+    );
+    const gate = lastRow(page);
+    await gate.getByRole("button", { name: /Learners can go on$/ }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("option", { name: /^When the block directly above is done/ }).focus();
+    await page.keyboard.press("Enter");
+    await expect(gate.getByRole("list", { name: "Learners must finish:" })).toHaveText(
+      "Single choice: Which answer is right?",
+    );
+    expect(await violations(page)).toEqual([]);
+
+    const frame = await preview(page);
+    const hint = frame.getByText("Finish the activities above to go on");
+    await expect(hint).toBeVisible();
+    await expect(frame.getByRole("button", { name: "Continue" })).toHaveCount(0);
+    await frame.getByRole("radio", { name: "A wrong answer" }).focus();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
+    await expect(frame.locator(".feedback")).toContainText("Incorrect");
+    // UI-BLOCKS-R54: a submitted check counts, right or wrong; the button takes the hint's place.
+    await expect(hint).toBeHidden();
+    await expect(frame.getByRole("button", { name: "Continue" })).toBeVisible();
+    expect(await violations(await previewFrame(page))).toEqual([]);
+  });
+
+  test("[rise:R14] UI-BLOCKS-R41, BLK-07, keyboard only: skip ahead turned on in the quiz settings keeps lessons in order, and the navigation panel names the quiz", async ({
+    page,
+  }) => {
+    await openPond(page, "Pond quiz");
+    await page.getByRole("button", { name: "Quiz settings" }).focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Quiz settings" });
+    await toggle(page, dialog.getByRole("switch", { name: "Let learners who pass skip ahead" }));
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    await page
+      .getByRole("toolbar", { name: "Course tools" })
+      .getByRole("button", { name: "Theme" })
+      .focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 2, name: "Theme" })).toBeFocused();
+    await page
+      .getByRole("navigation", { name: "Theme settings" })
+      .getByRole("button", { name: /^Navigation/ })
+      .focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 2, name: "Navigation" })).toBeFocused();
+    const order = page
+      .locator(".be-theme-panel")
+      .getByRole("switch", { name: "Lessons open in order" });
+    await expect(order).toBeChecked();
+    await expect(order).toBeDisabled();
+    await expect(order).toHaveAccessibleDescription(
+      "The quiz Pond quiz skips ahead when passed, so lessons open in order.",
+    );
+    expect(await violations(page)).toEqual([]);
+  });
+});
+
 test.describe("the quiz in the player", () => {
   /**
    * The quiz course open in the editor at its quiz, its media on the disk; its first check no

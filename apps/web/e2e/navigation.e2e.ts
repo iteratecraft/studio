@@ -55,10 +55,7 @@ const attachment: Block = {
   variantSettings: { fileName: "checklist.pdf", fileSize: 2048 },
 };
 
-/**
- * A checklist: a block learners finish by ticking each box. (A knowledge check cannot be answered
- * in the editor's preview: its sandboxed frame does not allow form submission; see the PR.)
- */
+/** A checklist: a block learners finish by ticking each box. */
 const checklist: Block = {
   id: "lchecks001",
   category: "list",
