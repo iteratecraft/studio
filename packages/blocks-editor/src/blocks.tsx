@@ -9,6 +9,7 @@ import { type StringKey, type Translate, useStrings } from "@course-suite/ui";
 import { type ComponentType, useId } from "react";
 import { DraftField, inlineHtml, RichDraftField, textOf } from "./fields.js";
 import { idMaker } from "./ids.js";
+import { interactiveTypes } from "./interactive-blocks.js";
 import {
   AttachmentFields,
   AudioFields,
@@ -89,6 +90,8 @@ export interface BlockType {
   Format?: ComponentType<FieldsProps>;
   /** Other variants it can switch to, keeping its content (W8, UI-BLOCKS-EDITOR-R25). */
   switchable?: boolean;
+  /** The siblings it switches among, where its group holds several families (blocks-interactions.md A6). */
+  family?: string;
   /** Its items show as cards, which may stay white on a block colour (2.4 "keep cards white"). */
   cards?: boolean;
 }
@@ -326,20 +329,8 @@ export const BLOCK_TYPES: readonly BlockType[] = [
   // Multimedia blocks (M2-13, media-fields.tsx).
   ...MULTIMEDIA_TYPES,
   CODE_SNIPPET,
-  ...later("interactive", [
-    "accordion",
-    "tabs",
-    "labeled-graphic",
-    "process",
-    "scenario",
-    "sorting",
-    "timeline",
-    "flashcard-grid",
-    "flashcard-stack",
-    "button",
-    "buttons",
-    "slides",
-  ]),
+  // Interactive blocks (M2-14, interactive-blocks.tsx), with the later epics' types among them.
+  ...interactiveTypes((variants) => later("interactive", variants)),
   // Knowledge checks (M2-15).
   ...CHECK_TYPES,
   ...later("knowledge-check", ["bank-draw"]),

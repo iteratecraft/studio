@@ -7,7 +7,14 @@
 // strict content security policy), and it needs two things libraries do not give: unknown
 // properties tolerated for a newer MINOR, and the ids and references it saw for the integrity pass.
 import courseSchemaJson from "./course.schema.json" with { type: "json" };
-import { embedProvider, type Setting, VARIANTS } from "./variants.js";
+import {
+  embedProvider,
+  INTERACTIVE_ITEMS,
+  MARKER_ICONS,
+  OPEN,
+  type Setting,
+  VARIANTS,
+} from "./variants.js";
 
 /** One problem in a document. `path` is a JSON Pointer (RFC 6901) into it; "" is the root. */
 export interface ValidationError {
@@ -310,6 +317,7 @@ const RECORD = new Set([
   "Id",
   "StorageKey",
   "MediaKeyRef",
+  "ItemEmbed",
   ...Object.keys(TARGETS),
   ...Object.keys(CORRECT_ANSWERS),
 ]);
@@ -369,6 +377,19 @@ export function validateCourse(
     }
   }
   for (const { def, value, path } of found) {
+    // D-44: an item's embed frames a player of its provider, as an embed block's does.
+    const embed = value as { embedUrl?: unknown; provider?: unknown };
+    if (
+      def === "ItemEmbed" &&
+      typeof embed.embedUrl === "string" &&
+      typeof embed.provider === "string" &&
+      !embedProvider(embed.embedUrl, embed.provider)
+    ) {
+      errors.push({
+        path: pointer(path, "embedUrl"),
+        message: `is not a player address of ${embed.provider}`,
+      });
+    }
     const rule = CORRECT_ANSWERS[def];
     const answers = (value as { answers?: { correct: boolean }[] }).answers ?? [];
     if (rule && !rule.ok(answers.filter((answer) => answer.correct).length)) {
@@ -411,7 +432,8 @@ function compiledTable(table: Record<string, Setting>): CompiledSchema {
 
 /**
  * The blocks of the categories whose variants variants.ts defines: a known variant, its
- * `variantSettings` as its table allows, and content items only (except dividers, which hold none).
+ * `variantSettings` as its table allows, and items of its kind only: content items, but none in a
+ * divider and the variant's own kind in an interactive block (INTERACTIVE_ITEMS).
  */
 function variantErrors(
   document: unknown,
@@ -434,6 +456,7 @@ function variantErrors(
         }
         return;
       }
+      if (table === OPEN) return;
       const settings = block.variantSettings ?? {};
       if (isObject(settings) && !reported.has(`${path}/variantSettings`)) {
         const found = checkSchema(compiledTable(table), settings, { allowUnknown }).errors;
@@ -465,9 +488,53 @@ function variantErrors(
         }
       }
       if (block.category === "divider") return;
-      list(block, "items").forEach((item, i) => {
-        if (isObject(item) && item.kind !== "content") {
-          errors.push({ path: `${path}/items/${i}/kind`, message: 'must be "content"' });
+      const kind =
+        block.category === "interactive" ? INTERACTIVE_ITEMS[String(block.variant)] : "content";
+      const items = list(block, "items");
+      items.forEach((item, i) => {
+        if (isObject(item) && item.kind !== kind) {
+          errors.push({ path: `${path}/items/${i}/kind`, message: `must be "${kind}"` });
+        }
+        if (!isObject(item)) return;
+        // A process opens with at most one introduction and ends with at most one summary
+        // (blocks-interactions.md 2.5); a marker shows its number or one of the format's icons.
+        const role = item.kind === "step" ? item.role : "step";
+        if ((role === "intro" && i > 0) || (role === "summary" && i < items.length - 1)) {
+          errors.push({
+            path: `${path}/items/${i}/role`,
+            message: "an introduction must be the first card and a summary the last",
+          });
+        }
+        // An item shows one picture, video or embed; embeds and audio belong to the items of
+        // interactive blocks (blocks-interactions.md 2.1 to 2.4, 2.8, A10, A11).
+        for (const [where, part] of item.kind === "flashcard"
+          ? [
+              [`${path}/items/${i}/front`, item.front],
+              [`${path}/items/${i}/back`, item.back],
+            ]
+          : [[`${path}/items/${i}`, item]]) {
+          if (!isObject(part)) continue;
+          if (part.media !== undefined && part.embed !== undefined) {
+            errors.push({
+              path: `${where}/embed`,
+              message: "must not be set with media: an item shows one picture, video or embed",
+            });
+          }
+          for (const field of ["embed", "audio"]) {
+            if (part[field] !== undefined && block.category !== "interactive") {
+              errors.push({
+                path: `${where}/${field}`,
+                message: "is kept only on the items of interactive blocks",
+              });
+            }
+          }
+        }
+        const icon = item.kind === "marker" ? item.icon : undefined;
+        if (icon !== undefined && !(MARKER_ICONS as readonly unknown[]).includes(icon)) {
+          errors.push({
+            path: `${path}/items/${i}/icon`,
+            message: `must be one of ${MARKER_ICONS.join(", ")}`,
+          });
         }
       });
     });

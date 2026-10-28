@@ -41,6 +41,7 @@ export function startShell(
   course: Course,
   labels: Labels,
   runtime: Runtime,
+  { lms = true }: { lms?: boolean } = {},
 ): void {
   const { progress } = runtime;
   const pages = progress.pages;
@@ -519,6 +520,8 @@ export function startShell(
         changed();
       },
       isDone: (id) => progress.isDone(id),
+      // A button that exits the course is for learning-system packages only (2.10).
+      ...(lms && { exit: () => runtime.exit("exit") }),
       watch(update) {
         updates.push(update);
         update();

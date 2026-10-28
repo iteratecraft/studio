@@ -23,7 +23,7 @@ const px = (value: unknown) => `${Number(value)}px`;
 
 const SVG = "http://www.w3.org/2000/svg";
 /** A decorative icon drawn from one SVG path on a 24-unit grid. */
-function icon(path: string, className: string): SVGSVGElement {
+export function icon(path: string, className: string): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("aria-hidden", "true");
@@ -36,14 +36,14 @@ function icon(path: string, className: string): SVGSVGElement {
 }
 const QUOTE_MARK =
   "M4 18h6v-6H7a3 3 0 0 1 3-3V6a6 6 0 0 0-6 6zm10 0h6v-6h-3a3 3 0 0 1 3-3V6a6 6 0 0 0-6 6z";
-const INFO = "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z";
+export const INFO = "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z";
 const ENLARGE =
   "M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm-1 2v2H7v2h2v2h2v-2h2V9h-2V7z";
-const PREVIOUS = "M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z";
-const NEXT = "M8.6 5.4 10 4l8 8-8 8-1.4-1.4 6.6-6.6z";
+export const PREVIOUS = "M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z";
+export const NEXT = "M8.6 5.4 10 4l8 8-8 8-1.4-1.4 6.6-6.6z";
 
 /** A media file of the course as an image, or undefined when the index lacks it. */
-function picture(
+export function picture(
   ref: MediaRef | undefined,
   { course, mediaUrl }: StaticContext,
   className: string,
@@ -65,7 +65,7 @@ function picture(
  * Zoom on click (blocks-editor.md 2.10, 2.11): the image with a button that shows it enlarged in a
  * modal dialog; Escape or the close button closes it and focus goes back (blocks-interactions.md 4).
  */
-function zoomable(image: HTMLImageElement, labels: Labels, zoom: boolean): HTMLElement {
+export function zoomable(image: HTMLImageElement, labels: Labels, zoom: boolean): HTMLElement {
   if (!zoom) return image;
   const close = h("button", { type: "button", class: "zoom-close" }, labels["image.close"]);
   const dialog = h(
@@ -103,7 +103,7 @@ function heading(level: number, html: string, labels: Labels, space?: unknown): 
 }
 
 /** The blocks of the lesson that holds `block`; the block alone when it is shown on its own. */
-function lessonBlocks(block: Block, { course }: StaticContext): readonly Block[] {
+export function lessonBlocks(block: Block, { course }: StaticContext): readonly Block[] {
   const lesson = course.entries.find(
     (entry): entry is LessonEntry =>
       entry.kind === "lesson" && entry.blocks.some((other) => other.id === block.id),
@@ -329,13 +329,15 @@ const quoteOnImage: Renderer = (block, context) => {
  * A carousel (quote carousel, image carousel): one slide at a time, previous and next buttons
  * that stop at the first and last slide (blocks-editor.md 2.8), Left and Right arrows on them
  * (blocks-interactions.md 4), and the position read out as it changes. Each slide shown is done;
- * the first counts as soon as the block shows (UI-BLOCKS-R52).
+ * the first counts as soon as the block shows (UI-BLOCKS-R52); unless `seen` is false, for a
+ * block whose slides are done another way (a flashcard stack's are turned over).
  */
-function carousel(
+export function carousel(
   block: Block,
   slides: [id: string, element: HTMLElement][],
   names: { previous: LabelKey; next: LabelKey; position: LabelKey; region: LabelKey },
   { labels, lesson }: StaticContext,
+  seen = true,
 ): HTMLElement {
   const total = slides.length;
   const position = (current: number) => formatLabel(labels, names.position, { current, total });
@@ -364,7 +366,7 @@ function carousel(
   let index = 0;
   const done = (i: number) => {
     const id = slides[i]?.[0];
-    if (id && lesson && !lesson.isDone(id)) lesson.itemDone(block, id);
+    if (seen && id && lesson && !lesson.isDone(id)) lesson.itemDone(block, id);
   };
   const show = (to: number) => {
     index = Math.max(0, Math.min(total - 1, to));

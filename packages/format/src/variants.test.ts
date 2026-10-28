@@ -36,10 +36,15 @@ describe("text and static block variants (BLK-04)", () => {
     const defined = Object.entries(VARIANTS)
       .flatMap(([category, variants]) => Object.keys(variants).map((v) => `${category}/${v}`))
       .filter((type) => !older.includes(type))
-      // Multimedia blocks are BLK-05's, covered by the media course (variants-media.test.ts).
-      .filter((type) => !type.startsWith("multimedia/"))
-      // Knowledge checks are BLK-07's, covered by the quiz course (variants-quiz.test.ts).
-      .filter((type) => !type.startsWith("knowledge-check/"));
+      // Multimedia blocks are BLK-05's, covered by the media course (variants-media.test.ts),
+      // interactive blocks BLK-06's (variants-interactive.test.ts) and knowledge checks
+      // BLK-07's, covered by the quiz course (variants-quiz.test.ts).
+      .filter(
+        (type) =>
+          !type.startsWith("multimedia/") &&
+          !type.startsWith("interactive/") &&
+          !type.startsWith("knowledge-check/"),
+      );
     for (const type of defined) expect(used, type).toContain(type);
   });
 
@@ -149,14 +154,15 @@ describe("text and static block variants (BLK-04)", () => {
     });
     // Open variants keep what they hold.
     expect(
-      variantSettings({ category: "interactive", variant: "tabs", variantSettings: { x: 1 } }),
+      variantSettings({ category: "interactive", variant: "scenario", variantSettings: { x: 1 } }),
     ).toEqual({ x: 1 });
   });
 
   test("[rise:3C] UI-BLOCKS-EDITOR-R25: sibling variants share their settings, so a switch keeps them valid", () => {
     // Multimedia variants never switch into each other (M2-13), so each has its own table.
     for (const [category, variants] of Object.entries(VARIANTS)) {
-      if (category === "multimedia") continue;
+      // Interactive siblings are checked in variants-interactive.test.ts.
+      if (category === "multimedia" || category === "interactive") continue;
       const tables = new Set(Object.values(variants));
       expect(tables.size).toBeLessThanOrEqual(3);
     }

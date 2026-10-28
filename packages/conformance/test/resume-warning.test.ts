@@ -28,8 +28,11 @@ async function warnings(course: Course, exporter: Exporter) {
   return result.value.warnings;
 }
 
-/** The course with its lessons and sections repeated twice, the copy with ids of its own. */
-function doubled(course: Course): Course {
+/**
+ * The course with the first `share` of its lessons and sections repeated, the copy with ids of
+ * its own.
+ */
+function doubled(course: Course, share = 1): Course {
   const taken = new Set([...JSON.stringify(course).matchAll(/"id":"([^"]*)"/g)].map((m) => m[1]));
   // Ids are ten characters, a letter first: the copy's differ from the original's in the last one.
   const fresh = (id: string) => {
@@ -44,7 +47,8 @@ function doubled(course: Course): Course {
   };
   const quiz = course.entries.filter((entry) => entry.kind === "quiz");
   const lessons = course.entries.filter((entry) => entry.kind !== "quiz");
-  const copy = JSON.parse(JSON.stringify(lessons), (key, value) =>
+  const repeated = lessons.slice(0, Math.round(lessons.length * share));
+  const copy = JSON.parse(JSON.stringify(repeated), (key, value) =>
     key === "id" ? fresh(value) : value,
   ) as Course["entries"];
   return { ...course, entries: [...lessons, ...copy, ...quiz] };
@@ -57,8 +61,10 @@ describe.skipIf(!longResume)("long-resume corpus course (M2-07)", () => {
     expect(await warnings(course, scorm12Exporter())).toEqual([]);
   });
 
-  test("[rise:R3] standards.md §4.2: twice as long, SCORM 1.2 publishing warns that visits of finished lessons are dropped first, and SCORM 2004 does not", async () => {
-    const longer = doubled(course);
+  test("[rise:R3] standards.md §4.2: half as long again, SCORM 1.2 publishing warns that visits of finished lessons are dropped first, and SCORM 2004 does not", async () => {
+    // Half as long again: its flashcards save each card turned (M2-14), so twice as long no longer
+    // fits even without the visits.
+    const longer = doubled(course, 0.5);
     expect(await warnings(longer, scorm12Exporter())).toEqual([
       expect.objectContaining({
         code: "resume-parts-dropped",

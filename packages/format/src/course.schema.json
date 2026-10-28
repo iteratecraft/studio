@@ -162,6 +162,17 @@
       "maxLength": 2048,
       "pattern": "^https?://[^\\s]+$"
     },
+    "RelativeUrl": {
+      "description": "An address relative to the course's page: no scheme, not starting with // or a query or fragment, no spaces or backslashes.",
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!//)[^\\s\\\\'\"<>?#][^\\s\\\\'\"<>]*$"
+    },
+    "Email": {
+      "type": "string",
+      "maxLength": 254,
+      "pattern": "^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$"
+    },
     "Percent": {
       "type": "number",
       "minimum": 0,
@@ -699,6 +710,28 @@
       "required": ["audio"],
       "unevaluatedProperties": false
     },
+    "ItemEmbed": {
+      "description": "A web embed of an interactive block's item: a player of a listed provider, loaded only when the learner asks for it.",
+      "type": "object",
+      "properties": {
+        "url": {
+          "description": "What the author pasted, to edit it again.",
+          "type": "string",
+          "maxLength": 2048
+        },
+        "embedUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://[^\\s\"'<>]+$"
+        },
+        "provider": {
+          "description": "The listed provider named on the button that loads it; embedUrl is one of its players.",
+          "type": "string"
+        }
+      },
+      "required": ["embedUrl", "provider"],
+      "unevaluatedProperties": false
+    },
     "Item": {
       "description": "One record inside a block.",
       "oneOf": [
@@ -720,6 +753,8 @@
         "title": { "$ref": "#/$defs/RichText" },
         "text": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
+        "embed": { "$ref": "#/$defs/ItemEmbed" },
+        "audio": { "$ref": "#/$defs/MediaRef" },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind"],
@@ -737,6 +772,8 @@
         "title": { "$ref": "#/$defs/RichText" },
         "text": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
+        "embed": { "$ref": "#/$defs/ItemEmbed" },
+        "audio": { "$ref": "#/$defs/MediaRef" },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "x", "y"],
@@ -753,6 +790,8 @@
         "title": { "$ref": "#/$defs/RichText" },
         "text": { "$ref": "#/$defs/RichText" },
         "media": { "$ref": "#/$defs/MediaRef" },
+        "embed": { "$ref": "#/$defs/ItemEmbed" },
+        "audio": { "$ref": "#/$defs/MediaRef" },
         "ext": { "$ref": "#/$defs/Ext" }
       },
       "required": ["id", "kind", "role"],
@@ -774,7 +813,13 @@
       "type": "object",
       "properties": {
         "text": { "$ref": "#/$defs/RichText" },
-        "media": { "$ref": "#/$defs/MediaRef" }
+        "media": { "$ref": "#/$defs/MediaRef" },
+        "embed": { "$ref": "#/$defs/ItemEmbed" },
+        "audio": { "$ref": "#/$defs/MediaRef" },
+        "imageStyle": {
+          "description": "The side's picture centred above its text with a frame, or filling the side. Default centred.",
+          "enum": ["centered", "full"]
+        }
       },
       "unevaluatedProperties": false
     },
@@ -784,6 +829,10 @@
         "id": { "$ref": "#/$defs/Id" },
         "kind": { "const": "button" },
         "label": { "type": "string", "minLength": 1 },
+        "title": {
+          "description": "Heading shown with the button and its description.",
+          "$ref": "#/$defs/RichText"
+        },
         "description": { "$ref": "#/$defs/RichText" },
         "destination": { "$ref": "#/$defs/Destination" },
         "ext": { "$ref": "#/$defs/Ext" }
@@ -812,6 +861,32 @@
           "unevaluatedProperties": false
         },
         {
+          "description": "A page or file next to the published course, by its address relative to the course's page; it opens in a new tab.",
+          "type": "object",
+          "properties": {
+            "kind": { "const": "relative" },
+            "path": { "$ref": "#/$defs/RelativeUrl" }
+          },
+          "required": ["kind", "path"],
+          "unevaluatedProperties": false
+        },
+        {
+          "description": "A new message in the learner's mail app to these addresses, with the course title as its subject.",
+          "type": "object",
+          "properties": {
+            "kind": { "const": "email" },
+            "addresses": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": { "$ref": "#/$defs/Email" }
+            }
+          },
+          "required": ["kind", "addresses"],
+          "unevaluatedProperties": false
+        },
+        {
+          "description": "Ends the course; shown in learning-system packages only.",
           "type": "object",
           "properties": { "kind": { "const": "exit" } },
           "required": ["kind"],

@@ -8,6 +8,7 @@ import {
   type Block,
   type ContentItem,
   embedProvider,
+  type MediaEntry,
   type MediaRef,
   type Question,
   textOn,
@@ -128,16 +129,51 @@ export function videoBlock(block: Block, context: MediaContext): HTMLElement | u
   const ref = block.media?.[0];
   const file = fileOf(ref, context);
   if (!ref || !file) return undefined;
-  const video = mediaPlayer("video", block, file.src, context);
-  video.setAttribute("playsinline", "");
+  const video = videoOf(ref, file.entry, mediaPlayer("video", block, file.src, context), context);
   const { poster, cornerRadius, transcript } = variantSettings<MediaSettings>(block);
   const thumbnail = fileOf(poster, context);
   if (thumbnail) video.poster = thumbnail.src;
-  if (file.entry.width && file.entry.height) {
-    video.width = file.entry.width;
-    video.height = file.entry.height;
-  }
   if (cornerRadius > 0) video.style.borderRadius = `${cornerRadius}px`;
+  return h(
+    "figure",
+    { class: "figure media-video" },
+    video,
+    caption(items(block)[0]?.text, context.labels),
+    transcript ? transcriptOf(transcript, context.labels) : undefined,
+  );
+}
+
+/**
+ * An item's video (blocks-interactions.md 2.1 to 2.4, 2.8, A10): the browser's own player, as in a
+ * video block, with its caption tracks; or undefined when its file is not in the media index. It
+ * loads nothing until played, as most sit in closed sections, other tabs and later cards.
+ */
+export function itemVideo(ref: MediaRef, context: MediaContext): HTMLVideoElement | undefined {
+  const file = fileOf(ref, context);
+  if (!file) return undefined;
+  const video = h("video", { controls: true, preload: "none", src: file.src });
+  return videoOf(ref, file.entry, video, context);
+}
+
+/** Whether a media reference names a video file (by its media index entry's type). */
+export const isVideo = (ref: MediaRef | undefined, { course }: MediaContext) =>
+  mediaEntry(course, ref)?.mimeType?.startsWith("video/") === true;
+
+/**
+ * What every video shares: its size, the speed menu the course allows, a caption track per
+ * language, and a pause when it scrolls out of view or the page is hidden.
+ */
+function videoOf(
+  ref: MediaRef,
+  entry: MediaEntry,
+  video: HTMLVideoElement,
+  context: MediaContext,
+): HTMLVideoElement {
+  video.setAttribute("playsinline", "");
+  if (entry.width && entry.height) {
+    video.width = entry.width;
+    video.height = entry.height;
+  }
   if (context.course.navigation?.videoSpeed === false) {
     video.setAttribute("controlslist", "noplaybackrate");
     video.addEventListener("ratechange", () => {
@@ -169,13 +205,7 @@ export function videoBlock(block: Block, context: MediaContext): HTMLElement | u
     else if (document.hidden) video.pause();
   };
   document.addEventListener("visibilitychange", hidden);
-  return h(
-    "figure",
-    { class: "figure media-video" },
-    video,
-    caption(items(block)[0]?.text, context.labels),
-    transcript ? transcriptOf(transcript, context.labels) : undefined,
-  );
+  return video;
 }
 
 /**
@@ -187,15 +217,33 @@ export function videoBlock(block: Block, context: MediaContext): HTMLElement | u
  */
 export function embedBlock(block: Block, { labels }: MediaContext): HTMLElement | undefined {
   const s = variantSettings<MediaSettings>(block);
-  const address = s.embedUrl;
-  if (!address) return undefined;
-  const provider = embedProvider(address, s.provider);
-  const text = items(block)[0]?.text;
-  const frame = h("div", { class: s.border ? "embed-frame embed-border" : "embed-frame" });
+  if (!s.embedUrl) return undefined;
+  const frame = embedFrame(s.embedUrl, s.provider, labels, s.border);
+  return h(
+    "figure",
+    { class: "figure media-embed" },
+    frame,
+    caption(items(block)[0]?.text, labels),
+  );
+}
+
+/**
+ * A provider's player frame behind a button that loads it (D-44, ADR-0004), for an embed block or
+ * an item's embed; a frame that says it cannot be shown for an address that is not the named
+ * provider's player.
+ */
+export function embedFrame(
+  address: string,
+  named: string | undefined,
+  labels: Labels,
+  border = false,
+): HTMLElement {
+  const provider = embedProvider(address, named);
+  const frame = h("div", { class: border ? "embed-frame embed-border" : "embed-frame" });
   if (!provider) {
     const notice = h("p", { class: "embed-notice" }, labels["embed.unavailable"]);
     frame.append(h("div", { class: "embed-placeholder" }, notice));
-    return h("figure", { class: "figure media-embed" }, frame, caption(text, labels));
+    return frame;
   }
   const preview = hooks?.files !== undefined;
   const noticeId = uid("embed");
@@ -223,7 +271,7 @@ export function embedBlock(block: Block, { labels }: MediaContext): HTMLElement 
     iframe.focus();
   });
   frame.append(h("div", { class: "embed-placeholder" }, notice, load));
-  return h("figure", { class: "figure media-embed" }, frame, caption(text, labels));
+  return frame;
 }
 
 /** A file to download (rise.md §3 C Multimedia, Attachment): its name and size. Never required. */
@@ -377,15 +425,9 @@ function mediaElement(
 export function narrationOf(block: Block, context: MediaContext): HTMLElement | undefined {
   const narration = block.settings?.narration;
   if (!narration || block.variant === "heading" || block.variant === "subheading") return undefined;
-  const file = fileOf(narration.audio, context);
-  if (!file) return undefined;
   const { labels } = context;
-  const audio = h("audio", {
-    controls: true,
-    preload: "none",
-    src: file.src,
-    "aria-label": labels["narration.label"],
-  });
+  const audio = audioOf(narration.audio, labels["narration.label"], context);
+  if (!audio) return undefined;
   const transcript = narration.transcript
     ? h(
         "details",
@@ -395,4 +437,18 @@ export function narrationOf(block: Block, context: MediaContext): HTMLElement | 
       )
     : undefined;
   return h("div", { class: "narration" }, audio, transcript);
+}
+
+/**
+ * An audio player named `name` that loads nothing until played: a block's narration, or an
+ * item's audio (blocks-interactions.md 2.1 to 2.4, 2.8, A11); undefined without its file.
+ */
+export function audioOf(
+  ref: MediaRef | undefined,
+  name: string,
+  context: MediaContext,
+): HTMLAudioElement | undefined {
+  const file = fileOf(ref, context);
+  if (!file) return undefined;
+  return h("audio", { controls: true, preload: "none", src: file.src, "aria-label": name });
 }

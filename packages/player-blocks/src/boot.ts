@@ -173,7 +173,14 @@ function boot(): void {
               publish: { standard: "cmi5" as const, ...data.course.publish, exitLink: true },
             }
           : data.course;
-        startShell(shell, course, labels, runtime);
+        // Buttons that exit the course show in learning-system packages only (blocks-interactions
+        // 2.10). A preview is a web package of what the author will publish: it shows them unless
+        // the course is set to publish as plain web.
+        const published =
+          hooks?.files !== undefined || data.standard === undefined
+            ? data.course.publish?.standard
+            : data.standard;
+        startShell(shell, course, labels, runtime, { lms: published !== "web" });
       });
     })
     .catch(() => status.remove());

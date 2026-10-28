@@ -78,6 +78,31 @@ export const isSafeLink = (href: string): boolean =>
   /^(https?:|mailto:)/i.test(href.trim()) || isLessonLink(href);
 
 /**
+ * A relative address a button may go to (blocks-interactions.md 2.10, the schema's RelativeUrl): a
+ * path next to the course's page, with no scheme, not starting with `//` (another host), `?` or
+ * `#`, and no space, quote, angle bracket or backslash (which browsers read as a slash).
+ */
+export const RELATIVE_URL_PATTERN =
+  "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!//)[^\\s\\\\'\"<>?#][^\\s\\\\'\"<>]*$";
+
+const RELATIVE_URL = new RegExp(RELATIVE_URL_PATTERN, "u");
+
+/** Whether `href` is a relative address a button may go to (RELATIVE_URL_PATTERN). */
+export const isRelativeLink = (href: string): boolean => RELATIVE_URL.test(href);
+
+/**
+ * A mail address a button may write to (2.10, the schema's Email): the HTML form's valid e-mail
+ * address, with a dot in its domain.
+ */
+export const EMAIL_PATTERN =
+  "^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$";
+
+const EMAIL = new RegExp(EMAIL_PATTERN, "u");
+
+/** Whether `address` is a mail address a button may write to (EMAIL_PATTERN), at most 254 long. */
+export const isEmail = (address: string): boolean => address.length <= 254 && EMAIL.test(address);
+
+/**
  * A link a setting holds (an image's link, blocks-editor.md 2.10), as a JSON Schema pattern: a
  * web or mail address, or a link to a lesson or a block of one, as isSafeLink allows, with no
  * space in or around it.

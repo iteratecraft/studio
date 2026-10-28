@@ -6,7 +6,10 @@ import type {
   Block,
   ContentItem,
   Course,
+  FlashcardItem,
+  Item,
   LessonEntry,
+  MarkerItem,
   MediaEntry,
   MediaRef,
   Question,
@@ -14,6 +17,7 @@ import type {
   QuizResult,
   Response,
   Score,
+  StepItem,
 } from "@course-suite/format";
 import {
   drawAttempt,
@@ -88,7 +92,18 @@ export const lockedMedia = (course: Course, block: Block) =>
  * Blocks finished item by item: a checklist when every box is ticked, a carousel when every slide
  * has been shown (UI-BLOCKS-R51, R52). Their items' ids are kept with the done ids.
  */
-const BY_ITEM = new Set(["list/checkbox", "gallery/carousel", "quote/carousel"]);
+const BY_ITEM = new Set([
+  "list/checkbox",
+  "gallery/carousel",
+  "quote/carousel",
+  // Interactive blocks (M2-14, BLK-06): every section, tab, marker, process card and flashcard.
+  "interactive/accordion",
+  "interactive/tabs",
+  "interactive/labeled-graphic",
+  "interactive/process",
+  "interactive/flashcard-grid",
+  "interactive/flashcard-stack",
+]);
 const byItem = (block: Block) => BY_ITEM.has(`${block.category}/${block.variant}`);
 
 /**
@@ -101,9 +116,50 @@ export function shownItems(block: Block): ContentItem[] {
   return block.category === "gallery" ? items : items.filter((item) => item.text);
 }
 
+// The completion rules of the interactive blocks (M2-14, BLK-06; rise.md 3G; blocks-interactions.md
+// UI-BLOCKS-R1 to R8, R12, R13, R52, R56): a block is done once every item it shows has been
+// opened (accordion section, marker), shown (tab, process card) or turned over (flashcard). The
+// renderers show exactly these items, so an item left empty or hidden is never waited for.
+
+const itemsOf = <K extends Item["kind"]>(block: Block, kind: K) =>
+  (block.items ?? []).filter((item): item is Extract<Item, { kind: K }> => item.kind === kind);
+
+/** Accordion sections and tabs with a title: one without has no header to open it by. */
+export const shownSections = (block: Block): ContentItem[] =>
+  itemsOf(block, "content").filter((item) => item.title);
+
+/** Every marker of a labeled graphic while its picture shows; none without the picture. */
+export const shownMarkers = (course: Course, block: Block): MarkerItem[] =>
+  mediaEntry(course, block.media?.[0]) ? itemsOf(block, "marker") : [];
+
+/** The cards of a process, the hidden ones left out (UI-BLOCKS-R7, BLK-06). */
+export const shownSteps = (block: Block): StepItem[] =>
+  itemsOf(block, "step").filter((item) => !item.hidden);
+
+export const flashcards = (block: Block): FlashcardItem[] => itemsOf(block, "flashcard");
+
+/** The items a block finished item by item waits for: the items its renderer shows. */
+function itemsToDo(course: Course, block: Block): readonly { id: string }[] {
+  if (!byItem(block)) return [];
+  switch (block.variant) {
+    case "accordion":
+    case "tabs":
+      return shownSections(block);
+    case "labeled-graphic":
+      return shownMarkers(course, block);
+    case "process":
+      return shownSteps(block);
+    case "flashcard-grid":
+    case "flashcard-stack":
+      return flashcards(block);
+    default:
+      return shownItems(block);
+  }
+}
+
 /** Every item a block finished item by item shows is done; one that shows none has nothing to do. */
-const allItemsDone = (block: Block, done: ReadonlySet<string>) =>
-  byItem(block) && shownItems(block).every((item) => done.has(item.id));
+const allItemsDone = (course: Course, block: Block, done: ReadonlySet<string>) =>
+  byItem(block) && itemsToDo(course, block).every((item) => done.has(item.id));
 
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (course: Course, block: Block) =>
@@ -238,7 +294,7 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     done.has(block.id) || (seen(lesson, block) && !isGate(block));
   const finished = (lesson: LessonEntry, block: Block) =>
     done.has(block.id) ||
-    (seen(lesson, block) && (!needsAction(course, block) || allItemsDone(block, done)));
+    (seen(lesson, block) && (!needsAction(course, block) || allItemsDone(course, block, done)));
 
   function shownBlocks(lesson: LessonEntry): number {
     const gate = lesson.blocks.findIndex((block) => isGate(block) && !done.has(block.id));
@@ -365,7 +421,7 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
         view(lesson);
         return;
       }
-      const items = shownItems(block);
+      const items = itemsToDo(course, block);
       // A finished block keeps no item state: its id alone says every item is done, which keeps
       // the saved state small (standards.md §4.2).
       if (!byItem(block) || done.has(block.id) || !items.some((other) => other.id === item)) return;
@@ -537,7 +593,7 @@ export function largestResume(course: Course): ResumeState {
         .flatMap((block) => {
           // A block finished item by item saves all its items but one while in progress, then
           // only its own id.
-          const items = byItem(block) ? shownItems(block).slice(1) : [];
+          const items = itemsToDo(course, block).slice(1);
           return items.length > 1 ? items.map((item) => item.id) : [block.id];
         }),
     ],

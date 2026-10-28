@@ -144,10 +144,12 @@ describe("continue blocks", () => {
   });
 
   test("UI-BLOCKS-R45: a requirable block above is not done by being seen; a button is", () => {
+    // With a section to open: a block that shows nothing has nothing to wait for (M2-14).
     const interactive = (variant: string): Block => ({
       id: newId("x"),
       category: "interactive",
       variant,
+      items: [{ id: newId("i"), kind: "content", title: "Tyres" }],
     });
     const accordion = lesson(interactive("accordion"), continueBlock("block-above"));
     const checklist = lesson(

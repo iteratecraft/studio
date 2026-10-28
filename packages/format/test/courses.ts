@@ -1,5 +1,5 @@
 // Course documents for tests, written by hand for this package.
-import type { Block, ContentItem, Course } from "../src/course.js";
+import type { Block, CardSide, ContentItem, Course } from "../src/course.js";
 
 export const PROJECT_ID = "3f1c2a4b-5d6e-4f70-8a9b-0c1d2e3f4a5b";
 export const LIBRARY_ID = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
@@ -99,7 +99,8 @@ export function fullCourse(): Course {
           {
             id: "block00002",
             category: "interactive",
-            variant: "labeled-graphic",
+            // Every kind of item in one block: a variant whose items its own epic defines (BLK-11).
+            variant: "scenario",
             settings: {
               background: {
                 kind: "image",
@@ -714,6 +715,295 @@ export function staticBlocksCourse(): Course {
       svg("stmediasky", "sky.svg", 960, 480),
       svg("stmediamon", "moon.svg", 480, 480),
       svg("stmediaobs", "observer.svg", 120, 120),
+    ],
+  };
+}
+
+/**
+ * Every interactive variant of M2-14 (BLK-06), with our own sample content: accordions (one on a
+ * dark colour that opens one section at a time), tabs enough to scroll sideways on a phone, a
+ * labeled graphic with a numbered and two icon markers, a process with a hidden step, flashcards
+ * as a grid and a stack, a button with a heading to a lesson and a button stack to a web page, a
+ * page next to the course, an email, a lesson and the end of the course. Items carry every kind
+ * of media (blocks-interactions.md A10, A11): pictures, a video with captions, web embeds and
+ * audio, above or below the rest; the flashcards' sides have their own picture styles.
+ */
+export function interactiveBlocksCourse(): Course {
+  const section = (id: string, title: string, text: string, more: Partial<ContentItem> = {}) => ({
+    id,
+    kind: "content" as const,
+    title,
+    text: `<p>${text}</p>`,
+    ...more,
+  });
+  const step = (id: string, role: "intro" | "step" | "summary", title: string, more = {}) => ({
+    id,
+    kind: "step" as const,
+    role,
+    title,
+    text: `<p>${title}: what to do and why.</p>`,
+    ...more,
+  });
+  const card = (
+    id: string,
+    front: string,
+    back: string,
+    media?: string,
+    more: { front?: Partial<CardSide>; back?: Partial<CardSide> } = {},
+  ) => ({
+    id,
+    kind: "flashcard" as const,
+    front: { text: `<p>${front}</p>`, ...more.front },
+    back: {
+      text: `<p>${back}</p>`,
+      ...(media && { media: { key: media, alt: "" } }),
+      ...more.back,
+    },
+  });
+  const svg = (id: string, key: string, width: number, height: number) => ({
+    id,
+    key,
+    source: "upload" as const,
+    mimeType: "image/svg+xml",
+    width,
+    height,
+  });
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "Looking after a bicycle",
+    entries: [
+      {
+        id: "ialessfold",
+        kind: "lesson",
+        title: "Sections and tabs",
+        blocks: [
+          {
+            id: "iaaccord01",
+            category: "interactive",
+            variant: "accordion",
+            items: [
+              section("iaaccsec01", "Tyres", "Pump them to the pressure printed on the side.", {
+                media: { key: "wheel.svg", alt: "A wheel seen from the side." },
+              }),
+              section("iaaccsec02", "Chain", "Wipe it, then oil each link lightly.", {
+                embed: {
+                  url: "https://youtu.be/aaaaaaaaaaa",
+                  embedUrl: "https://www.youtube-nocookie.com/embed/aaaaaaaaaaa",
+                  provider: "YouTube",
+                },
+                audio: { key: "bell.wav" },
+              }),
+              section(
+                "iaaccsec03",
+                "Brakes",
+                "Squeeze each lever: it should stop short of the bar.",
+              ),
+            ],
+          },
+          {
+            id: "iaaccord02",
+            category: "interactive",
+            variant: "accordion",
+            settings: { background: { kind: "color", color: "#2b3038" } },
+            variantSettings: { oneAtATime: true, headingLevel: 2 },
+            items: [
+              section("iaaccsec04", "Before a ride", "Check the tyres and the brakes."),
+              section("iaaccsec05", "After a ride", "Wipe off mud before it dries."),
+            ],
+          },
+          {
+            id: "iatabs0001",
+            category: "interactive",
+            variant: "tabs",
+            items: [
+              section("iatabsec01", "Spring", "Check for rust after the winter."),
+              section("iatabsec02", "Summer", "Keep the chain oiled in the dust.", {
+                media: { key: "spin.mp4", captions: [{ key: "spin-en.vtt", language: "en" }] },
+              }),
+              section("iatabsec03", "Autumn", "Fit lights for the darker evenings."),
+              section("iatabsec04", "Winter", "Rinse off road salt after each ride."),
+              section("iatabsec05", "Every season", "Look the bicycle over once a month."),
+            ],
+          },
+        ],
+      },
+      {
+        id: "ialesspict",
+        kind: "lesson",
+        title: "Pictures and steps",
+        blocks: [
+          {
+            id: "ialabeled1",
+            category: "interactive",
+            variant: "labeled-graphic",
+            media: [{ key: "bike.svg", alt: "A bicycle seen from the side." }],
+            variantSettings: { audioPosition: "top" },
+            items: [
+              {
+                id: "iamarker01",
+                kind: "marker",
+                x: 20,
+                y: 70,
+                title: "Back wheel",
+                text: "<p>Its quick release opens with one hand.</p>",
+              },
+              {
+                id: "iamarker02",
+                kind: "marker",
+                x: 50.5,
+                y: 40,
+                icon: "star",
+                title: "Saddle",
+                text: "<p>Set it level with your hip.</p>",
+                media: { key: "wheel.svg", alt: "A saddle seen from above." },
+              },
+              {
+                id: "iamarker03",
+                kind: "marker",
+                x: 82,
+                y: 66,
+                icon: "info",
+                title: "Front wheel",
+                text: "<p>Spin it to check it runs true.</p>",
+                audio: { key: "bell.wav" },
+              },
+            ],
+          },
+          {
+            id: "iaprocess1",
+            category: "interactive",
+            variant: "process",
+            items: [
+              step("iastepintr", "intro", "Fixing a puncture"),
+              step("iastep0001", "step", "Take the wheel off", {
+                media: { key: "spin.mp4", captions: [{ key: "spin-en.vtt", language: "en" }] },
+              }),
+              step("iastep0002", "step", "Find the hole", {
+                media: { key: "wheel.svg", alt: "A tube in a bowl of water." },
+              }),
+              step("iastep0003", "step", "A step left out for now", { hidden: true }),
+              step("iastep0004", "step", "Patch and refit"),
+              step("iastepsumm", "summary", "Ready to ride"),
+            ],
+          },
+        ],
+      },
+      {
+        id: "ialesscard",
+        kind: "lesson",
+        title: "Cards and buttons",
+        blocks: [
+          {
+            id: "iacardgrid",
+            category: "interactive",
+            variant: "flashcard-grid",
+            items: [
+              card("iacardgr01", "Cassette", "The stack of gears on the back wheel.", "wheel.svg", {
+                back: { imageStyle: "full" },
+              }),
+              card("iacardgr02", "Derailleur", "It moves the chain from gear to gear.", undefined, {
+                front: { media: { key: "wheel.svg", alt: "A derailleur from behind." } },
+              }),
+              card("iacardgr03", "Crank", "The arm that holds a pedal.", undefined, {
+                back: {
+                  embed: {
+                    embedUrl: "https://player.vimeo.com/video/123456789?dnt=1",
+                    provider: "Vimeo",
+                  },
+                  audio: { key: "bell.wav" },
+                },
+              }),
+              card("iacardgr04", "Spoke", "A thin rod from the hub to the rim."),
+            ],
+          },
+          {
+            id: "iacardstak",
+            category: "interactive",
+            variant: "flashcard-stack",
+            variantSettings: { flipHint: false },
+            items: [
+              card("iacardst01", "How often to oil the chain?", "Every few weeks, and after rain."),
+              card("iacardst02", "What pressure for the tyres?", "The one on the tyre's side."),
+              card("iacardst03", "When to change brake pads?", "When the grooves are gone."),
+            ],
+          },
+          {
+            id: "iabutton01",
+            category: "interactive",
+            variant: "button",
+            items: [
+              {
+                id: "iabuttn001",
+                kind: "button",
+                label: "Back to the sections",
+                title: "Need a reminder?",
+                description: "<p>Read the sections again before the cards.</p>",
+                destination: { kind: "lesson", entry: "ialessfold" },
+              },
+            ],
+          },
+          {
+            id: "iabuttons1",
+            category: "interactive",
+            variant: "button-stack",
+            variantSettings: { align: "center", width: "wide" },
+            items: [
+              {
+                id: "iabuttn002",
+                kind: "button",
+                label: "A maintenance guide",
+                description: "<p>An outside page with more detail.</p>",
+                destination: { kind: "url", url: "https://example.org/bicycle-care" },
+              },
+              {
+                id: "iabuttn003",
+                kind: "button",
+                label: "See the steps again",
+                destination: { kind: "lesson", entry: "ialesspict" },
+              },
+              {
+                id: "iabuttn005",
+                kind: "button",
+                label: "The workshop handbook",
+                destination: { kind: "relative", path: "handbook/care.html" },
+              },
+              {
+                id: "iabuttn006",
+                kind: "button",
+                label: "Ask the workshop",
+                title: "Questions?",
+                description: "<p>Write to the people who run the workshop.</p>",
+                destination: {
+                  kind: "email",
+                  addresses: ["workshop@example.org", "help@example.org"],
+                },
+              },
+              {
+                id: "iabuttn004",
+                kind: "button",
+                label: "Leave the course",
+                destination: { kind: "exit" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    media: [
+      svg("iamediabik", "bike.svg", 960, 600),
+      svg("iamediawhl", "wheel.svg", 480, 480),
+      { id: "iamediabel", key: "bell.wav", source: "upload", mimeType: "audio/wav" },
+      {
+        id: "iamediaspn",
+        key: "spin.mp4",
+        source: "upload",
+        mimeType: "video/mp4",
+        width: 640,
+        height: 360,
+      },
+      { id: "iamediavtt", key: "spin-en.vtt", source: "upload", mimeType: "text/vtt" },
     ],
   };
 }
