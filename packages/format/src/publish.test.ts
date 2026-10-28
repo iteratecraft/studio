@@ -2,10 +2,15 @@
 // incoherent, and the checks before an export.
 import { describe, expect, test } from "vitest";
 import type { Course, LessonEntry, QuizEntry } from "./course.js";
+import { activityIri } from "./ids.js";
 import {
+  activityIdOf,
+  completionThreshold,
   courseChecks,
-  exportSettingsOf,
+  exportCourseOf,
   isPackageIdentifier,
+  manifestIdentifierOf,
+  nextPackageVersion,
   PUBLISH_DEFAULTS,
   publishProblems,
   publishSettingsOf,
@@ -82,22 +87,68 @@ describe("publish settings", () => {
     });
   });
 
-  test("[standards:E-5] [standards:C-4] an export takes the tracked quiz's passing score and the next package version", () => {
+  test("[standards:E-5] [standards:C-4] [rise:R12] an export takes the tracked quiz's passing score, and the version after the last export", () => {
     const tracked = course({
+      packageVersion: 4,
       publish: {
         standard: "cmi5",
         tracking: { kind: "quiz", quiz: "quizaaaaa1" },
         passingScore: 10,
-        packageVersion: 4,
       },
     });
-    expect(exportSettingsOf(tracked)).toMatchObject({ passingScore: 70, packageVersion: 5 });
-    const byLessons = exportSettingsOf(
-      course({ publish: { standard: "scorm12", passingScore: 10 } }),
-    );
-    expect(byLessons.passingScore).toBeUndefined();
-    expect(byLessons.packageVersion).toBe(1);
-    expect(validateCourse(course({ publish: exportSettingsOf(tracked) }))).toEqual([]);
+    expect(exportCourseOf(tracked).publish).toMatchObject({ passingScore: 70 });
+    expect(nextPackageVersion(tracked)).toBe(5);
+    const byLessons = course({ publish: { standard: "scorm12", passingScore: 10 } });
+    expect(exportCourseOf(byLessons).publish?.passingScore).toBeUndefined();
+    expect(nextPackageVersion(byLessons)).toBe(1);
+    expect(validateCourse(exportCourseOf(tracked))).toEqual([]);
+  });
+
+  test("[rise:3M] [rise:R16] a microlearning completes at 100 % viewed, whatever threshold it holds", () => {
+    const threshold = { kind: "completion", threshold: 40 } as const;
+    const micro = course({
+      kind: "microlearning",
+      entries: [lesson("lessonaaa1")],
+      publish: { standard: "scorm12", tracking: threshold },
+    });
+    expect(completionThreshold(micro)).toBe(100);
+    expect(publishSettingsOf(micro).tracking).toEqual({ kind: "completion" });
+    expect(exportCourseOf(micro).publish?.tracking).toEqual({ kind: "completion" });
+    expect(
+      completionThreshold(course({ publish: { standard: "scorm12", tracking: threshold } })),
+    ).toBe(40);
+  });
+
+  test("blocks-publish-collab 2.3, UI-PUBCOLLAB-R4: a web package skips the cover by its own setting, LMS packages by the theme's", () => {
+    const both = (theme: boolean, web: boolean) =>
+      course({
+        theme: theme ? { cover: { skip: true, author: false } } : { cover: { author: false } },
+        publish: { standard: "web", webSkipCover: web },
+      });
+    expect(exportCourseOf(both(true, false)).theme?.cover).toEqual({ author: false });
+    expect(exportCourseOf(both(false, true)).theme?.cover).toEqual({ author: false, skip: true });
+    const lms = (theme: boolean) => ({
+      ...both(theme, !theme),
+      publish: { standard: "scorm12" as const, webSkipCover: !theme },
+    });
+    expect(exportCourseOf(lms(true)).theme?.cover?.skip).toBe(true);
+    expect(exportCourseOf(lms(false)).theme?.cover?.skip).toBeUndefined();
+    expect(validateCourse(exportCourseOf(both(false, true)))).toEqual([]);
+  });
+
+  test("[standards:E-6] [standards:E-16] the default identifiers have one owner, which the activity IRIs use", () => {
+    const plain = course();
+    expect(manifestIdentifierOf(plain)).toBe(`course-${plain.id}`);
+    expect(activityIdOf(plain)).toBe(`urn:uuid:${plain.id}`);
+    expect(activityIri(plain, "lessonaaa1")).toBe(`${activityIdOf(plain)}/lessonaaa1`);
+    const named = course({
+      publish: { standard: "xapi", activityId: "https://example.org/c", manifestIdentifier: "m" },
+    });
+    expect([activityIdOf(named), manifestIdentifierOf(named)]).toEqual([
+      "https://example.org/c",
+      "m",
+    ]);
+    expect(activityIri(named)).toBe("https://example.org/c");
   });
 
   test("[rise:R6] the completion threshold is a whole percent from 1 to 100", () => {

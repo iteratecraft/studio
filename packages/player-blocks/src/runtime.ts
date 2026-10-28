@@ -2,7 +2,7 @@
 // wired to the tracking core with the Blocks profile (rise.md rules 2-8; standards.md §5 rules 3-9
 // and 17). No DOM: the shell calls it, so tests run it under a fake clock.
 import type { Course, Question, QuizEntry, Response } from "@course-suite/format";
-import { isPassed, toInteraction } from "@course-suite/format";
+import { completionThreshold, isPassed, toInteraction } from "@course-suite/format";
 import {
   type Clock,
   createTracker,
@@ -260,8 +260,8 @@ export function courseStatus(course: Course, progress: Progress): Partial<Status
       : { completion: "incomplete", score, progress: share };
   }
   // The threshold counts whole lessons: the course completes with the lesson that reaches it
-  // (rise.md rule 6, UI-PUBCOLLAB-R20).
-  const threshold = tracking?.kind === "completion" ? (tracking.threshold ?? 100) : 100;
+  // (rise.md rule 6, UI-PUBCOLLAB-R20). A microlearning completes at 100 % only (rule 16).
+  const threshold = completionThreshold(course);
   const done = threshold < 100 ? progress.coursePercent() >= threshold : progress.courseDone();
   if (!done) return { completion: "incomplete", progress: share };
   return wording?.done === "passed"

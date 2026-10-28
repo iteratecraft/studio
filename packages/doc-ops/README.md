@@ -84,6 +84,10 @@ another to `true` in the same dispatch.
 - History keeps 50 steps (UI-PUBCOLLAB-R38; `historyLimit` changes it). `canUndo` and `canRedo` drive
   the buttons (UI-BLOCKS-EDITOR-R14). `clearHistory()` is for leaving a lesson (UI-BLOCKS-EDITOR-R15).
 - A rejected dispatch, or one that changes nothing, makes no step and no event.
+- `dispatch(commands, { history: false })` applies and announces a change without an undo step,
+  leaving undo and redo as they are: for a record the author does not edit, such as the version of
+  the last exported package. Undo and redo replay their own ops by path, so use it for properties no
+  undoable command writes, or for values an undo may replace without harm.
 - Every change calls the listeners with the new `document`, the `ids` of the objects changed, added or
   removed and of the objects holding them, the `ops` applied, and its `source` (`do`, `undo`, `redo`).
   Autosave, snapshots and segment change detection use these.

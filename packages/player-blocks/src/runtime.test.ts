@@ -199,6 +199,22 @@ describe("completion model", () => {
     });
   });
 
+  test("[rise:3M] [rise:R16] a microlearning completes at 100 % viewed only, whatever threshold it holds", async () => {
+    const list = [lesson(text()), lesson(text())];
+    const micro = course(list, {
+      kind: "microlearning",
+      publish: { standard: "scorm12", tracking: { kind: "completion", threshold: 50 } },
+    });
+    const { runtime, calls } = await setup(micro);
+    runtime.enter(list[0] as LessonEntry);
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({
+      completion: "incomplete",
+      progress: 0.5,
+    });
+    runtime.enter(list[1] as LessonEntry);
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({ completion: "completed" });
+  });
+
   test("[rise:R7] [rise:R8] quiz tracking: failed only with a 'failed' wording, never after a pass; best score sent", async () => {
     const entry = quiz(4, { passingScore: 50 });
     const failing = course([entry], {

@@ -33,20 +33,36 @@ export const quizzesOf = (course: Course): QuizEntry[] =>
 
 /**
  * The settings a course is published with: its saved ones over the defaults. Tracking that names a
- * quiz the course no longer has falls back to completion; a microlearning, which has no quiz and so
- * cannot fail, gets a wording that never reports failed (rise.md 3M, rule 16).
+ * quiz the course no longer has falls back to completion. A microlearning has no quiz and completes
+ * only when all of it was viewed, so it is tracked by completion at 100 % and gets a wording that
+ * never reports failed (rise.md 3M, rule 16).
  */
 export function publishSettingsOf(course: Course): PublishSettings {
   const saved = course.publish;
   const settings: PublishSettings = { ...PUBLISH_DEFAULTS, ...saved };
   const tracking = settings.tracking;
-  if (tracking?.kind === "quiz" && !quizzesOf(course).some((quiz) => quiz.id === tracking.quiz)) {
+  if (
+    course.kind === "microlearning" ||
+    (tracking?.kind === "quiz" && !quizzesOf(course).some((quiz) => quiz.id === tracking.quiz))
+  ) {
     settings.tracking = { kind: "completion" };
   }
   if (course.kind === "microlearning" && settings.statusWording?.notDone === "failed") {
     settings.statusWording = { ...settings.statusWording, notDone: "incomplete" };
   }
   return settings;
+}
+
+/**
+ * The percent of lessons done that completes the course (rise.md rule 6, UI-PUBCOLLAB-R20): the
+ * author's threshold when tracking is by completion, and always 100 for a microlearning (rule 16).
+ * The panel shows it and the player completes by it.
+ */
+export function completionThreshold(course: Course): number {
+  const tracking = course.publish?.tracking;
+  return course.kind !== "microlearning" && tracking?.kind === "completion"
+    ? (tracking.threshold ?? 100)
+    : 100;
 }
 
 /** The quiz whose result decides completion and score, when tracking follows one. */
@@ -57,19 +73,29 @@ export function trackedQuiz(course: Course, settings = publishSettingsOf(course)
     : undefined;
 }
 
+/** The version the next exported package gets: one above the last export (rise.md rule 12). */
+export const nextPackageVersion = (course: Course) => (course.packageVersion ?? 0) + 1;
+
 /**
- * The settings to export with: those of `publishSettingsOf`, the passing score taken from the
- * tracked quiz, so the manifest's mastery score and the quiz agree (standards.md E-5, C-4), and the
- * package version one above the last export.
+ * The course a package is built from: the settings of `publishSettingsOf`, with the passing score
+ * taken from the tracked quiz, so the manifest's mastery score and the quiz agree (standards.md E-5,
+ * C-4). A web package skips the cover by its own setting, kept apart from the theme's, which LMS
+ * packages use (blocks-publish-collab.md 2.3, UI-PUBCOLLAB-R4).
  */
-export function exportSettingsOf(course: Course): PublishSettings & { packageVersion: number } {
+export function exportCourseOf(course: Course): Course {
   const { passingScore: _, ...settings } = publishSettingsOf(course);
   const quiz = trackedQuiz(course, settings);
-  return {
+  const publish: PublishSettings = {
     ...settings,
     ...(quiz && { passingScore: quiz.settings?.passingScore ?? DEFAULT_PASSING_SCORE }),
-    packageVersion: (course.publish?.packageVersion ?? 0) + 1,
   };
+  if (publish.standard !== "web") return { ...course, publish };
+  const { skip: __, ...cover } = course.theme?.cover ?? {};
+  const theme = {
+    ...course.theme,
+    cover: publish.webSkipCover === true ? { ...cover, skip: true } : cover,
+  };
+  return { ...course, publish, theme };
 }
 
 /** The manifest identifier a SCORM package gets when the author sets none (stable per course). */
@@ -77,6 +103,14 @@ export const defaultManifestIdentifier = (course: Course) => `course-${course.id
 
 /** The activity id an xAPI or cmi5 package gets when the author sets none (stable per course). */
 export const defaultActivityId = (course: Course) => `urn:uuid:${course.id}`;
+
+/** The base manifest identifier of a SCORM package of `course`: the author's, or the default. */
+export const manifestIdentifierOf = (course: Course) =>
+  course.publish?.manifestIdentifier ?? defaultManifestIdentifier(course);
+
+/** The activity id of an xAPI or cmi5 package of `course`: the author's, or the default. */
+export const activityIdOf = (course: Course) =>
+  course.publish?.activityId ?? defaultActivityId(course);
 
 const MANIFEST_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_.-]{0,199}$/;
 // An absolute IRI of URL-safe characters only (no spaces, quotes or angle brackets), short enough

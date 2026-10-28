@@ -7,16 +7,20 @@
 // background with progress and cancel. Advanced exporter options (STD-11, STD-12) come in M2b.
 import type { Command } from "@course-suite/doc-ops";
 import {
+  activityIdOf,
   type Course,
   type CourseCheck,
+  completionThreshold,
   courseChecks,
   DEFAULT_PASSING_SCORE,
   defaultActivityId,
   defaultManifestIdentifier,
-  exportSettingsOf,
+  exportCourseOf,
   isPackageIdentifier,
   type LomMetadata,
+  manifestIdentifierOf,
   mediaKeysIn,
+  nextPackageVersion,
   type PublishSettings,
   publishProblems,
   publishSettingsOf,
@@ -78,10 +82,13 @@ const isIri = (standard: Standard) => standard === "xapi" || standard === "cmi5"
 const cleaned = <T extends object>(value: T): T =>
   Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 
+/** The course's current settings with `patch` over them. */
+const patched = (course: Course, patch: Patch) =>
+  cleaned({ ...publishSettingsOf(course), ...patch }) as PublishSettings;
+
 /** The command that saves `patch` over the course's current settings. */
 function publishCommand(course: Course, patch: Patch): Command {
-  const publish = cleaned({ ...publishSettingsOf(course), ...patch }) as PublishSettings;
-  return { type: "updateCourse", set: { publish } };
+  return { type: "updateCourse", set: { publish: patched(course, patch) } };
 }
 
 /** A name for a page of the course, for the checks. */
@@ -226,8 +233,8 @@ export function PublishView({
   const quizzes = quizzesOf(course);
   const quiz = trackedQuiz(course, settings);
   const tracking = settings.tracking?.kind === "quiz" ? "quiz" : "completion";
-  const savedThreshold =
-    settings.tracking?.kind === "completion" ? (settings.tracking.threshold ?? 100) : 100;
+  const micro = course.kind === "microlearning";
+  const savedThreshold = completionThreshold(course);
   const [threshold, setThreshold] = useState(savedThreshold);
   useEffect(() => setThreshold(savedThreshold), [savedThreshold]);
   const problems = publishProblems(course);
@@ -256,9 +263,11 @@ export function PublishView({
 
   const set = (patch: Patch) => editor.dispatch(publishCommand(course, patch));
   const theme = course.theme ?? {};
-  const hideCover = theme.cover?.skip === true;
-  // One setting with the theme's cover page (BLK-09): the cover is skipped in every output.
+  // LMS packages skip the cover by the theme's setting (BLK-09); a web package by its own, kept
+  // apart (blocks-publish-collab.md 2.3, UI-PUBCOLLAB-R4).
+  const hideCover = lms ? theme.cover?.skip === true : settings.webSkipCover === true;
   const setHideCover = (on: boolean) => {
+    if (!lms) return set({ webSkipCover: on || undefined });
     const cover = cleaned({ ...theme.cover, skip: on || undefined });
     const next = cleaned({
       ...theme,
@@ -381,16 +390,27 @@ export function PublishView({
       filters: [{ name: t("publish.zipFilter"), extensions: ["zip"] }],
     });
     if (!file) return;
-    // UI-PUBCOLLAB-R4: the settings published with are kept in the course, defaults included.
-    if (!now.publish) editor.dispatch(publishCommand(now, {}));
-    const exported = exportSettingsOf(editor.document);
+    // The package version is taken as the export starts, so an export started before this one
+    // ends gets the next one (rise.md rule 12). With it, the settings published with are kept in
+    // the course, defaults included (UI-PUBCOLLAB-R4). Both record the export rather than edit
+    // the course, so they stay out of the undo history: an undo never hands out a shipped version
+    // again, and the export adds no undo step.
+    const packageVersion = nextPackageVersion(editor.document);
+    editor.dispatch(
+      {
+        type: "updateCourse",
+        set: { packageVersion, publish: patched(editor.document, {}) },
+      },
+      { history: false },
+    );
+    const exported = exportCourseOf(editor.document);
     background.current = false;
     let percent: number | undefined;
     const started = await exports.start(
-      { ...editor.document, publish: exported },
+      exported,
       { media: session.media, fonts },
-      exported.standard,
-      exported.packageVersion,
+      exported.publish?.standard ?? standard,
+      packageVersion,
       file,
       ({ done, total }) => {
         percent = total > 0 ? Math.round((done * 100) / total) : undefined;
@@ -399,10 +419,6 @@ export function PublishView({
     );
     setRun({ state: "running", percent, cancel: started.cancel });
     const job = await started.finished;
-    if (job.state === "succeeded") {
-      // The next export is one version higher (rise.md rule 12).
-      editor.dispatch(publishCommand(editor.document, { packageVersion: exported.packageVersion }));
-    }
     if (job.state === "cancelled") {
       setRun(undefined);
       announce(t("publish.cancelled"));
@@ -424,9 +440,7 @@ export function PublishView({
   };
 
   const identifierKey = isIri(standard) ? "activityId" : "manifestIdentifier";
-  const identifier =
-    (isIri(standard) ? settings.activityId : settings.manifestIdentifier) ??
-    (isIri(standard) ? defaultActivityId(course) : defaultManifestIdentifier(course));
+  const identifier = isIri(standard) ? activityIdOf(course) : manifestIdentifierOf(course);
   const wordings = (Object.keys(WORDINGS) as WordingKey[]).filter(
     // A microlearning has no quiz, so it never fails (rise.md 3M).
     (key) => course.kind === "course" || !key.endsWith("failed"),
@@ -495,27 +509,31 @@ export function PublishView({
 
         {lms && (
           <Section title={t("publish.section.tracking")}>
-            <Select
-              label={t("publish.tracking")}
-              description={quizzes.length === 0 ? t("publish.tracking.noQuiz") : undefined}
-              selectedKey={tracking}
-              disabledKeys={quizzes.length === 0 ? ["quiz"] : []}
-              onSelectionChange={(key) => {
-                if (key === tracking) return;
-                // UI-PUBCOLLAB-R5: the first quiz is the one offered.
-                const first = quizzes[0];
-                set({
-                  tracking:
-                    key === "quiz" && first
-                      ? { kind: "quiz", quiz: first.id }
-                      : { kind: "completion" },
-                });
-              }}
-            >
-              <ListBoxItem id="completion">{t("publish.tracking.completion")}</ListBoxItem>
-              <ListBoxItem id="quiz">{t("publish.tracking.quiz")}</ListBoxItem>
-            </Select>
-            {tracking === "completion" ? (
+            {/* A microlearning has no quiz and completes at 100 % viewed (rise.md 3M, rule 16). */}
+            {micro && <p className="be-note">{t("publish.tracking.micro")}</p>}
+            {!micro && (
+              <Select
+                label={t("publish.tracking")}
+                description={quizzes.length === 0 ? t("publish.tracking.noQuiz") : undefined}
+                selectedKey={tracking}
+                disabledKeys={quizzes.length === 0 ? ["quiz"] : []}
+                onSelectionChange={(key) => {
+                  if (key === tracking) return;
+                  // UI-PUBCOLLAB-R5: the first quiz is the one offered.
+                  const first = quizzes[0];
+                  set({
+                    tracking:
+                      key === "quiz" && first
+                        ? { kind: "quiz", quiz: first.id }
+                        : { kind: "completion" },
+                  });
+                }}
+              >
+                <ListBoxItem id="completion">{t("publish.tracking.completion")}</ListBoxItem>
+                <ListBoxItem id="quiz">{t("publish.tracking.quiz")}</ListBoxItem>
+              </Select>
+            )}
+            {micro ? null : tracking === "completion" ? (
               <SliderField
                 label={t("publish.threshold")}
                 unit={t("publish.thresholdUnit")}
@@ -596,31 +614,33 @@ export function PublishView({
             </Described>
           )}
           <Described
-            note={t("publish.hideCoverHelp")}
+            note={t(lms ? "publish.hideCoverHelp" : "publish.hideCoverWebHelp")}
             isSelected={hideCover}
             onChange={setHideCover}
           >
             {t("publish.hideCover")}
           </Described>
-          {lms && (
-            <>
-              <Described
-                note={t("publish.lmsOnlyHelp")}
-                isSelected={settings.lmsOnly === true}
-                onChange={(on) => set({ lmsOnly: on })}
-              >
-                {t("publish.lmsOnly")}
-              </Described>
-              <Described
-                note={t("publish.resetHelp")}
-                isSelected={settings.resetOnUpdate === true}
-                onChange={(on) => void setReset(on)}
-              >
-                {t("publish.reset")}
-              </Described>
-            </>
-          )}
         </Section>
+
+        {lms && (
+          // A10, W1 step 6: reset on update and LMS-only launch are the LMS panel's advanced options.
+          <Section title={t("publish.section.advanced")}>
+            <Described
+              note={t("publish.resetHelp")}
+              isSelected={settings.resetOnUpdate === true}
+              onChange={(on) => void setReset(on)}
+            >
+              {t("publish.reset")}
+            </Described>
+            <Described
+              note={t("publish.lmsOnlyHelp")}
+              isSelected={settings.lmsOnly === true}
+              onChange={(on) => set({ lmsOnly: on })}
+            >
+              {t("publish.lmsOnly")}
+            </Described>
+          </Section>
+        )}
 
         <Section title={t("publish.section.checks")}>
           <Checks course={course} session={session} standard={standard} resume={resume} />

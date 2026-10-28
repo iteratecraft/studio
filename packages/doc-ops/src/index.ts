@@ -16,7 +16,7 @@ export type {
 export { applyCommands, COLLECTIONS, COMMAND_TYPES, LOCKED } from "./commands.js";
 export type { BlockClip, CopyCommands, EntryCopy } from "./copy.js";
 export { clipBlocks, copyCourse, copyEntryTo, pasteBlocks } from "./copy.js";
-export type { ChangeEvent, Editor, EditorOptions } from "./editor.js";
+export type { ChangeEvent, DispatchOptions, Editor, EditorOptions } from "./editor.js";
 export { createEditor } from "./editor.js";
 export type { Op, Path } from "./ops.js";
 export { applyOps } from "./ops.js";

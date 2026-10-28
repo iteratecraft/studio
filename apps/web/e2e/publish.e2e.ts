@@ -204,8 +204,15 @@ test("[rise:3M] blocks-publish-collab A8, A9, 2.1, 2.2, UI-PUBCOLLAB-R4, R5, BLK
   );
   await expect(switchOf(page, "Exit course link")).not.toBeChecked();
   await expect(switchOf(page, "Hide the cover page")).not.toBeChecked();
-  await expect(switchOf(page, "Open only from a learning system")).toBeChecked();
-  await expect(switchOf(page, "Reset learner progress on update")).not.toBeChecked();
+  // Reset on update and LMS-only launch are the advanced options (A10, W1 step 6).
+  const advanced = panel(page).getByRole("region", { name: "Advanced" });
+  await expect(advanced.getByRole("switch")).toHaveCount(2);
+  await expect(
+    advanced.getByRole("switch", { name: "Open only from a learning system" }),
+  ).toBeChecked();
+  await expect(
+    advanced.getByRole("switch", { name: "Reset learner progress on update" }),
+  ).not.toBeChecked();
   await expect(panel(page)).toContainText(
     /Learner progress needs up to \d+ of the 4,096 characters/,
   );
@@ -214,6 +221,7 @@ test("[rise:3M] blocks-publish-collab A8, A9, 2.1, 2.2, UI-PUBCOLLAB-R4, R5, BLK
   await expect(select(page, "The course is complete when")).toHaveCount(0);
   await expect(switchOf(page, "Exit course link")).toHaveCount(0);
   await expect(switchOf(page, "Hide the cover page")).toBeVisible();
+  await expect(advanced).toHaveCount(0);
 
   // Reset asks first (2.2); cancelling leaves it off.
   await choose(page, "Output", "SCORM 1.2");
@@ -278,13 +286,15 @@ test("[standards:E-16] UI-PUBCOLLAB-R4, R5, BLK-10, STD-08: an invalid identifie
   await done.getByRole("button", { name: "OK" }).click();
   const first = await zipOn(page, "Ponds-xapi.zip");
   expect(await text(first, "tincan.xml")).toContain('id="https://example.org/courses/ponds"');
-  expect((await saved(page)).publish).toEqual({ ...settings, packageVersion: 1 });
+  let course = await saved(page);
+  expect([course.publish, course.packageVersion]).toEqual([settings, 1]);
   done = await exportPackage(page);
   await done.getByRole("button", { name: "OK" }).click();
   const second = await zipOn(page, "Ponds-xapi.zip");
   expect(await text(second, "tincan.xml")).toBe(await text(first, "tincan.xml"));
   expect(await text(second, "course-data.js")).not.toBe(await text(first, "course-data.js"));
-  expect((await saved(page)).publish).toEqual({ ...settings, packageVersion: 2 });
+  course = await saved(page);
+  expect([course.publish, course.packageVersion]).toEqual([settings, 2]);
 });
 
 test("[standards:E-22] STD-08: cmi5 move-on follows the tracking, and waiting for a pass no quiz decides is marked and blocks export", async ({
@@ -356,9 +366,9 @@ test("BLK-10, STD-08, keyboard only: choose SCORM 2004, set the threshold, expor
   expect(course.publish).toMatchObject({
     standard: "scorm2004",
     tracking: { kind: "completion", threshold: 50 },
-    packageVersion: 1,
   });
-  // The cover setting is the theme's (BLK-09): the package opens at the first lesson.
+  expect(course.packageVersion).toBe(1);
+  // An LMS package's cover setting is the theme's (BLK-09): the package opens at the first lesson.
   expect(course.theme?.cover?.skip).toBe(true);
 });
 
@@ -376,8 +386,8 @@ test("UI-PUBCOLLAB-R1, A14, BLK-10: an export runs in the background with progre
   await expect(page.getByText("Export cancelled.")).toBeAttached();
   expect(await page.evaluate(() => window.editorTest.exports.terminated)).toBe(1);
   expect(await files(page)).toEqual([FILE]);
-  // A cancelled export does not count as a version.
-  expect((await saved(page)).publish?.packageVersion).toBeUndefined();
+  // The version was taken when the export started; a cancelled one is not handed out again.
+  expect((await saved(page)).packageVersion).toBe(1);
 
   await exportButton(page).click();
   running = page.getByRole("dialog", { name: "Exporting" });
@@ -387,6 +397,120 @@ test("UI-PUBCOLLAB-R1, A14, BLK-10: an export runs in the background with progre
   await page.evaluate(() => window.editorTest.exports.release());
   await expect(page.getByText("Ponds-scorm12.zip is saved.")).toBeVisible();
   expect(await files(page)).toEqual(["Ponds-scorm12.zip", FILE]);
+});
+
+test("[rise:R12] UI-PUBCOLLAB-R16, BLK-10: two exports started before the first ends get their own package versions; an export adds no undo step, and undo never takes a version back", async ({
+  page,
+}) => {
+  await openPonds(page, ponds(), "?hold-export");
+  await openPublish(page);
+  const undo = tools(page).getByRole("button", { name: "Undo" });
+  await expect(undo).toBeDisabled();
+  await toggle(page, "Exit course link");
+  await expect(switchOf(page, "Exit course link")).toBeChecked();
+  // Two exports, each sent to the background before the first is built.
+  for (let i = 0; i < 2; i++) {
+    await exportButton(page).click();
+    const running = page.getByRole("dialog", { name: "Exporting" });
+    await running.getByRole("button", { name: "Keep working" }).click();
+    await expect(running).toHaveCount(0);
+  }
+  await expect.poll(() => page.evaluate(() => window.editorTest.exports.held)).toBe(1);
+  expect((await saved(page)).packageVersion).toBe(2);
+  // Undo takes back the author's change only: the exports made no step and keep their versions.
+  await page.keyboard.press("Control+Z");
+  await expect(switchOf(page, "Exit course link")).not.toBeChecked();
+  await expect(undo).toBeDisabled();
+  expect((await saved(page)).packageVersion).toBe(2);
+
+  const manifest = async () =>
+    (await files(page)).includes("Ponds-scorm12.zip")
+      ? (await text(await zipOn(page, "Ponds-scorm12.zip"), "imsmanifest.xml"))
+          .match(/<manifest identifier="([^"]+)" version="(\d+)"/)
+          ?.slice(1)
+      : undefined;
+  await page.evaluate(() => window.editorTest.exports.release());
+  await expect.poll(manifest).toEqual([`course-${ID}_1`, "1"]);
+  await expect.poll(() => page.evaluate(() => window.editorTest.exports.held)).toBe(1);
+  await page.evaluate(() => window.editorTest.exports.release());
+  await expect.poll(manifest).toEqual([`course-${ID}_2`, "2"]);
+  // The next export comes after both.
+  await exportButton(page).click();
+  await expect.poll(() => page.evaluate(() => window.editorTest.exports.held)).toBe(1);
+  await page.evaluate(() => window.editorTest.exports.release());
+  await page
+    .getByRole("dialog", { name: "Package saved" })
+    .getByRole("button", { name: "OK" })
+    .click();
+  await expect.poll(manifest).toEqual([`course-${ID}_3`, "3"]);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`[rise:3M] [rise:R16] a microlearning is tracked by viewing all of it: the panel offers no threshold and no quiz, and passes axe in the ${theme} theme`, async ({
+    page,
+  }) => {
+    const lessonOnly = ponds().entries[1] as Course["entries"][number];
+    await openPonds(
+      page,
+      ponds({ kind: "microlearning", entries: [lessonOnly] }),
+      `?theme=${theme}`,
+    );
+    await openPublish(page);
+    await expect(panel(page)).toContainText(
+      "A microlearning is complete once the learner has viewed all of it.",
+    );
+    await expect(select(page, "The course is complete when")).toHaveCount(0);
+    await expect(panel(page).getByRole("slider", { name: "Lessons to view" })).toHaveCount(0);
+    await expect(
+      panel(page).getByText("Add a quiz to the course to track its result."),
+    ).toHaveCount(0);
+    // It never fails, so no reporting pair says failed (rise.md 3M).
+    await select(page, "What the learning system records").click();
+    await expect(page.getByRole("option")).toHaveText([
+      "Passed, or incomplete",
+      "Completed, or incomplete",
+    ]);
+    await page.keyboard.press("Escape");
+    expect(await violations(page)).toEqual([]);
+  });
+}
+
+test("blocks-publish-collab 2.3, A11, UI-PUBCOLLAB-R4: the web package hides its cover by its own setting, kept apart from the theme's that LMS packages use", async ({
+  page,
+  browser,
+}) => {
+  await openPonds(page);
+  await openPublish(page);
+  await choose(page, "Output", "Web package");
+  await toggle(page, "Hide the cover page");
+  await expect(switchOf(page, "Hide the cover page")).toBeChecked();
+  let course = await saved(page);
+  expect(course.publish?.webSkipCover).toBe(true);
+  expect(course.theme?.cover?.skip).toBeUndefined();
+  // The LMS value is the theme's, still off; turning it on leaves the web value alone.
+  await choose(page, "Output", "SCORM 1.2");
+  await expect(switchOf(page, "Hide the cover page")).not.toBeChecked();
+  await toggle(page, "Hide the cover page");
+  await choose(page, "Output", "Web package");
+  await toggle(page, "Hide the cover page");
+  await expect(switchOf(page, "Hide the cover page")).not.toBeChecked();
+  course = await saved(page);
+  expect([course.publish?.webSkipCover, course.theme?.cover?.skip]).toEqual([undefined, true]);
+  // With the web value on again and the theme's off, the web package opens at the first lesson.
+  await toggle(page, "Hide the cover page");
+  await choose(page, "Output", "SCORM 1.2");
+  await toggle(page, "Hide the cover page");
+  await choose(page, "Output", "Web package");
+  await (await exportPackage(page)).getByRole("button", { name: "OK" }).click();
+  const dir = await unzipToFolder(page, "Ponds-web.zip");
+  try {
+    const learner = await browser.newPage();
+    await learner.goto(pathToFileURL(join(dir, "index.html")).href);
+    await expect(learner.getByRole("heading", { level: 1, name: "The pond" })).toBeVisible();
+    await learner.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("blocks-publish-collab A13, UI-PUBCOLLAB-R2, BLK-10: a missing file stops the export and says where it was used; other problems can be edited first or exported anyway", async ({

@@ -21,6 +21,8 @@ export interface Course {
   /** Reserved: translation glossary, owned by another container. */
   glossaryRef?: ExternalRef;
   publish?: PublishSettings;
+  /** Version of the last package exported or being exported; the next export is one higher. A record of exports, not a setting: the editor changes it outside the undo history. */
+  packageVersion?: number;
   /** How learners move through the course. Every setting is optional; the default is given with each. */
   navigation?: {
     /** Lessons open only in order, each once the one before it is done; turns off learner mark-done. Default false; any quiz with skip-ahead turns it on. */
@@ -217,8 +219,8 @@ export interface PublishSettings {
   resetOnUpdate?: boolean;
   /** Opened outside a learning system, and not from disk, the course shows an error instead of running. Default false. */
   lmsOnly?: boolean;
-  /** Version of the last package exported; the next export is one higher. */
-  packageVersion?: number;
+  /** Web package: open on the first lesson, without the cover page. Kept apart from the theme's cover setting, which LMS packages and the preview use. Default false. */
+  webSkipCover?: boolean;
   /** Show an exit-course link in the course menu. Default false. */
   exitLink?: boolean;
 }

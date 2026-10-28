@@ -1022,6 +1022,7 @@ export const english = {
   "publish.tracking.completion": "Learners have viewed enough lessons",
   "publish.tracking.quiz": "Learners finish a quiz",
   "publish.tracking.noQuiz": "Add a quiz to the course to track its result.",
+  "publish.tracking.micro": "A microlearning is complete once the learner has viewed all of it.",
   "publish.threshold": "Lessons to view",
   "publish.thresholdUnit": "percent",
   "publish.quiz": "Quiz to track",
@@ -1047,6 +1048,9 @@ export const english = {
   "publish.hideCover": "Hide the cover page",
   "publish.hideCoverHelp":
     "The course opens at its first lesson. This is also the theme's cover page setting.",
+  "publish.hideCoverWebHelp":
+    "The web package opens at its first lesson. Learning system packages and the preview follow the theme's cover page setting.",
+  "publish.section.advanced": "Advanced",
   "publish.lmsOnly": "Open only from a learning system",
   "publish.lmsOnlyHelp":
     "Opened anywhere else, except from a folder on this computer, the course shows a message instead.",

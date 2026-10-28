@@ -92,6 +92,34 @@ describe("undo and redo", () => {
     editor.undo();
     expect(editor.document.title).toBe("Empty");
   });
+
+  test("[rise:R12] a change outside the history makes no undo step, keeps undo and redo, and outlives them", () => {
+    const editor = createEditor(minimalCourse());
+    const events: ChangeEvent[] = [];
+    editor.subscribe((event) => events.push(event));
+    const version = (packageVersion: number): Command => ({
+      type: "updateCourse",
+      set: { packageVersion },
+    });
+    editor.dispatch(rename("One"));
+    editor.dispatch(rename("Two"));
+    editor.undo();
+    editor.beginGroup();
+    expect(editor.dispatch(version(1), { history: false }).ok).toBe(true);
+    editor.endGroup();
+    // It is saved like any change, but undo and redo step over it.
+    expect(events.at(-1)).toMatchObject({ source: "do", ids: [editor.document.id] });
+    expect([editor.canUndo, editor.canRedo]).toEqual([true, true]);
+    editor.redo();
+    expect(editor.document).toMatchObject({ title: "Two", packageVersion: 1 });
+    editor.undo();
+    editor.undo();
+    expect(editor.document).toMatchObject({ title: "Empty", packageVersion: 1 });
+    expect(editor.canUndo).toBe(false);
+    // A rejected change outside the history changes nothing either.
+    expect(editor.dispatch(version(0), { history: false }).ok).toBe(false);
+    expect(editor.document.packageVersion).toBe(1);
+  });
 });
 
 describe("change events", () => {

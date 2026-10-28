@@ -22,11 +22,15 @@ export { openCourse, serializeCourse } from "./open.js";
 // M2-18: publish settings, their defaults and the checks before an export.
 export type { CourseCheck, PublishProblem, Standard } from "./publish.js";
 export {
+  activityIdOf,
+  completionThreshold,
   courseChecks,
   defaultActivityId,
   defaultManifestIdentifier,
-  exportSettingsOf,
+  exportCourseOf,
   isPackageIdentifier,
+  manifestIdentifierOf,
+  nextPackageVersion,
   PUBLISH_DEFAULTS,
   publishProblems,
   publishSettingsOf,

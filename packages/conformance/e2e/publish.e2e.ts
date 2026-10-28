@@ -16,7 +16,8 @@ import {
 import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import {
   type Course,
-  exportSettingsOf,
+  exportCourseOf,
+  nextPackageVersion,
   PUBLISH_DEFAULTS,
   type PublishSettings,
 } from "@course-suite/format";
@@ -36,10 +37,14 @@ const paragraph = (id: string, text: string) => ({
   items: [{ id: `i${id.slice(1)}`, kind: "content" as const, text: `<p>${text}</p>` }],
 });
 
-/** Two lessons, published with the panel's defaults and `settings` over them. */
-const course = (settings: Partial<PublishSettings> = {}): Course => ({
+/**
+ * Two lessons, published with the panel's defaults and `settings` over them; `packageVersion` is the
+ * version of the last export.
+ */
+const course = (settings: Partial<PublishSettings> = {}, packageVersion?: number): Course => ({
   schemaVersion: "1.0",
   id: PROJECT_ID,
+  ...(packageVersion !== undefined && { packageVersion }),
   kind: "course",
   title: "Rain gardens",
   sourceLanguage: "en",
@@ -68,17 +73,17 @@ const EXPORTERS = {
   cmi5: cmi5Exporter,
 } as const;
 
-/** Exports `course` as the editor does: its export settings and their package version. */
+/** Exports `course` as the editor does: the course to export, with the next package version. */
 async function exported(source: Course) {
-  const settings = exportSettingsOf(source);
-  const standard = settings.standard as keyof typeof EXPORTERS;
+  const course = exportCourseOf(source);
+  const standard = course.publish?.standard as keyof typeof EXPORTERS;
   const built = await buildPackage({
-    course: { ...source, publish: settings },
+    course,
     player: blocksPlayer(),
     exporter: EXPORTERS[standard](),
     media: () => undefined,
     fonts: nodeFonts,
-    packageVersion: settings.packageVersion,
+    packageVersion: nextPackageVersion(source),
   });
   if (!built.ok) throw new Error(JSON.stringify(built.problems, null, 2));
   const read = await readPackage(built.value.zip);
@@ -125,20 +130,17 @@ test("[rise:R12] UI-PUBCOLLAB-R16, BLK-10: a re-export with reset on update clea
   expect(again.pageErrors).toEqual([]);
 
   // The update, one version higher: the learner starts again.
-  const update = await runPackage(
-    await exported(course({ resetOnUpdate: true, packageVersion: 1 })),
-    {
-      browser,
-      cmi: relaunchCmi(first.cmi),
-      drive: async (sco, page) => {
-        await expect(sco.getByRole("link", { name: label["course.begin"] })).toBeVisible();
-        await expect(sco.getByRole("link", { name: label["course.resume"] })).toHaveCount(0);
-        await sco.getByRole("link", { name: label["course.begin"] }).click();
-        await expect(sco.getByRole("heading", { level: 1 })).toHaveText("Why plant one");
-        await closeSco(page);
-      },
+  const update = await runPackage(await exported(course({ resetOnUpdate: true }, 1)), {
+    browser,
+    cmi: relaunchCmi(first.cmi),
+    drive: async (sco, page) => {
+      await expect(sco.getByRole("link", { name: label["course.begin"] })).toBeVisible();
+      await expect(sco.getByRole("link", { name: label["course.resume"] })).toHaveCount(0);
+      await sco.getByRole("link", { name: label["course.begin"] }).click();
+      await expect(sco.getByRole("heading", { level: 1 })).toHaveText("Why plant one");
+      await closeSco(page);
     },
-  );
+  });
   expect(update.pageErrors).toEqual([]);
   expect(update.cmi.core).toMatchObject({ lesson_location: "#/lessons/lessrain01" });
 });

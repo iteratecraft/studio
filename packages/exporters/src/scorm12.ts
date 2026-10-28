@@ -2,7 +2,7 @@
 // Packaging 1.1.2 with the ADL extensions and inline IMS metadata 1.2.1, and the ADL SCORM 1.2 schema
 // files beside it at the package root.
 import type { Course } from "@course-suite/format";
-import { plainText } from "@course-suite/format";
+import { manifestIdentifierOf, plainText } from "@course-suite/format";
 import { SCORM12_SCHEMA_TEXT } from "../dist/assets.js";
 import type { DescribeInput, Exporter, PackageFile } from "./builder.js";
 import { fail, ok, type Problem, type Result } from "./result.js";
@@ -37,7 +37,7 @@ export interface Scorm12Options {
  * (rise.md §4 "Published SCORM 1.2 package", standards.md E-6).
  */
 export function scormIdentifier(course: Course, packageVersion: number): string {
-  return `${course.publish?.manifestIdentifier ?? `course-${course.id}`}_${packageVersion}`;
+  return `${manifestIdentifierOf(course)}_${packageVersion}`;
 }
 
 export function scorm12Exporter(options: Scorm12Options = {}): Exporter {

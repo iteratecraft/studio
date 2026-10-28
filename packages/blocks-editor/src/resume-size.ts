@@ -2,7 +2,7 @@
 // the largest state the player can save for the course, measured as the player stores it, against
 // what the output keeps. It brings the player's progress code and the resume codec, so the panel
 // loads it on its own, when it opens.
-import type { Course, Standard } from "@course-suite/format";
+import { type Course, nextPackageVersion, type Standard } from "@course-suite/format";
 import { largestResume } from "@course-suite/player-blocks";
 import { checkResume, encodeResume, resumeCapFor } from "@course-suite/tracking";
 
@@ -15,7 +15,7 @@ export function resumeSize(
   if (cap === undefined) return undefined;
   const state = largestResume(course);
   // The package version is kept with the state (rise.md rule 12): count the next one's digits.
-  const options = { packageVersion: String((course.publish?.packageVersion ?? 0) + 1), cap };
+  const options = { packageVersion: String(nextPackageVersion(course)), cap };
   const over = checkResume(state, options)[0];
   if (over) return { size: over.size, cap };
   const encoded = encodeResume(state, options);
