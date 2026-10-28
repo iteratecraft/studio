@@ -473,6 +473,9 @@ for (const theme of [
       );
     }
     await open(`#/lessons/${lessonOf(subject, 1).id}`);
+    // Drawn after the page loads: an empty read would pass with nothing checked.
+    await expect(page.locator(".marker").first()).toBeVisible();
+    await expect(page.locator(".process-strip-button[aria-current=step]")).toBeVisible();
     const accent = themeColors(theme).accent;
     for (const { selector, fill, text } of await pairs(page, [
       ".marker",
@@ -713,6 +716,8 @@ for (const theme of [undefined, { color: "#1b2a49" }, { color: "#ffd400" }]) {
       await write({ course: onPicture("iabuttons1", overlay, theme) });
       await page.goto("about:blank");
       await open("#/lessons/lessongate");
+      // The player draws the lesson after the page loads: read the colours once it has.
+      await expect(page.locator(".block-button").nth(2)).toBeVisible();
       const buttons = await pairs(page, [".block-button"]);
       expect(buttons.length).toBeGreaterThan(2);
       for (const button of buttons) {
@@ -722,6 +727,7 @@ for (const theme of [undefined, { color: "#1b2a49" }, { color: "#ffd400" }]) {
       await write({ course: onPicture("iaprocess1", overlay, theme) });
       await page.goto("about:blank");
       await open("#/lessons/lessongate");
+      await expect(page.locator(".process-strip-button[aria-current=step]")).toBeVisible();
       const { accent, accentText } = themeColors(theme);
       const controls = await pairs(page, [
         ".process-controls .carousel-button",
