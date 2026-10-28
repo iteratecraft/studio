@@ -142,6 +142,11 @@ export interface DraftFieldProps
   command: DraftCommand;
   /** Several lines: Enter starts a new line. */
   multiline?: boolean;
+  /**
+   * The edit for text of several lines pasted into a one-line field, one step of its own after
+   * what was typed before; without it, a paste is ordinary typing.
+   */
+  pasteLines?: (lines: string[]) => Command | Command[];
 }
 
 /** A text field of the course document that saves while typing (see the top of this file). */
@@ -149,13 +154,28 @@ export function DraftField({
   value: stored,
   command,
   multiline = false,
+  pasteLines,
   ...field
 }: DraftFieldProps) {
   const draft = useDraft(stored, command, asTyped);
+  const session = useContext(DraftSession);
   const Field = multiline ? TextArea : TextField;
   return (
     <Field
       {...field}
+      {...(pasteLines && {
+        onPaste: (event: React.ClipboardEvent<HTMLInputElement>) => {
+          const lines = event.clipboardData
+            .getData("text/plain")
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+          if (lines.length < 2) return;
+          event.preventDefault();
+          draft.end();
+          session?.editor.dispatch(pasteLines(lines));
+        },
+      })}
       value={draft.value}
       isInvalid={command(draft.value) === undefined}
       onChange={draft.change}

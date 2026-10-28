@@ -21,10 +21,12 @@ import type {
 } from "@course-suite/format";
 import {
   drawAttempt,
+  isCorrect,
   isRestricted,
   isStepped,
   quizResult,
   scoreAttempt,
+  variantSettings,
 } from "@course-suite/format";
 import type { ResumeState } from "@course-suite/tracking";
 import { type Page, pagesOf } from "./route.js";
@@ -44,9 +46,20 @@ export function requirement(block: Block): Requirement {
   return value === "block-above" || value === "all-above" ? value : "none";
 }
 
+/**
+ * A knowledge check the player shows and the learner can answer: its question is of the block's own
+ * type (M2-15). The renderer, the gates and the continue blocks read this one rule; a check without
+ * such a question shows nothing, so it never gates and is finished by being seen.
+ */
+export const answerableCheck = (block: Block): block is Block & { question: Question } =>
+  block.category === "knowledge-check" && block.question?.kind === block.variant;
+
 /** A knowledge check that must be answered right before anything below it shows (UI-BLOCKS-R25). */
 export const requiresCorrect = (block: Block) =>
-  block.category === "knowledge-check" && block.variantSettings?.requireCorrect === true;
+  answerableCheck(block) && block.variantSettings?.requireCorrect === true;
+
+/** A knowledge check's tries after a wrong answer; undefined is unlimited (UI-BLOCKS-R24). */
+const checkRetries = (block: Block) => variantSettings<{ retries?: number }>(block).retries;
 
 /** Holds back every block below it until it is done (rule 13, UI-BLOCKS-R25 and R43). */
 const isGate = (block: Block) => isContinue(block) || requiresCorrect(block);
@@ -161,15 +174,15 @@ const allItemsDone = (course: Course, block: Block, done: ReadonlySet<string>) =
 /** Finished by an action (pressing, answering, opening every part), not by being seen. */
 const needsAction = (course: Course, block: Block) =>
   isContinue(block) ||
-  block.category === "knowledge-check" ||
+  answerableCheck(block) ||
   REQUIRABLE.has(`${block.category}/${block.variant}`) ||
   lockedMedia(course, block);
 
 /**
  * Whether a continue block may wait for `block` (rise.md 3G, UI-BLOCKS-R19, R45): every block
- * finished by an action, as its type declares above (REQUIRABLE, knowledge checks, locked media),
- * and no other. Buttons, attachments and blocks finished by being seen never can. The editor reads
- * this, so a block type is offered as soon as it is declared here.
+ * finished by an action, as its type declares above (REQUIRABLE, answerable knowledge checks,
+ * locked media), and no other. Buttons, attachments and blocks finished by being seen never can.
+ * The editor reads this, so a block type is offered as soon as it is declared here.
  */
 export const canBeRequired = (course: Course, block: Block) =>
   !isContinue(block) && needsAction(course, block);
@@ -197,6 +210,18 @@ export interface Attempt {
   /** The questions of the attempt in the order shown (draws and shuffling applied). */
   questions: Question[];
   answers: Readonly<Record<string, Response>>;
+}
+
+/** Where a knowledge check stands (M2-15): the renderer and the gates read the same rule. */
+export interface CheckState {
+  /** The learner's last answer is kept. */
+  answered: boolean;
+  /** That answer is right. */
+  correct: boolean;
+  /** Answers the learner may still give; Infinity when retries are unlimited. */
+  triesLeft: number;
+  /** A retry is offered: only after a wrong answer, and only while tries remain (UI-BLOCKS-R24). */
+  canRetry: boolean;
 }
 
 export interface QuizState extends QuizResult {
@@ -232,8 +257,13 @@ export interface Progress {
    * (audio or video with forward seeking off, played to the end).
    */
   itemDone(lesson: LessonEntry, block: Block, item: string, isDone?: boolean): void;
-  /** A knowledge check was answered; a required one is done only when the answer is right. */
+  /**
+   * A knowledge check was answered; a required one is done only when the answer is right. With a
+   * retry limit each answer counts as a try, and one past the limit is ignored.
+   */
   answerCheck(lesson: LessonEntry, block: Block, response: Response, correct: boolean): void;
+  /** A knowledge check's answer and tries (UI-BLOCKS-R20, R24, R25). */
+  check(block: Block): CheckState;
   /** Whether a continue block's requirement is met (UI-BLOCKS-R44). */
   continueReady(lesson: LessonEntry, block: Block): boolean;
   /** The saved response to a question: knowledge checks and the quiz attempt in progress. */
@@ -365,6 +395,22 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     return state.passed || entry.settings?.requirePassing !== true;
   }
 
+  function checkState(block: Block): CheckState {
+    const question = block.question;
+    const response = question && answers.get(question.id);
+    const correct =
+      question !== undefined && response !== undefined && isCorrect(question, response);
+    const retries = checkRetries(block);
+    const tries = scores.get(block.id)?.length ?? 0;
+    const triesLeft = retries === undefined ? Infinity : Math.max(0, retries + 1 - tries);
+    return {
+      answered: response !== undefined,
+      correct,
+      triesLeft,
+      canRetry: response !== undefined && !correct && triesLeft > 0,
+    };
+  }
+
   const pageDone = (page: Page) => done.has(page.id);
 
   /** Holds back the pages after it even under free navigation (UI-BLOCKS-R26, R38). */
@@ -447,10 +493,17 @@ export function createProgress(course: Course, state: ResumeState = {}): Progres
     },
 
     answerCheck(lesson, block, response, correct) {
+      if (checkState(block).triesLeft === 0) return;
       if (block.question) answers.set(block.question.id, response);
+      // Tries are kept only where they are limited, as scores like a quiz's attempts.
+      if (checkRetries(block) !== undefined) {
+        scores.set(block.id, [...(scores.get(block.id) ?? []), correct ? 100 : 0]);
+      }
       if (correct || !requiresCorrect(block)) done.add(block.id);
       view(lesson);
     },
+
+    check: checkState,
 
     continueReady(lesson, block) {
       const index = lesson.blocks.indexOf(block);
@@ -591,7 +644,7 @@ export function largestResume(course: Course): ResumeState {
         .filter(
           (block) =>
             isContinue(block) ||
-            block.category === "knowledge-check" ||
+            answerableCheck(block) ||
             byItem(block) ||
             lockedMedia(course, block),
         )
@@ -609,13 +662,20 @@ export function largestResume(course: Course): ResumeState {
     draws: Object.fromEntries(
       [...drawn].map(([id, attempt]) => [id, attempt.map((question) => question.id)]),
     ),
-    attempts: Object.fromEntries(
-      quizzes.map((quiz) => {
+    attempts: Object.fromEntries([
+      ...quizzes.map((quiz) => {
         const retries = quiz.settings?.retries;
         const count = retries === undefined ? ESTIMATED_ATTEMPTS : retries + 1;
         return [quiz.id, Array.from({ length: count }, () => 100)];
       }),
-    ),
+      // Knowledge checks with a retry limit keep a score per try.
+      ...blocks.flatMap((block) => {
+        const retries = block.category === "knowledge-check" ? checkRetries(block) : undefined;
+        return retries === undefined
+          ? []
+          : [[block.id, Array.from({ length: retries + 1 }, () => 100)]];
+      }),
+    ]),
     variables: Object.fromEntries(
       quizzes.flatMap((quiz) =>
         quiz.settings?.timer ? [[quiz.id, quiz.settings.timer.minutes * 60]] : [],

@@ -95,8 +95,10 @@ export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: Lesso
     const other = { up: "down", down: "up" }[wanted.part as string];
     const target =
       wanted.part === "field"
-        ? // A media block's first step is its file: the choose button comes first.
-          (enabled(".be-drop button") ?? enabled("input, textarea, [role=textbox]"))
+        ? // A media block's first step is its file: the choose button comes first. A question's
+          // first step is its text; its picture, audio or video come after (M2-15).
+          (enabled(".be-drop:not(.be-question .be-drop) button") ??
+          enabled("input, textarea, [role=textbox]"))
         : (enabled(`[data-part=${wanted.part}]`) ??
           (other ? enabled(`[data-part=${other}]`) : null) ??
           enabled(".be-block-tools button"));

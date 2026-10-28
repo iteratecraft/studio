@@ -32,11 +32,14 @@ export function isCorrect(question: Question, response: Response | undefined): b
         correct.every((answer) => chosen.has(answer.id))
       );
     }
-    case "fill-in":
+    case "fill-in": {
+      // UI-BLOCKS-R22: capitals are ignored unless the author asks for them.
+      const same = (text: string) => typed(text, question.caseSensitive === true);
       return (
         typeof response === "string" &&
-        question.acceptedAnswers.some((accepted) => typed(accepted) === typed(response))
+        question.acceptedAnswers.some((accepted) => same(accepted) === same(response))
       );
+    }
     case "matching":
       return (
         isRecord(response) &&
@@ -47,8 +50,11 @@ export function isCorrect(question: Question, response: Response | undefined): b
   }
 }
 
-/** Typed answers match ignoring case, surrounding spaces and repeated spaces. */
-const typed = (text: string) => text.normalize("NFC").trim().replace(/\s+/gu, " ").toLowerCase();
+/** Typed answers match ignoring surrounding and repeated spaces, and case unless `exact`. */
+const typed = (text: string, exact = false) => {
+  const spaced = text.normalize("NFC").trim().replace(/\s+/gu, " ");
+  return exact ? spaced : spaced.toLowerCase();
+};
 
 const isRecord = (value: unknown): value is Readonly<Record<string, string>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

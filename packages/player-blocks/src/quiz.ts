@@ -2,11 +2,11 @@
 // L16, W12, UI-BLOCKS-R29 to R39 and R41): a start screen, one question per screen with immediate
 // feedback, results with retakes, require-passing, skip-ahead, a timer that submits at zero, and
 // random draws from question banks. Scoring and the saved attempt live in the progress engine.
-import type { QuizEntry, QuizSettings } from "@course-suite/format";
-import { DEFAULT_PASSING_SCORE, isCorrect, isPassed } from "@course-suite/format";
+import type { Question, QuizEntry, QuizSettings } from "@course-suite/format";
+import { DEFAULT_PASSING_SCORE, isCorrect, isPassed, SURFACE } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
-import { feedback, type Marks, questionView } from "./question.js";
+import { answerColors, feedback, type Marks, onAnswer, questionView } from "./question.js";
 import { type Page, pageHash } from "./route.js";
 import type { Runtime } from "./runtime.js";
 
@@ -17,6 +17,10 @@ export interface QuizContext {
   next: Page | undefined;
   /** Called after every progress change, so the outline and links follow. */
   refresh(): void;
+  /** A question's picture, audio or video, and its audio (media.ts questionMedia). */
+  media?: (question: Question) => HTMLElement | undefined;
+  /** Says something to screen readers through the page's polite status. */
+  announce?: (text: string) => void;
 }
 
 export interface QuizView {
@@ -27,11 +31,13 @@ export interface QuizView {
 
 export function quizView(
   quiz: QuizEntry,
-  { labels, runtime, next, refresh }: QuizContext,
+  { labels, runtime, next, refresh, media, announce }: QuizContext,
 ): QuizView {
   const { progress } = runtime;
   const settings: QuizSettings = quiz.settings ?? {};
   const element = h("div", { class: "quiz" });
+  // A quiz lesson is drawn on the page's white.
+  answerColors(element, SURFACE, settings.correctColor, settings.incorrectColor);
   let timer: Timer | undefined;
 
   const changed = () => {
@@ -68,12 +74,21 @@ export function quizView(
       { type: "button", class: "button" },
       labels[retake ? "quiz.retake" : "quiz.begin"],
     );
+    // Before the start the intro shows the whole time limit; the clock starts on this button, and
+    // screen readers hear the limit once then, not every second (UI-BLOCKS-R59, GL1, GL2).
+    const minutes = settings.timer?.minutes;
     begin.addEventListener("click", () => {
       progress.startAttempt(quiz);
       changed();
       question(0, true);
+      if (minutes) announce?.(formatLabel(labels, "sr.timerStarted", { minutes }));
     });
-    element.replaceChildren(h("div", { class: "actions" }, begin));
+    element.replaceChildren(
+      ...(minutes
+        ? [h("p", { class: "quiz-limit" }, formatLabel(labels, "timer.limit", { minutes }))]
+        : []),
+      h("div", { class: "actions" }, begin),
+    );
     if (focus) begin.focus();
   }
 
@@ -90,6 +105,7 @@ export function quizView(
     const last = index === total - 1;
     const view = questionView(current, labels, {
       shuffleChoices: settings.shuffleAnswers === true,
+      media: media?.(current),
     });
     const result = h("div", { class: "feedback", tabindex: -1, hidden: true });
     const submit = h("button", { type: "submit", class: "button" }, labels["quiz.submit"]);
@@ -112,8 +128,7 @@ export function quizView(
     );
     if (focus) heading.focus();
 
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
+    onAnswer(form, () => {
       if (submit.hidden) return;
       const response = view.response();
       if (response === undefined) {
@@ -172,7 +187,8 @@ export function quizView(
       skip = h(
         "a",
         { class: "button", href: pageHash(target.id) },
-        formatLabel(labels, "quiz.skipAhead", { lesson: target.title }),
+        settings.skipAhead.buttonLabel ??
+          formatLabel(labels, "quiz.skipAhead", { lesson: target.title }),
       );
       skip.addEventListener("click", () => {
         progress.skipAhead(quiz);
@@ -219,6 +235,12 @@ export function quizView(
     const limit = settings.timer && settings.timer.minutes * 60_000;
     if (!limit || timer || !progress.quiz(quiz).attempt) return;
     timer = createTimer(quiz, limit, labels, runtime, () => {
+      // Unanswered questions count wrong, and the LMS hears them so (rise.md rule 15).
+      const attempt = progress.quiz(quiz).attempt;
+      for (const left of attempt?.questions ?? []) {
+        if (!Object.hasOwn(attempt?.answers ?? {}, left.id))
+          runtime.answered(quiz, left, undefined);
+      }
       finish();
       timeUp();
     });

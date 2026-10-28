@@ -15,6 +15,7 @@ import {
 import { interactiveBlocksCourse } from "@course-suite/format/test/courses";
 import type { Page } from "@playwright/test";
 import { expectAccessible } from "./axe.ts";
+import { hex, pairs } from "./contrast.ts";
 import { continueBlock, course, lesson } from "./courses.ts";
 import { expect, test } from "./fixture.ts";
 
@@ -40,9 +41,18 @@ function gated(id: string): Course {
   );
 }
 
-const gate = (page: Page) => page.getByRole("button", { name: "Continue" });
-const expectLocked = (page: Page) => expect(gate(page)).toHaveAttribute("aria-disabled", "true");
-const expectOpen = (page: Page) => expect(gate(page)).not.toHaveAttribute("aria-disabled");
+// Until its requirement is met the continue block's hint stands in its button's place (M2-16,
+// UI-BLOCKS-R55).
+const gate = (page: Page) => page.locator("[data-block=cgate00001] .continue");
+const hint = (page: Page) => page.locator("[data-block=cgate00001] .continue-hint");
+async function expectLocked(page: Page): Promise<void> {
+  await expect(hint(page)).toBeVisible();
+  await expect(gate(page)).toBeHidden();
+}
+async function expectOpen(page: Page): Promise<void> {
+  await expect(gate(page)).toBeVisible();
+  await expect(hint(page)).toBeHidden();
+}
 
 for (const [theme, name] of [
   [undefined, "the default theme"],
@@ -436,31 +446,6 @@ test("[rise:3G] UI-BLOCKS-R52, R56: a flashcard stack waits for turned cards, no
   await expectOpen(page);
 });
 
-/** Text on the interactive blocks' fills and on the page, with the fill behind it. */
-async function pairs(page: Page, selectors: string[]) {
-  return page.evaluate((list) => {
-    const fillOf = (element: Element | null): string => {
-      for (let at = element; at; at = at.parentElement) {
-        const fill = getComputedStyle(at).backgroundColor;
-        if (fill !== "rgba(0, 0, 0, 0)" && fill !== "transparent") return fill;
-      }
-      return "rgb(255, 255, 255)";
-    };
-    return list.flatMap((selector) =>
-      [...document.querySelectorAll(selector)].map((found) => {
-        const style = getComputedStyle(found);
-        return { selector, fill: fillOf(found), text: style.color };
-      }),
-    );
-  }, selectors);
-}
-
-const hex = (color: string) =>
-  `#${(color.match(/\d+/g) ?? [])
-    .slice(0, 3)
-    .map((c) => Number(c).toString(16).padStart(2, "0"))
-    .join("")}`;
-
 for (const theme of [
   undefined,
   { color: "#ffd400" },
@@ -488,6 +473,9 @@ for (const theme of [
       );
     }
     await open(`#/lessons/${lessonOf(subject, 1).id}`);
+    // Drawn after the page loads: an empty read would pass with nothing checked.
+    await expect(page.locator(".marker").first()).toBeVisible();
+    await expect(page.locator(".process-strip-button[aria-current=step]")).toBeVisible();
     const accent = themeColors(theme).accent;
     for (const { selector, fill, text } of await pairs(page, [
       ".marker",
@@ -728,6 +716,8 @@ for (const theme of [undefined, { color: "#1b2a49" }, { color: "#ffd400" }]) {
       await write({ course: onPicture("iabuttons1", overlay, theme) });
       await page.goto("about:blank");
       await open("#/lessons/lessongate");
+      // The player draws the lesson after the page loads: read the colours once it has.
+      await expect(page.locator(".block-button").nth(2)).toBeVisible();
       const buttons = await pairs(page, [".block-button"]);
       expect(buttons.length).toBeGreaterThan(2);
       for (const button of buttons) {
@@ -737,6 +727,7 @@ for (const theme of [undefined, { color: "#1b2a49" }, { color: "#ffd400" }]) {
       await write({ course: onPicture("iaprocess1", overlay, theme) });
       await page.goto("about:blank");
       await open("#/lessons/lessongate");
+      await expect(page.locator(".process-strip-button[aria-current=step]")).toBeVisible();
       const { accent, accentText } = themeColors(theme);
       const controls = await pairs(page, [
         ".process-controls .carousel-button",

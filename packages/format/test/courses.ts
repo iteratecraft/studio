@@ -1229,3 +1229,189 @@ export function mediaCourse(): Course {
     })),
   };
 }
+
+/**
+ * Knowledge checks and a quiz lesson (M2-15, BLK-07): each question type as a knowledge check with
+ * the check options (require a right answer, a retry limit, reveal off, own colours) and every
+ * feedback mode, with a picture, audio and video on questions; and a quiz holding the same four
+ * types with its settings. Its media are stand-ins the tests write next to it.
+ */
+export function quizCourse(): Course {
+  return {
+    schemaVersion: "1.0",
+    id: PROJECT_ID,
+    kind: "course",
+    title: "Pond life",
+    sourceLanguage: "en",
+    publish: { standard: "scorm12", tracking: { kind: "quiz", quiz: "quizpond01" } },
+    entries: [
+      {
+        id: "lesschecks",
+        kind: "lesson",
+        title: "Who lives in a pond",
+        blocks: [
+          {
+            id: "blkkcsingl",
+            category: "knowledge-check",
+            variant: "single-choice",
+            variantSettings: { requireCorrect: true, retries: 1, reveal: false },
+            question: {
+              id: "qkcsingle1",
+              kind: "single-choice",
+              prompt: "<p>Which animal starts life as a tadpole?</p>",
+              media: { key: "frog.svg", alt: "A green frog on a lily pad" },
+              feedbackMode: "perAnswer",
+              answers: [
+                { id: "akcfrog001", text: "A frog", correct: true, feedback: "<p>Yes.</p>" },
+                {
+                  id: "akcduck001",
+                  text: "A duck",
+                  correct: false,
+                  feedback: "<p>No: ducks hatch.</p>",
+                },
+                { id: "akcsnail01", text: "A snail", correct: false },
+              ],
+            },
+          },
+          {
+            id: "blkparaafr",
+            category: "text",
+            variant: "paragraph",
+            items: [
+              { id: "itmparaafr", kind: "content", text: "<p>Frogs lay their eggs in spring.</p>" },
+            ],
+          },
+          {
+            id: "blkkcmulti",
+            category: "knowledge-check",
+            variant: "multiple-response",
+            variantSettings: { correctColor: "#0b6e2e", incorrectColor: "#9b1c1c" },
+            question: {
+              id: "qkcmulti01",
+              kind: "multiple-response",
+              prompt: "<p>Which of these live under water?</p>",
+              media: { key: "croak.mp3" },
+              feedbackMode: "correctness",
+              correctFeedback: "<p>Right: both breathe under water.</p>",
+              incorrectFeedback: "<p>Herons only wade.</p>",
+              answers: [
+                { id: "akcfish001", text: "A stickleback", correct: true },
+                { id: "akclarva01", text: "A dragonfly larva", correct: true },
+                { id: "akcheron01", text: "A heron", correct: false },
+              ],
+            },
+          },
+          {
+            id: "blkkcfill1",
+            category: "knowledge-check",
+            variant: "fill-in",
+            variantSettings: { retries: 0 },
+            question: {
+              id: "qkcfill001",
+              kind: "fill-in",
+              prompt: "<p>A young frog is called a ____.</p>",
+              media: { key: "pond.webm" },
+              acceptedAnswers: ["Tadpole", "Polliwog"],
+              caseSensitive: true,
+              feedbackMode: "any",
+              feedback: "<p>Tadpoles grow legs after a few weeks.</p>",
+            },
+          },
+          {
+            id: "blkkcmatch",
+            category: "knowledge-check",
+            variant: "matching",
+            question: {
+              id: "qkcmatch01",
+              kind: "matching",
+              prompt: "<p>Match each animal with what it eats.</p>",
+              pairs: [
+                { id: "pkcfrog001", prompt: "Frog", match: "Flies" },
+                { id: "pkcheron01", prompt: "Heron", match: "Fish" },
+                { id: "pkcsnail01", prompt: "Snail", match: "Algae" },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        id: "quizpond01",
+        kind: "quiz",
+        title: "Pond quiz",
+        description: "<p>Four questions about the pond.</p>",
+        settings: {
+          passingScore: 75,
+          retries: 2,
+          requirePassing: true,
+          revealAnswers: "incorrect",
+          correctColor: "#0b6e2e",
+          incorrectColor: "#9b1c1c",
+          timer: { minutes: 5, display: "elapsed-of-total", learnerCanHide: true },
+          finishButton: "continue",
+        },
+        questions: [
+          {
+            id: "qqzsingle1",
+            kind: "single-choice",
+            prompt: "<p>Where do frogs lay eggs?</p>",
+            media: { key: "frog.svg", alt: "" },
+            answers: [
+              { id: "aqzwater01", text: "In water", correct: true },
+              { id: "aqztree001", text: "In trees", correct: false },
+            ],
+          },
+          {
+            id: "qqzmulti01",
+            kind: "multiple-response",
+            prompt: "<p>Which are insects?</p>",
+            answers: [
+              { id: "aqzdragon1", text: "Dragonfly", correct: true },
+              { id: "aqzbeetle1", text: "Water beetle", correct: true },
+              { id: "aqznewt001", text: "Newt", correct: false },
+            ],
+          },
+          {
+            id: "qqzfill001",
+            kind: "fill-in",
+            prompt: "<p>Name the plant that floats with round leaves.</p>",
+            media: { key: "croak.mp3" },
+            acceptedAnswers: ["lily pad", "water lily"],
+          },
+          {
+            id: "qqzmatch01",
+            kind: "matching",
+            prompt: "<p>Match the young with the adult.</p>",
+            pairs: [
+              { id: "pqztadpole", prompt: "Tadpole", match: "Frog" },
+              { id: "pqznymph01", prompt: "Nymph", match: "Dragonfly" },
+            ],
+          },
+        ],
+      },
+      {
+        id: "lessafter1",
+        kind: "lesson",
+        title: "After the quiz",
+        blocks: [
+          {
+            id: "blkparaend",
+            category: "text",
+            variant: "paragraph",
+            items: [{ id: "itmparaend", kind: "content", text: "<p>Well done.</p>" }],
+          },
+        ],
+      },
+    ],
+    media: [
+      ["mediafrog1", "frog.svg", "image/svg+xml", 400, 300],
+      ["mediacroak", "croak.mp3", "audio/mpeg"],
+      ["mediapond1", "pond.webm", "video/webm", 640, 360],
+    ].map(([id, key, mimeType, width, height]) => ({
+      id: String(id),
+      key: String(key),
+      mimeType: String(mimeType),
+      source: "upload" as const,
+      ...(width !== undefined && { width: Number(width), height: Number(height) }),
+    })),
+  };
+}

@@ -95,7 +95,7 @@ export type Control = { name: string; label: StringKey; show?: boolean } & (
 );
 
 /** A number by slider or typed in the box beside it; the block changes when the move ends. */
-function NumberControl({
+export function NumberControl({
   label,
   unit,
   value,
@@ -126,7 +126,7 @@ function NumberControl({
 }
 
 /** A colour typed as # and six hex digits; empty puts the default back. */
-function ColorControl({
+export function ColorControl({
   label,
   description,
   value,

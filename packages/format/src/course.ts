@@ -276,6 +276,8 @@ export interface QuizSettings {
     entry: EntryRef;
     /** Let the learner choose whether to skip. Default false. */
     learnerChooses?: boolean;
+    /** The skip button's text when the learner chooses; unset, the label set's. */
+    buttonLabel?: string;
   };
   /** Ask the questions in a new random order on each attempt. Default false. */
   shuffleQuestions?: boolean;
@@ -551,9 +553,14 @@ export interface SingleChoiceQuestion {
   prompt: RichText;
   answers: Answer[];
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -563,9 +570,14 @@ export interface MultipleResponseQuestion {
   prompt: RichText;
   answers: Answer[];
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -574,10 +586,17 @@ export interface FillInQuestion {
   kind: "fill-in";
   prompt: RichText;
   acceptedAnswers: string[];
+  /** A typed answer must match an accepted answer's capitals too. Default false. */
+  caseSensitive?: boolean;
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
@@ -586,15 +605,22 @@ export interface MatchingQuestion {
   kind: "matching";
   prompt: RichText;
   pairs: MatchPair[];
+  /** The column learners see in the authored order; the other is shuffled. Default: both shuffled (blocks-interactions.md 2.12). */
+  freezeColumn?: "prompts" | "matches";
   feedbackMode?: FeedbackMode;
+  /** The one message for any response (feedbackMode any). */
+  feedback?: RichText;
   correctFeedback?: RichText;
   incorrectFeedback?: RichText;
+  /** A picture, audio or video under the prompt. */
   media?: MediaRef;
+  /** Audio played with the prompt, beside a picture or video in media (blocks-interactions.md 2.12). */
+  audio?: MediaRef;
   ext?: Ext;
 }
 
-/** Feedback by correct or incorrect, or per answer choice. */
-export type FeedbackMode = "correctness" | "perAnswer";
+/** Feedback by correct or incorrect, per answer choice (single choice), or one message for any response. Default correctness. */
+export type FeedbackMode = "correctness" | "perAnswer" | "any";
 
 export interface Answer {
   id: Id;

@@ -111,6 +111,14 @@ describe("checking a response", () => {
     expect(isCorrect(question, response)).toBe(correct);
   });
 
+  test.each([
+    ["the same capitals", "Fully closed", true],
+    ["other capitals", "fully closed", false],
+    ["extra spaces", " Fully  closed ", true],
+  ])("UI-BLOCKS-R22 (M2-15): a case-sensitive fill-in accepts %s: %s", (_name, typed, correct) => {
+    expect(isCorrect({ ...fillIn(), caseSensitive: true } as Question, typed)).toBe(correct);
+  });
+
   test.each([single(), multiple(), fillIn(), matching()])(
     "[rise:R15] an unanswered $kind question is wrong",
     (question) => {

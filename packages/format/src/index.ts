@@ -50,6 +50,7 @@ export {
 export type { BuiltinFontId, FontRole, ThemeColors } from "./theme.js";
 export {
   BUILTIN_FONTS,
+  blockSurfaces,
   contrastOf,
   cropOf,
   DEFAULT_HEADER_OVERLAY,

@@ -195,6 +195,20 @@ const DIVIDER: Record<string, Setting> = {
   start: { schema: int(1, 999), default: 1 },
 };
 
+// Knowledge checks (M2-15, BLK-07; blocks-interactions.md 2.12, A17, W10). One table for the four
+// question types, which the editor switches between, and the two kinds of bank question (BLK-14).
+const CHECK: Record<string, Setting> = {
+  // Nothing below shows until the check is answered right (UI-BLOCKS-R25).
+  requireCorrect: { schema: FLAG, default: false },
+  // Tries after a wrong answer; unset, unlimited (UI-BLOCKS-R24).
+  retries: { schema: int(0, 99) },
+  // After a wrong answer, mark the right answers too; off, only the learner's own (UI-BLOCKS-R20).
+  reveal: { schema: FLAG, default: true },
+  // The marks of right and wrong answers; unset, the player's own pair.
+  correctColor: { schema: COLOR },
+  incorrectColor: { schema: COLOR },
+};
+
 /** D-24: the continue block's settings, as the reference courses use them. */
 const CONTINUE: Record<string, Setting> = {
   // What the button waits for, its own label and the hint while it waits.
@@ -357,6 +371,16 @@ export const VARIANTS: Readonly<Record<string, Readonly<Record<string, Record<st
       ...each(BUTTONS, "button", "button-stack"),
       ...each(OPEN, "scenario", "sorting", "timeline", "slides"),
     },
+    // Knowledge checks (M2-15).
+    "knowledge-check": each(
+      CHECK,
+      "single-choice",
+      "multiple-response",
+      "fill-in",
+      "matching",
+      "bank-question",
+      "bank-draw",
+    ),
     divider: { ...each(DIVIDER, "line", "numbered", "spacer"), continue: CONTINUE },
     multimedia: {
       audio: AUDIO,

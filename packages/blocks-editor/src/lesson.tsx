@@ -1,21 +1,15 @@
 // One open lesson or quiz (blocks-editor.md L1, C11; rise.md 3B; BLK-02): the lesson switcher, the
 // lesson's own fields (title, description, the author shown on it) and its blocks, edited in place
-// (M2-10, lesson-blocks.tsx). A quiz shows where its questions go (M2-15).
+// (M2-10, lesson-blocks.tsx); or a quiz's questions and settings (M2-15, quiz.tsx).
 import type { Command } from "@course-suite/doc-ops";
 import type { Entry, LessonEntry, QuizEntry } from "@course-suite/format";
-import {
-  EmptyState,
-  ListBoxItem,
-  Select,
-  Switch,
-  type ToastQueue,
-  useStrings,
-} from "@course-suite/ui";
+import { ListBoxItem, Select, Switch, type ToastQueue, useStrings } from "@course-suite/ui";
 import { useEffect, useId, useRef } from "react";
 import { shownTitle } from "./course.js";
 import { HeaderImageField } from "./cover.js";
 import { DraftField, RichDraftField } from "./fields.js";
 import { type Clipboard, LessonBlocks } from "./lesson-blocks.js";
+import { QuizEditor } from "./quiz.js";
 import type { CourseSession } from "./session.js";
 
 const OVERVIEW = "overview";
@@ -125,7 +119,7 @@ export function LessonView({ session, entry, toasts, clipboard, onGo }: LessonVi
   );
 }
 
-/** What a lesson holds: its blocks to edit; or where a quiz's questions go. */
+/** What a lesson holds: its blocks to edit; or a quiz's questions and settings. */
 export function LessonContent({
   session,
   entry,
@@ -140,14 +134,7 @@ export function LessonContent({
   /** Opens another lesson of the course. */
   onGo?: (id: string) => void;
 }) {
-  const t = useStrings();
-  if (entry.kind === "quiz") {
-    return (
-      <EmptyState icon="quiz" title={t("quiz.pending")} level={3}>
-        {t("quiz.pendingBody")}
-      </EmptyState>
-    );
-  }
+  if (entry.kind === "quiz") return <QuizEditor session={session} quiz={entry} />;
   if (entry.kind !== "lesson") return null;
   return (
     <LessonBlocks

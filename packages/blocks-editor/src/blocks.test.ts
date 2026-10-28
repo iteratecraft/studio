@@ -1,5 +1,5 @@
 import { applyCommands } from "@course-suite/doc-ops";
-import type { Course, LessonEntry } from "@course-suite/format";
+import { type Course, type LessonEntry, VARIANTS } from "@course-suite/format";
 import { createTranslator, english, type StringKey } from "@course-suite/ui";
 import { expect, test } from "vitest";
 import { BLOCK_TYPES, GROUP_LABEL, GROUPS, idMaker, typeId } from "./blocks.js";
@@ -17,6 +17,13 @@ test("blocks-editor 3: the library lists every block type of the spec once, in i
   // 2 AI, 7 text, 5 statement, 6 quote, 3 list, 5 image, 4 gallery, 5 multimedia, 12 interactive,
   // 5 knowledge check, 1 survey, 3 chart, 4 divider, templates, code and custom.
   expect(BLOCK_TYPES).toHaveLength(65);
+});
+
+test("blocks-editor 3: every library entry of a category the format closes names one of its variants, built or not", () => {
+  for (const type of BLOCK_TYPES) {
+    const variants = VARIANTS[type.group];
+    if (variants) expect(Object.keys(variants), type.label).toContain(type.variant);
+  }
 });
 
 test("[rise:3C] blocks-editor W7, BLK-03, BLK-04: each type the player shows today makes a valid block with sample content", () => {

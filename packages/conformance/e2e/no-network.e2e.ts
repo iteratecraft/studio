@@ -32,7 +32,9 @@ const test = base.extend<object, { internet: Internet }>({
       await use(browser);
       await browser.close();
     },
-    { scope: "worker" },
+    // As Playwright's own browser fixture: closing Chromium on the Windows runner can take longer
+    // than a fixture's 30 seconds, and that is not a failure of any test.
+    { scope: "worker", timeout: 0 },
   ],
 });
 

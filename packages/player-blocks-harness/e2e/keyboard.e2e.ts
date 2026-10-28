@@ -255,12 +255,17 @@ test.describe("keyboard-only journeys", () => {
     await tabTo(page, next);
     await page.keyboard.press("Enter");
 
-    // Matching: each drop-down takes typed letters.
-    await tabTo(page, page.getByRole("combobox", { name: "Grass cuttings" }));
-    await page.keyboard.type("Green");
-    await expect(page.getByRole("combobox", { name: "Grass cuttings" })).toHaveValue("pgrass0001");
-    await page.keyboard.press("Tab");
-    await page.keyboard.type("Brown");
+    // Matching by the drop-down lists, the other way (UI-BLOCKS-R28): each takes typed letters.
+    await tabTo(page, page.getByRole("button", { name: "Answer with drop-down lists" }));
+    await page.keyboard.press("Enter");
+    // The rows are shuffled: back through both lists, each gets its own match.
+    const grass = page.getByRole("combobox", { name: "Grass cuttings" });
+    for (let i = 0; i < 2; i++) {
+      await page.keyboard.press("Shift+Tab");
+      const onGrass = await grass.evaluate((element) => element === document.activeElement);
+      await page.keyboard.type(onGrass ? "Green" : "Brown");
+    }
+    await expect(grass).toHaveValue("pgrass0001");
     await tabTo(page, submit);
     await page.keyboard.press("Enter");
     await tabTo(page, page.getByRole("button", { name: "See your result" }));

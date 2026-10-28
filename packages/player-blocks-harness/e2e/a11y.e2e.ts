@@ -48,12 +48,17 @@ const mustPass = () =>
 
 const h1 = (page: Page) => page.getByRole("heading", { level: 1 });
 
-/** Some answer: the first choice, a typed word, the first match in every drop-down. */
+/** Some answer: the first choice, a typed word, the first match in every drop-down list. */
 async function answer(form: Locator): Promise<void> {
   const choices = form.locator("input[type=radio], input[type=checkbox]");
   if ((await choices.count()) > 0) await choices.first().check();
   const typed = form.locator("input[type=text]");
   if ((await typed.count()) > 0) await typed.fill("an answer");
+  for (const lists of await form
+    .getByRole("button", { name: "Answer with drop-down lists" })
+    .all()) {
+    await lists.click();
+  }
   for (const select of await form.locator("select").all()) await select.selectOption({ index: 1 });
   await form.locator("button[type=submit]").click();
 }

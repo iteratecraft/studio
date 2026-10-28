@@ -5,9 +5,9 @@
 import type { Block, Course, Response } from "@course-suite/format";
 import {
   accentReadable,
+  blockSurfaces,
   FULL_BLEED,
   isCorrect,
-  SURFACE,
   textColor,
   textOn,
   variantSettings,
@@ -22,10 +22,11 @@ import {
   codeSnippetBlock,
   embedBlock,
   narrationOf,
+  questionMedia,
   videoBlock,
 } from "./media.js";
-import { requiresCorrect } from "./progress.js";
-import { feedback, questionView } from "./question.js";
+import { answerableCheck, type CheckState, requiresCorrect } from "./progress.js";
+import { answerColors, feedback, onAnswer, questionView } from "./question.js";
 import { icon, STATIC_RENDERERS, type StaticContext } from "./static.js";
 import { themeBackground } from "./theme.js";
 
@@ -38,6 +39,8 @@ export interface LessonHooks {
   answered(block: Block, response: Response, correct: boolean): void;
   /** The saved response to a question, to show again on return. */
   saved(questionId: string): Response | undefined;
+  /** A knowledge check's answer and tries, after `answered` (progress.ts, one rule). */
+  check(block: Block): CheckState;
   /** Runs `update` now and after every progress change. */
   watch(update: () => void): void;
   /**
@@ -87,7 +90,21 @@ const RENDERERS: Record<string, Renderer> = {
  */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
-  const staticContext = { ...context, mediaUrl: context.mediaUrl ?? mediaUrl };
+  const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
+    block.settings ?? {};
+  // A picture background the course does not hold is not drawn: the block is on the page's white.
+  const image =
+    background?.kind === "image" &&
+    context.course.media.find((media) => media.key === background.image.key);
+  const surfaces = blockSurfaces(
+    background?.kind === "image" && !image ? undefined : block.settings,
+    context.course.theme,
+  );
+  const staticContext: StaticContext = {
+    ...context,
+    mediaUrl: context.mediaUrl ?? mediaUrl,
+    surface: surfaces.cards,
+  };
   let content: HTMLElement | undefined;
   try {
     content = render?.(block, staticContext);
@@ -96,8 +113,6 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     console.error(`Block ${block.id} could not be shown`, error);
   }
   if (!content) return undefined;
-  const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
-    block.settings ?? {};
   const full = FULL_BLEED.has(`${block.category}/${block.variant}`);
   const narration = narrationOf(block, staticContext);
   const top = narration && block.settings?.narration?.position === "top";
@@ -120,9 +135,6 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   }
   // An image background with its overlay: a dark one makes the text light, a light one dark
   // (UI-BLOCKS-EDITOR-R22).
-  const image =
-    background?.kind === "image" &&
-    context.course.media.find((media) => media.key === background.image.key);
   if (background?.kind === "image" && image) {
     const dark = background.overlay !== "light";
     const alpha = Math.min(100, Math.max(0, background.opacity ?? 50));
@@ -147,16 +159,17 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     // Keep cards white (blocks-editor.md 2.4, W10 step 4): on by default.
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
+  // The accent where it keeps 4.5:1 on what it is drawn on: the block, and white cards on it; on a
+  // picture the frame keeps its white or black.
   if (accentColor) {
-    const color = fill?.color ?? SURFACE;
     const cards = frame.classList.contains("cards-white")
       ? [...frame.querySelectorAll<HTMLElement>(".check, .card")]
       : [];
     for (const [element, surface] of [
-      [frame, color] as const,
-      ...cards.map((card) => [card, SURFACE] as const),
+      [frame, surfaces.block] as const,
+      ...cards.map((card) => [card, surfaces.cards] as const),
     ]) {
-      if (!accentReadable(accentColor, surface)) continue;
+      if (surface === undefined || !accentReadable(accentColor, surface)) continue;
       element.style.setProperty("--accent", accentColor);
       element.style.setProperty("--button", accentColor);
       element.style.setProperty("--focus", accentColor);
@@ -224,14 +237,25 @@ function continueBlock(block: Block, { labels, lesson }: BlockContext): HTMLElem
   return h("div", { class: "continue-block" }, button, hint);
 }
 
+/** The settings of a knowledge check (format variants.ts, M2-15). */
+interface CheckSettings {
+  reveal: boolean;
+  correctColor?: string;
+  incorrectColor?: string;
+}
+
 /**
- * A knowledge check, answered locally (UI-BLOCKS-R20, R23 to R25). Reveal is on and retries are
- * unlimited, the defaults of the block. A required check says so above itself.
+ * A knowledge check, answered locally (UI-BLOCKS-R20 to R25, R72): its question with its picture,
+ * audio or video; after a wrong answer the right answers are marked only when reveal is on, and a
+ * retry is offered while tries remain. A required check says so above itself. Without a lesson
+ * (the editor's block previews) retries are unlimited.
  */
-function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | undefined {
+function check(block: Block, context: StaticContext): HTMLElement | undefined {
+  const { labels, lesson } = context;
+  if (!answerableCheck(block)) return undefined;
   const question = block.question;
-  if (!question || block.variant !== question.kind) return undefined;
-  const view = questionView(question, labels);
+  const settings = variantSettings<CheckSettings>(block);
+  const view = questionView(question, labels, { media: questionMedia(question, context) });
   const result = h("div", { class: "feedback", tabindex: -1, hidden: true });
   const submit = h("button", { type: "submit", class: "button" }, labels["question.check"]);
   const retry = h(
@@ -239,6 +263,7 @@ function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | un
     { type: "button", class: "button", hidden: true },
     labels["question.tryAgain"],
   );
+  const spent = h("p", { class: "check-spent", hidden: true }, labels["question.noTriesLeft"]);
   const form = h(
     "form",
     { class: "check", novalidate: true },
@@ -248,29 +273,32 @@ function check(block: Block, { labels, lesson }: BlockContext): HTMLElement | un
     view.element,
     result,
     h("div", { class: "actions" }, submit, retry),
+    spent,
   );
+  answerColors(form, context.surface, settings.correctColor, settings.incorrectColor);
 
   const show = (response: Response) => {
     const correct = isCorrect(question, response);
-    view.lock("all");
+    view.lock(correct || settings.reveal ? "all" : "own");
     result.className = `feedback ${correct ? "is-correct" : "is-wrong"}`;
     result.replaceChildren(...feedback(question, response, correct, labels));
     result.hidden = false;
     submit.hidden = true;
-    retry.hidden = correct; // UI-BLOCKS-R24: only after a wrong answer
-    return correct;
+    const state = lesson?.check(block);
+    retry.hidden = state ? !state.canRetry : correct;
+    spent.hidden = !state || correct || state.triesLeft > 0;
   };
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
+  onAnswer(form, () => {
+    if (submit.hidden) return;
     const response = view.response();
     if (response === undefined) {
       view.needAnswer();
       return;
     }
-    const correct = show(response);
+    lesson?.answered(block, response, isCorrect(question, response));
+    show(response);
     result.focus();
-    lesson?.answered(block, response, correct);
   });
 
   retry.addEventListener("click", () => {
