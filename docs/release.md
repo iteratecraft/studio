@@ -16,10 +16,15 @@ project lead tags, runs the release workflows, edits releases and sets secrets.
   `main`. It downloads the build named in `apps/desktop/src-tauri/media-tool.json` from its
   `upstream` address, checks size and SHA-256, and uploads it unchanged to the release named after
   the build (`ffmpeg-n9.0.2-…`, a pre-release that is never "latest"), then downloads it from there
-  and checks it again. The app downloads it from that release (`url`) and checks the same SHA-256,
-  so until this has run, adding a video that needs converting fails with a download error. Run it
-  again whenever the pin changes. If the mirror is ever lost, set `url` back to `upstream` in a
-  reviewed pull request: the SHA-256 stays the same, and both are GitHub releases (ADR-0004).
+  and checks it again. It builds the mirror address from the pin's `folder` and the upstream file
+  name, and prints it in its notice. Until then the app downloads from `upstream` (`url` equals it),
+  so the converter works before and after the run.
+- [ ] **Point the app at the mirror (D-49).** After that run has checked the SHA-256, change `url` in
+  `media-tool.json` to the address the run printed, in a small pull request (and the pin test in
+  `apps/desktop/test/release.test.ts` with it). The app checks the same SHA-256 either way. Run the
+  mirror again whenever the pin changes, before pointing `url` at the new build. If the mirror is
+  ever lost, set `url` back to `upstream` in a reviewed pull request: both are GitHub releases
+  (ADR-0004).
 - [ ] **Signing, when it is bought (D-2).** Desktop 0.1 ships unsigned with published checksums,
   and the workflow says so in a notice. To sign, add two repository secrets: `WINDOWS_CERTIFICATE`,
   the code-signing certificate and its key as a base64 `.pfx`

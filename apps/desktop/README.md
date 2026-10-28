@@ -100,7 +100,8 @@ NSIS into Tauri's cache (`%LOCALAPPDATA%\tauri`). The release workflow runs the 
 ## Install and uninstall
 
 Desktop 0.1 runs on Windows 10 and 11, 64-bit (D-29). It uses WebView2, which Windows already
-has; on a machine without it the installer fetches Microsoft's WebView2 setup first.
+has; on a machine without it the installer fetches Microsoft's WebView2 setup first (ADR-0004 lists
+that download, and how to install on a closed network).
 
 - **Install:** download `Course-Suite_<version>_x64-setup.exe` from the project's GitHub releases
   and check it against `SHA256SUMS.txt` from the same release: in PowerShell,

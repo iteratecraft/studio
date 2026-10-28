@@ -1,8 +1,10 @@
 # Media converter mirror (D-49, with D-12 and D-43; ADR-0004): copies the pinned FFmpeg build
 # named in apps/desktop/src-tauri/media-tool.json from its current source (`upstream`) to a release
-# of this repository named for that build, unchanged and with the same SHA-256, so the app's
-# download (`url`) no longer depends on a third party's release staying online. Started by hand
-# only, by the project lead (docs/release.md); run it again after changing the pin.
+# of this repository named for that build (`folder`), unchanged and with the same SHA-256. Once it
+# has run, a reviewed pull request points the app's download (`url`) at the mirror, so it no longer
+# depends on a third party's release staying online; until then `url` stays at `upstream`, which
+# this workflow accepts. Started by hand only, by the project lead (docs/release.md); run it again
+# after changing the pin.
 name: Mirror media converter
 
 on:
@@ -41,11 +43,12 @@ jobs:
           sha256=$(pin sha256); size=$(pin size); tag=$(pin folder)
           release=$(pin release); licence=$(pin licence); source=$(pin source); scripts=$(pin buildScripts)
           file="${upstream##*/}"
-          # The app downloads `url`: it must be this repository's release named for the build,
-          # holding the upstream file under its own name.
-          expected="https://github.com/$GH_REPO/releases/download/$tag/$file"
-          if [ "$url" != "$expected" ]; then
-            echo "::error title=Pin mismatch::media-tool.json url must be $expected"
+          # The mirror: this repository's release named for the build, holding the upstream file
+          # under its own name. It is built from the pin, never read from `url`, so the first run
+          # works while the app still downloads from `upstream`.
+          mirror="https://github.com/$GH_REPO/releases/download/$tag/$file"
+          if [ "$url" != "$upstream" ] && [ "$url" != "$mirror" ]; then
+            echo "::error title=Pin mismatch::media-tool.json url must be upstream or $mirror"
             exit 1
           fi
           # The download is accepted only with the pinned size and SHA-256.
@@ -85,7 +88,11 @@ jobs:
             fi
           fi
 
-          # What the app will download, checked the way the app checks it.
-          fetch "$url" mirrored.zip
+          # The mirrored copy, checked the way the app checks its download.
+          fetch "$mirror" mirrored.zip
           check mirrored.zip
-          echo "::notice title=Mirrored::$url (SHA-256 $sha256)"
+          if [ "$url" = "$mirror" ]; then
+            echo "::notice title=Mirrored::the app downloads $mirror (SHA-256 $sha256)"
+          else
+            echo "::notice title=Mirrored::$mirror (SHA-256 $sha256). Point media-tool.json url at it in a pull request."
+          fi
