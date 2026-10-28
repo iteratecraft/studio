@@ -10,6 +10,11 @@
 The product is Windows-first (ADR-0001). The Moodle job is the one Linux job, an exception the
 project lead approved: it only hosts Moodle, whose containers need Linux.
 
+Two more workflows never run on pull requests: `release.yml` builds the Windows installer on a `v*`
+tag or by hand, and `mirror-media-tool.yml` mirrors the media converter by hand (M2-19, D-49). Only
+the project lead runs them; see [release.md](release.md). `apps/desktop/test/release.test.ts`, part
+of `pnpm test`, pins their triggers, signing switch and draft-only release.
+
 ## Moodle end to end (M1-21)
 
 The job starts Moodle with Docker Compose, builds SCORM 1.2 packages with our exporters and the

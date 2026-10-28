@@ -1,0 +1,91 @@
+# Media converter mirror (D-49, with D-12 and D-43; ADR-0004): copies the pinned FFmpeg build
+# named in apps/desktop/src-tauri/media-tool.json from its current source (`upstream`) to a release
+# of this repository named for that build, unchanged and with the same SHA-256, so the app's
+# download (`url`) no longer depends on a third party's release staying online. Started by hand
+# only, by the project lead (docs/release.md); run it again after changing the pin.
+name: Mirror media converter
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror the pinned FFmpeg build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      # Creating the mirror release and uploading the archive.
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mirror the build
+        run: |
+          pin() { node -p "require('./apps/desktop/src-tauri/media-tool.json')['$1']"; }
+          name=$(pin name); upstream=$(pin upstream); url=$(pin url)
+          sha256=$(pin sha256); size=$(pin size); tag=$(pin folder)
+          release=$(pin release); licence=$(pin licence); source=$(pin source); scripts=$(pin buildScripts)
+          file="${upstream##*/}"
+          # The app downloads `url`: it must be this repository's release named for the build,
+          # holding the upstream file under its own name.
+          expected="https://github.com/$GH_REPO/releases/download/$tag/$file"
+          if [ "$url" != "$expected" ]; then
+            echo "::error title=Pin mismatch::media-tool.json url must be $expected"
+            exit 1
+          fi
+          # The download is accepted only with the pinned size and SHA-256.
+          check() {
+            [ "$(stat -c %s "$1")" = "$size" ] || { echo "::error::$1 is not $size bytes"; return 1; }
+            echo "$sha256 *$1" | sha256sum --check --strict
+          }
+          fetch() {
+            curl --fail --location --silent --show-error --proto =https --proto-redir =https \
+              --max-redirs 5 --output "$2" "$1"
+          }
+          work="$RUNNER_TEMP/mirror"
+          mkdir -p "$work" && cd "$work"
+
+          assets=$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+          if ! printf '%s\n' "$assets" | grep -qxF "$file"; then
+            fetch "$upstream" "$file"
+            check "$file"
+            if gh release view "$tag" > /dev/null 2>&1; then
+              gh release upload "$tag" "$file"
+            else
+              {
+                echo "An unchanged copy of the media converter that the Course Suite desktop app downloads"
+                echo "after asking, the first time an author adds audio or video that is not web-ready (D-49)."
+                echo
+                echo "- Build: $name, $release"
+                echo "- Copied from: $upstream"
+                echo "- SHA-256: \`$sha256\` ($size bytes)"
+                echo "- Licence: $licence. The archive carries its licence texts."
+                echo "- Source: $source, built with $scripts"
+                echo
+                echo "This is not a Course Suite release."
+              } > notes.md
+              # A pre-release that is never "latest", so it cannot pass for an app release.
+              gh release create "$tag" --target "$GITHUB_SHA" --title "Media converter: $tag" \
+                --notes-file notes.md --prerelease --latest=false "$file"
+            fi
+          fi
+
+          # What the app will download, checked the way the app checks it.
+          fetch "$url" mirrored.zip
+          check mirrored.zip
+          echo "::notice title=Mirrored::$url (SHA-256 $sha256)"

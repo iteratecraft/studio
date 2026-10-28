@@ -11,7 +11,8 @@
     "check:size": "node scripts/check-size.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:installer": "tauri build --ci -- --locked"
   },
   "dependencies": {
     "@course-suite/blocks-editor": "workspace:*",
@@ -27,6 +28,7 @@
     "@course-suite/format": "workspace:*",
     "@course-suite/preview": "workspace:*",
     "@playwright/test": "catalog:",
+    "@tauri-apps/cli": "2.12.2",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
