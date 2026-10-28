@@ -839,6 +839,64 @@ body,
   align-self: stretch;
 }
 
+/* Interactive blocks (M2-14): an item's media and audio, one control under another. */
+.be-item-media {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-item-media > .cs-Field,
+.be-item-media > .be-image-slot {
+  align-self: stretch;
+}
+
+/* Interactive blocks (M2-14): a labeled graphic's picture with its markers, placed by percentage. */
+.be-marker-place {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cs-space-2);
+}
+
+.be-marker-canvas {
+  position: relative;
+  align-self: stretch;
+  min-height: 120px;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  cursor: crosshair;
+}
+
+.be-marker-canvas img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.be-marker {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--cs-accent);
+  color: var(--cs-on-accent);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.7);
+  font: inherit;
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.be-marker:focus-visible {
+  outline: 3px solid var(--cs-focus);
+  outline-offset: 3px;
+}
+
 .be-warning {
   margin: 0;
   color: var(--cs-danger);

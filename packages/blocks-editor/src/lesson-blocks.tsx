@@ -49,9 +49,14 @@ export interface Clipboard {
 }
 
 /** The shortcut bar (L2): the most used types the editor has today, added at the end. */
-const SHORTCUTS = ["text/paragraph-with-heading", "divider/continue"].flatMap(
-  (key) => BLOCK_TYPES.find((type) => `${type.group}/${type.variant}` === key) ?? [],
-);
+const SHORTCUTS = [
+  "text/paragraph-with-heading",
+  // Interactive shortcuts the spec names (blocks-interactions.md A3, M2-14).
+  "interactive/labeled-graphic",
+  "interactive/process",
+  "interactive/flashcard-grid",
+  "divider/continue",
+].flatMap((key) => BLOCK_TYPES.find((type) => `${type.group}/${type.variant}` === key) ?? []);
 
 /** Where focus goes after the next render: a part of a block's row. */
 type FocusRequest = { id: string; part: "field" | "up" | "down" | "tools" | "insert" };
@@ -271,7 +276,11 @@ export function LessonBlocks({ session, lesson, toasts, clipboard, onGo }: Lesso
               const Fields = type?.Fields;
               const siblings = type?.switchable
                 ? BLOCK_TYPES.filter(
-                    (other) => other.group === type.group && other.switchable && other.create,
+                    (other) =>
+                      other.group === type.group &&
+                      other.family === type.family &&
+                      other.switchable &&
+                      other.create,
                   )
                 : [];
               return (

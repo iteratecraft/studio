@@ -27,9 +27,15 @@ const WCAG_A_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 /** One line per failing element: rule, what it asks, and where. */
 export async function violations(page: Page): Promise<string[]> {
   if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource);
-  // Wait for running animations, so colours and positions are the settled ones.
+  // Wait for running animations, so colours and positions are the settled ones; endless ones,
+  // such as an unopened marker's pulse, never settle (as in the editor's axe helper).
   await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((animation) => animation.finished)),
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    ),
   );
   const results = await page.evaluate(
     (tags) =>

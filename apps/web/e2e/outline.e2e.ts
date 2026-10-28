@@ -48,7 +48,7 @@ function workshop(): Course {
           {
             id: "blkbuttons",
             category: "interactive",
-            variant: "buttons",
+            variant: "button-stack",
             items: [
               {
                 id: "btntotools",

@@ -7,6 +7,7 @@ import { accentReadable, FULL_BLEED, isCorrect, SURFACE, textOn } from "@course-
 import type { Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
 import { fileUrl } from "./hooks.js";
+import { INTERACTIVE_RENDERERS } from "./interactive.js";
 import {
   attachmentBlock,
   audioBlock,
@@ -39,6 +40,8 @@ export interface LessonHooks {
   itemDone(block: Block, item: string, isDone?: boolean): void;
   /** Whether a block or an item is done, to show again on return. */
   isDone(id: string): boolean;
+  /** Ends the course, as the outline's exit link does: a button block's exit (M2-14). */
+  exit?(): void;
 }
 
 export interface BlockContext {
@@ -58,6 +61,8 @@ const RENDERERS: Record<string, Renderer> = {
   "knowledge-check/multiple-response": check,
   "knowledge-check/fill-in": check,
   "knowledge-check/matching": check,
+  // Interactive blocks (M2-14; interactive.ts).
+  ...INTERACTIVE_RENDERERS,
   // Multimedia blocks (M2-13; media.ts).
   "multimedia/audio": audioBlock,
   "multimedia/video": videoBlock,
@@ -118,7 +123,9 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     frame.style.backgroundImage = `linear-gradient(${tint}, ${tint}), url("${url}")`;
     frame.style.backgroundSize = "cover";
     frame.style.backgroundPosition = "center";
-    frame.classList.add("has-background", dark ? "text-light" : "text-dark");
+    // On a picture, buttons are black or white and process controls take the theme colour
+    // (UI-BLOCKS-EDITOR-R23, player.css).
+    frame.classList.add("has-background", "background-image", dark ? "text-light" : "text-dark");
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
   // Theme colour and tint follow the course theme, with its contrast (UI-BLOCKS-EDITOR-R45).
@@ -135,7 +142,7 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   if (accentColor) {
     const color = fill?.color ?? SURFACE;
     const cards = frame.classList.contains("cards-white")
-      ? [...frame.querySelectorAll<HTMLElement>(".check")]
+      ? [...frame.querySelectorAll<HTMLElement>(".check, .card")]
       : [];
     for (const [element, surface] of [
       [frame, color] as const,
