@@ -38,10 +38,12 @@ jobs:
 
       - name: Mirror the build
         run: |
-          pin() { node -p "require('./apps/desktop/src-tauri/media-tool.json')['$1']"; }
-          name=$(pin name); upstream=$(pin upstream); url=$(pin url)
-          sha256=$(pin sha256); size=$(pin size); tag=$(pin folder)
-          release=$(pin release); licence=$(pin licence); source=$(pin source); scripts=$(pin buildScripts)
+          # The pin, read by one node process, one field per line.
+          pin=$(node -p "const p = require('./apps/desktop/src-tauri/media-tool.json');
+            [p.name, p.upstream, p.url, p.sha256, p.size, p.folder, p.release, p.licence, p.source,
+             p.buildScripts].join('\n')")
+          { read -r name; read -r upstream; read -r url; read -r sha256; read -r size; read -r tag
+            read -r release; read -r licence; read -r source; read -r scripts; } <<< "$pin"
           file="${upstream##*/}"
           # The mirror: this repository's release named for the build, holding the upstream file
           # under its own name. It is built from the pin, never read from `url`, so the first run

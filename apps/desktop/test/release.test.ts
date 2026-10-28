@@ -114,6 +114,9 @@ describe("D-49: the media converter mirror", () => {
   const build = Buffer.from("a stand-in for the pinned archive\n");
   let dir = "";
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  // Each run starts bash, node and a few coreutils: about 0.3 s here, several seconds on a cold
+  // Windows runner, so these tests get more than the default 5 s.
+  const runsBash = { timeout: 60_000 };
 
   /** A checkout with the real pin apart from `changes`, and a run of the workflow's script in it. */
   const setUp = (changes: Record<string, unknown>) => {
@@ -153,50 +156,66 @@ describe("D-49: the media converter mirror", () => {
     return { run, mirrored: at("store", pin.folder, file) };
   };
 
-  test("with url still at upstream, the first run builds the mirror address from folder and the file name, uploads the build there and checks the copy", () => {
-    const { run, mirrored } = setUp({});
-    const first = run();
-    expect(first.out).toContain(`::notice title=Mirrored::${mirrorUrl} (SHA-256`);
-    expect(first.out).toContain("Point media-tool.json url at it in a pull request.");
-    expect(first.status).toBe(0);
-    expect(first.log).toEqual([
-      `fetch ${pin.upstream}`,
-      `create ${pin.folder}`,
-      `fetch ${mirrorUrl}`,
-    ]);
-    expect(readFileSync(mirrored)).toEqual(build);
+  test(
+    "with url still at upstream, the first run builds the mirror address from folder and the file name, uploads the build there and checks the copy",
+    runsBash,
+    () => {
+      const { run, mirrored } = setUp({});
+      const first = run();
+      expect(first.out).toContain(`::notice title=Mirrored::${mirrorUrl} (SHA-256`);
+      expect(first.out).toContain("Point media-tool.json url at it in a pull request.");
+      expect(first.status).toBe(0);
+      expect(first.log).toEqual([
+        `fetch ${pin.upstream}`,
+        `create ${pin.folder}`,
+        `fetch ${mirrorUrl}`,
+      ]);
+      expect(readFileSync(mirrored)).toEqual(build);
 
-    // Run again: the release holds the build, so nothing is fetched upstream or uploaded.
-    const again = run();
-    expect(again.status).toBe(0);
-    expect(again.log).toEqual([`fetch ${mirrorUrl}`]);
-  });
+      // Run again: the release holds the build, so nothing is fetched upstream or uploaded.
+      const again = run();
+      expect(again.status).toBe(0);
+      expect(again.log).toEqual([`fetch ${mirrorUrl}`]);
+    },
+  );
 
-  test("with url at the mirror (the follow-up pull request), it runs the same and says the app downloads it", () => {
-    const { run, mirrored } = setUp({ url: mirrorUrl });
-    const result = run();
-    expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
-    expect(result.status).toBe(0);
-    expect(existsSync(mirrored)).toBe(true);
-  });
+  test(
+    "with url at the mirror (the follow-up pull request), it runs the same and says the app downloads it",
+    runsBash,
+    () => {
+      const { run, mirrored } = setUp({ url: mirrorUrl });
+      const result = run();
+      expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
+      expect(result.status).toBe(0);
+      expect(existsSync(mirrored)).toBe(true);
+    },
+  );
 
-  test("a download whose SHA-256 is not the pinned one is refused and nothing is uploaded", () => {
-    const { run, mirrored } = setUp({ sha256: "0".repeat(64) });
-    const result = run();
-    expect(result.status).not.toBe(0);
-    expect(result.log).toEqual([`fetch ${pin.upstream}`]);
-    expect(existsSync(mirrored)).toBe(false);
-  });
+  test(
+    "a download whose SHA-256 is not the pinned one is refused and nothing is uploaded",
+    runsBash,
+    () => {
+      const { run, mirrored } = setUp({ sha256: "0".repeat(64) });
+      const result = run();
+      expect(result.status).not.toBe(0);
+      expect(result.log).toEqual([`fetch ${pin.upstream}`]);
+      expect(existsSync(mirrored)).toBe(false);
+    },
+  );
 
-  test("a url that is neither upstream nor the mirror is refused before anything is fetched", () => {
-    const { run } = setUp({ url: "https://example.org/ffmpeg.zip" });
-    const result = run();
-    expect(result.status).not.toBe(0);
-    expect(result.out).toContain(
-      `::error title=Pin mismatch::media-tool.json url must be upstream or ${mirrorUrl}`,
-    );
-    expect(result.log).toEqual([]);
-  });
+  test(
+    "a url that is neither upstream nor the mirror is refused before anything is fetched",
+    runsBash,
+    () => {
+      const { run } = setUp({ url: "https://example.org/ffmpeg.zip" });
+      const result = run();
+      expect(result.status).not.toBe(0);
+      expect(result.out).toContain(
+        `::error title=Pin mismatch::media-tool.json url must be upstream or ${mirrorUrl}`,
+      );
+      expect(result.log).toEqual([]);
+    },
+  );
 });
 
 describe("ADR-0004: the installer's outbound connections", () => {
