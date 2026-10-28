@@ -9,6 +9,7 @@ import type { Command, Editor } from "@course-suite/doc-ops";
 import {
   type Answer,
   accentReadable,
+  blockSurfaces,
   type FeedbackMode,
   type MatchingQuestion,
   type MatchPair,
@@ -534,13 +535,19 @@ export function CheckFields({ block, editor }: FieldsProps) {
 export const RETRY_CHOICES = ["unlimited", ...Array.from({ length: 11 }, (_, i) => i)] as const;
 
 /**
- * Where an answer colour falls short: marks are text, so it needs 4.5:1 on the white card; the
- * player then keeps its own colour. The nearest colour that passes is offered.
+ * Where an answer colour falls short: marks are text, so it needs 4.5:1 on `surface`, what the
+ * marks are drawn on (format blockSurfaces; undefined on a picture); the player then keeps its own
+ * colour. The nearest colour that passes is offered.
  */
-export function useColorWarning(color: unknown): string | undefined {
+export function useColorWarning(color: unknown, surface: string | undefined): string | undefined {
   const t = useStrings();
-  if (typeof color !== "string" || accentReadable(color, SURFACE)) return undefined;
-  return t("question.colorLow", { color: nearestReadable(color, SURFACE, 4.5) });
+  if (typeof color !== "string") return undefined;
+  if (surface === undefined) return t("question.colorOnPicture");
+  if (accentReadable(color, surface)) return undefined;
+  const nearest = nearestReadable(color, surface, 4.5);
+  return surface === SURFACE
+    ? t("question.colorLow", { color: nearest })
+    : t("question.colorLowOnBackground", { color: nearest });
 }
 
 /**
@@ -567,8 +574,10 @@ export function CheckFormat({ block, editor }: FieldsProps) {
     },
   ];
   const retries = typeof settings.retries === "number" ? settings.retries : "unlimited";
-  const lowCorrect = useColorWarning(settings.correctColor);
-  const lowIncorrect = useColorWarning(settings.incorrectColor);
+  // The marks are drawn on the check's card: white, or the block's own background when clear.
+  const surface = blockSurfaces(block.settings, editor.document.theme).cards;
+  const lowCorrect = useColorWarning(settings.correctColor, surface);
+  const lowIncorrect = useColorWarning(settings.incorrectColor, surface);
   return (
     <>
       <Select

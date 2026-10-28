@@ -3,6 +3,7 @@ import { minimalCourse } from "../test/courses.js";
 import type { Theme } from "./course.js";
 import {
   BUILTIN_FONTS,
+  blockSurfaces,
   contrastOf,
   cropOf,
   FONT_PAIRINGS,
@@ -93,6 +94,41 @@ test("the nearest passing colour is the colour itself when it passes, else the l
   const near = nearestReadable("#ff631e", "#ffffff", 4.5);
   expect(near).not.toBe("#ff631e");
   expect(contrastOf(mix("#ff631e", "#000000", 0.05), "#ffffff")).toBeLessThan(4.5);
+});
+
+test("[rise:R18] [rise:3D] blocks-editor 2.4, UI-BLOCKS-R23: a block's colours are drawn on its background, on white cards over it unless clear, and on no one colour over a picture", () => {
+  const theme: Theme = { color: "#1b2a49" };
+  const picture = { kind: "image", image: { key: "pond.svg" } } as const;
+  expect(blockSurfaces(undefined, theme)).toEqual({ block: "#ffffff", cards: "#ffffff" });
+  expect(blockSurfaces({ background: { kind: "none" }, cardStyle: "transparent" }, theme)).toEqual({
+    block: "#ffffff",
+    cards: "#ffffff",
+  });
+  const dark = { kind: "color", color: "#2b3038" } as const;
+  expect(blockSurfaces({ background: dark }, theme)).toEqual({
+    block: "#2b3038",
+    cards: "#ffffff",
+  });
+  expect(blockSurfaces({ background: dark, cardStyle: "transparent" }, theme)).toEqual({
+    block: "#2b3038",
+    cards: "#2b3038",
+  });
+  const { theme: color, tint } = themeColors(theme);
+  expect(blockSurfaces({ background: { kind: "theme" }, cardStyle: "transparent" }, theme)).toEqual(
+    { block: color, cards: color },
+  );
+  expect(blockSurfaces({ background: { kind: "tint" } }, theme)).toEqual({
+    block: tint,
+    cards: "#ffffff",
+  });
+  expect(blockSurfaces({ background: picture }, theme)).toEqual({
+    block: undefined,
+    cards: "#ffffff",
+  });
+  expect(blockSurfaces({ background: picture, cardStyle: "transparent" }, theme)).toEqual({
+    block: undefined,
+    cards: undefined,
+  });
 });
 
 test("UI-BLOCKS-EDITOR-R43 BLK-09: a layout style changes only the cover and header layouts", () => {

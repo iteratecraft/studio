@@ -10,6 +10,7 @@ import {
   type QuizEntry,
   type QuizQuestion,
   type QuizSettings,
+  SURFACE,
 } from "@course-suite/format";
 import {
   Button,
@@ -266,8 +267,9 @@ function QuizSettingsFields({ editor, quiz }: { editor: Editor; quiz: QuizEntry 
     .filter((entry) => entry.kind !== "section");
   const skip = settings.skipAhead;
   const timer = settings.timer;
-  const lowCorrect = useColorWarning(settings.correctColor);
-  const lowIncorrect = useColorWarning(settings.incorrectColor);
+  // A quiz lesson is drawn on the page's white.
+  const lowCorrect = useColorWarning(settings.correctColor, SURFACE);
+  const lowIncorrect = useColorWarning(settings.incorrectColor, SURFACE);
   const skipHelp = useId();
   return (
     <div className="be-settings be-quiz-settings">

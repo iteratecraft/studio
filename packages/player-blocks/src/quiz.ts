@@ -3,7 +3,7 @@
 // feedback, results with retakes, require-passing, skip-ahead, a timer that submits at zero, and
 // random draws from question banks. Scoring and the saved attempt live in the progress engine.
 import type { Question, QuizEntry, QuizSettings } from "@course-suite/format";
-import { DEFAULT_PASSING_SCORE, isCorrect, isPassed } from "@course-suite/format";
+import { DEFAULT_PASSING_SCORE, isCorrect, isPassed, SURFACE } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { h, uid } from "./dom.js";
 import { answerColors, feedback, type Marks, onAnswer, questionView } from "./question.js";
@@ -36,7 +36,8 @@ export function quizView(
   const { progress } = runtime;
   const settings: QuizSettings = quiz.settings ?? {};
   const element = h("div", { class: "quiz" });
-  answerColors(element, settings.correctColor, settings.incorrectColor);
+  // A quiz lesson is drawn on the page's white.
+  answerColors(element, SURFACE, settings.correctColor, settings.incorrectColor);
   let timer: Timer | undefined;
 
   const changed = () => {

@@ -12,8 +12,14 @@ import { h, linkOut, richText, uid } from "./dom.js";
 import { shownItems } from "./progress.js";
 import { pagesOf, parseRoute } from "./route.js";
 
-/** What a renderer gets: the block context with the media address resolved. */
-export type StaticContext = BlockContext & { mediaUrl: (key: string) => string };
+/**
+ * What a renderer gets: the block context with the media address resolved, and what the block's
+ * cards and knowledge check are drawn on (format blockSurfaces; undefined on a picture).
+ */
+export type StaticContext = BlockContext & {
+  mediaUrl: (key: string) => string;
+  surface: string | undefined;
+};
 type Renderer = (block: Block, context: StaticContext) => HTMLElement | undefined;
 type Contrast = "auto" | "light" | "dark";
 

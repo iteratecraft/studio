@@ -2,7 +2,7 @@
 // response, fill-in and matching (by dragging, or by drop-down lists), answered locally and marked
 // after submit (blocks-interactions.md 4, UI-BLOCKS-R20 to R23, R28 and R29).
 import type { MatchPair, Question, Response } from "@course-suite/format";
-import { accentReadable, isCorrect, SURFACE, shuffle } from "@course-suite/format";
+import { accentReadable, isCorrect, shuffle } from "@course-suite/format";
 import { formatLabel, type Labels } from "@course-suite/labels";
 import { h, richText, uid } from "./dom.js";
 
@@ -497,17 +497,19 @@ export function feedback(
 }
 
 /**
- * The author's colours for right and wrong marks (blocks-interactions.md 2.12, 2.13; rise.md 3I):
- * each one only where it keeps 4.5:1 on the white card, as the marks are text; otherwise the
- * player's own.
+ * The author's colours for right and wrong marks (blocks-interactions.md 2.12, 2.13; rise.md 3I,
+ * rule 18): each one only where it keeps 4.5:1 on `surface`, what the marks are drawn on, as they
+ * are text; otherwise the player's own. No surface (a picture): the player's own.
  */
 export function answerColors(
   element: HTMLElement,
+  surface: string | undefined,
   correct: string | undefined,
   incorrect: string | undefined,
 ): void {
-  if (correct && accentReadable(correct, SURFACE)) element.style.setProperty("--correct", correct);
-  if (incorrect && accentReadable(incorrect, SURFACE)) {
+  if (surface === undefined) return;
+  if (correct && accentReadable(correct, surface)) element.style.setProperty("--correct", correct);
+  if (incorrect && accentReadable(incorrect, surface)) {
     element.style.setProperty("--wrong", incorrect);
   }
 }

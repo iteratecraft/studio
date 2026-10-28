@@ -4,9 +4,11 @@
 // holding a check whose tries run out, and a quiz with skip-ahead keeping lessons in order, by
 // keyboard and by pointer, with axe on a light and a dark theme colour; and every colour pair of
 // the checks, the quiz result and their outline marks beside the continue button and the menus,
-// with the colours themeVariables gives random themes in each contrast mode.
+// with the colours themeVariables gives random themes in each contrast mode; and a check's own
+// answer colours on white cards, on clear cards over the block's colour, and on a picture.
 import {
   type Block,
+  type BlockSettings,
   type Course,
   contrastOf,
   type MenuStyle,
@@ -360,6 +362,125 @@ test.describe("colour pairs of the checks and the quiz beside the gates and menu
       );
     }
   }
+
+  // A check's own answer colours on what its marks are drawn on (rise.md rule 18, 3D;
+  // blocks-interactions.md 2.12; UI-BLOCKS-R23): the white card, the block's background colour
+  // through a clear card, or a picture, on which the marks stay white or black.
+  const AUTHOR = { correct: "#0b6e2e", wrong: "#9b1c1c" };
+  const PICTURE = { kind: "image", image: { key: "pond.svg" }, overlay: "dark" } as const;
+  /** A block accent that reads on white but not on a picture. */
+  const ACCENT = "#1f5fbf";
+  const SURFACES: [id: string, settings: BlockSettings | undefined, surface: string | undefined][] =
+    [
+      ["kcards0001", undefined, "#ffffff"],
+      ["kcards0002", { background: { kind: "color", color: "#1b2a49" } }, "#ffffff"],
+      [
+        "kcards0003",
+        { background: { kind: "color", color: "#1b2a49" }, cardStyle: "transparent" },
+        "#1b2a49",
+      ],
+      [
+        "kcards0004",
+        { background: { kind: "color", color: "#f2d64b" }, cardStyle: "transparent" },
+        "#f2d64b",
+      ],
+      [
+        "kcards0005",
+        { background: { kind: "color", color: "#fdf6e3" }, cardStyle: "transparent" },
+        "#fdf6e3",
+      ],
+      [
+        "kcards0006",
+        { background: { kind: "theme" }, cardStyle: "transparent" },
+        themeColors(undefined).theme,
+      ],
+      ["kcards0007", { background: PICTURE, accentColor: ACCENT }, "#ffffff"],
+      [
+        "kcards0008",
+        { background: PICTURE, cardStyle: "transparent", accentColor: ACCENT },
+        undefined,
+      ],
+    ];
+  const answerCheck = ([id, settings]: (typeof SURFACES)[number]): Block => ({
+    id,
+    category: "knowledge-check",
+    variant: "multiple-response",
+    ...(settings ? { settings } : {}),
+    variantSettings: { reveal: true, correctColor: AUTHOR.correct, incorrectColor: AUTHOR.wrong },
+    question: {
+      id: `q${id.slice(1)}`,
+      kind: "multiple-response",
+      prompt: "<p>Which of these live under water?</p>",
+      answers: [
+        { id: `f${id.slice(1)}`, text: "A stickleback", correct: true },
+        { id: `h${id.slice(1)}`, text: "A heron", correct: false },
+      ],
+    },
+  });
+
+  test("[rise:R18] [rise:3D] UI-BLOCKS-R23, blocks-interactions 2.12: a check's own right and wrong colours keep 4.5:1 on white cards and on clear cards over the block's colour; where they would not, and on a picture with clear cards, the marks keep the player's white or black, and so does the block's accent", async ({
+    write,
+    open,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await write({
+      course: course([lesson("lesscards1", "Cards", ...SURFACES.map(answerCheck))], {
+        media: [
+          {
+            id: "mediapond1",
+            key: "pond.svg",
+            source: "upload",
+            mimeType: "image/svg+xml",
+            width: 640,
+            height: 360,
+          },
+        ],
+      }),
+    });
+    await open("#/lessons/lesscards1");
+    for (const [id] of SURFACES) {
+      const form = page.locator(`[data-block="${id}"] form.check`);
+      await form.getByRole("checkbox", { name: "A heron" }).check();
+      await form.getByRole("button", { name: "Check answer" }).click();
+      await expect(form.locator(".feedback.is-wrong")).toBeVisible();
+    }
+    for (const [id, settings, surface] of SURFACES) {
+      const marks = [
+        [`[data-block="${id}"] .choice.is-wrong .mark-chosen`, AUTHOR.wrong],
+        [`[data-block="${id}"] .mark-correct`, AUTHOR.correct],
+      ] as const;
+      const found = await pairs(
+        page,
+        marks.map(([selector]) => selector),
+      );
+      expect(found, `the marks of ${id}`).toHaveLength(2);
+      for (const [selector, author] of marks) {
+        const pair = found.find((each) => each.selector === selector);
+        const text = hex(pair?.text ?? "");
+        if (surface === undefined) {
+          // On a picture behind a dark overlay, the frame's white.
+          expect(text, `${selector} on a picture`).toBe("#ffffff");
+          continue;
+        }
+        expect(hex(pair?.fill ?? ""), `${selector} is drawn on ${surface}`).toBe(surface);
+        expect(contrastOf(surface, text), `${selector} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+        // The author's colour wherever it reads; otherwise the player's own.
+        expect(text === author, `${selector} on ${surface} (${JSON.stringify(settings)})`).toBe(
+          contrastOf(author, surface) >= 4.5,
+        );
+      }
+    }
+    // The block's accent follows the same rule: on the white card, not on the picture itself.
+    const accent = (selector: string) =>
+      page
+        .locator(selector)
+        .evaluate((element) => getComputedStyle(element).getPropertyValue("--accent").trim());
+    expect(await accent('[data-block="kcards0007"] form.check')).toBe(ACCENT);
+    expect(await accent('[data-block="kcards0007"]')).toBe("#ffffff");
+    expect(await accent('[data-block="kcards0008"] form.check')).toBe("#ffffff");
+    await expectAccessible(page, "checks with their own colours on each surface", [1280]);
+  });
 
   const cases: [string, (Theme | undefined)[]][] = [
     ["the default theme and a dark theme colour", [undefined, { color: "#1b2a49" }]],

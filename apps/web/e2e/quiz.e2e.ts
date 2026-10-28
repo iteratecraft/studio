@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url";
 import { blocksPlayer, buildPackage, webExporter } from "@course-suite/exporters";
 import { nodeFonts } from "@course-suite/fonts/test/node-fonts";
 import type { Block, Course, LessonEntry, QuizEntry } from "@course-suite/format";
-import { SCHEMA_VERSION } from "@course-suite/format";
+import { nearestReadable, SCHEMA_VERSION } from "@course-suite/format";
 import { quizCourse } from "@course-suite/format/test/courses";
 import { memoryProjectFiles, openProject, readAsset } from "@course-suite/project";
 import { readZip } from "@course-suite/zip";
@@ -315,6 +315,60 @@ test.describe("knowledge checks", () => {
     ).toEqual(["Open", "Early", "Heron"]);
     for (let i = 0; i < 5; i++) await page.getByRole("button", { name: "Undo" }).click();
     await expect(check).toHaveAccessibleName(/^Single choice/);
+  });
+
+  test("[rise:R18] [rise:3D] UI-BLOCKS-R23, blocks-interactions 2.12, W10: by pointer, an answer colour is checked against what the marks are drawn on: the white card, or the block's own colour once the cards are clear", async ({
+    page,
+  }) => {
+    await openPond(page);
+    await page.getByRole("button", { name: "All blocks" }).click();
+    await page.getByRole("searchbox", { name: "Search block types" }).fill("choice");
+    await page.getByRole("option", { name: "Single choice" }).click();
+    const check = lastRow(page);
+    await expect(check.getByRole("textbox", { name: "Question" })).toBeFocused();
+    const format = page.getByRole("dialog", { name: "Format" });
+    const style = page.getByRole("dialog", { name: "Style" });
+    const warning = async () => {
+      await check.getByRole("button", { name: "Format", exact: true }).click();
+      await expect(format).toBeVisible();
+      return format.locator(".be-warning");
+    };
+    const close = async (dialog: Locator) => {
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+    };
+
+    // On the white card this green reads.
+    await warning();
+    const right = format.getByRole("textbox", { name: "Colour of right answers" });
+    await right.fill("#0b6e2e");
+    await right.press("Enter");
+    await expect(format.locator(".be-warning")).toHaveCount(0);
+    await close(format);
+
+    // A dark block colour with the cards kept white: still on white.
+    await check.getByRole("button", { name: "Style", exact: true }).click();
+    await style.getByRole("button", { name: /Background/ }).click();
+    await page.getByRole("option", { name: "Dark" }).click();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await close(style);
+    await expect(await warning()).toHaveCount(0);
+    await close(format);
+
+    // Clear cards: the marks are on the dark colour, where the green is hard to read.
+    await check.getByRole("button", { name: "Style", exact: true }).click();
+    await style.getByText("Keep cards white").click();
+    await expect(style.getByRole("switch", { name: "Keep cards white" })).not.toBeChecked();
+    await close(style);
+    await expect(await warning()).toHaveText(
+      `This colour is hard to read as text on the block's background, so learners see the standard one. ${nearestReadable("#0b6e2e", "#2b3038", 4.5)} would work.`,
+    );
+    const block = lessonIn(await saved(page), "lesspond01").blocks[1] as Block;
+    expect(block.settings).toEqual({
+      background: { kind: "color", color: "#2b3038" },
+      cardStyle: "transparent",
+    });
+    expect(block.variantSettings).toEqual({ correctColor: "#0b6e2e" });
   });
 });
 

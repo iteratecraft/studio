@@ -7,10 +7,9 @@ import {
   accentReadable,
   type Block,
   type BlockSettings,
+  blockSurfaces,
   FULL_BLEED,
   nearestReadable,
-  SURFACE,
-  themeColors,
 } from "@course-suite/format";
 import {
   Button,
@@ -277,18 +276,12 @@ export function StyleMenu({ editor, block }: { editor: Editor; block: Block }) {
   const [typed, setTyped] = useState(accent);
   useEffect(() => setTyped(accent), [accent]);
   const value = typed.trim().toLowerCase();
-  const background = settings.background;
-  const colors = themeColors(editor.document.theme);
-  const surface =
-    background?.kind === "color"
-      ? background.color
-      : background?.kind === "theme"
-        ? colors.theme
-        : background?.kind === "tint"
-          ? colors.tint
-          : SURFACE;
-  const unreadable = COLOR.test(value) && !accentReadable(value, surface);
-  const nearest = unreadable ? nearestReadable(value, surface, 4.5) : undefined;
+  // The block's own surface; on a picture, its white cards (format blockSurfaces).
+  const surfaces = blockSurfaces(settings, editor.document.theme);
+  const surface = surfaces.block ?? surfaces.cards;
+  const unreadable =
+    COLOR.test(value) && (surface === undefined || !accentReadable(value, surface));
+  const nearest = unreadable && surface ? nearestReadable(value, surface, 4.5) : undefined;
   const keepAccent = () => {
     if (value !== accent && (value === "" || COLOR.test(value))) {
       change({ accentColor: value || undefined });

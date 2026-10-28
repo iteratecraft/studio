@@ -3,8 +3,8 @@
 // draws from the theme colour. Automatic contrast keeps every generated text colour at 4.5:1 on what
 // it sits on and theme-coloured buttons at 3:1 on the page; the editor offers the nearest colour that
 // passes when the author's own choice does not.
-import { contrastRatio, luminance, textOn } from "./contrast.js";
-import type { Crop, FontRef, Theme } from "./course.js";
+import { contrastRatio, luminance, SURFACE, textOn } from "./contrast.js";
+import type { BlockSettings, Crop, FontRef, Theme } from "./course.js";
 
 /** The suggested theme colours (blocks-editor.md 2.18, T7). */
 export const THEME_COLORS = ["#4baaf4", "#285f9f", "#7837a8", "#d84738", "#ff631e", "#25bb64"];
@@ -180,6 +180,35 @@ export function themeColors(theme: Theme | undefined): ThemeColors {
     button,
     buttonText: textColor(button, contrast),
   };
+}
+
+/**
+ * What a block's own colours are drawn on (rise.md rule 18, 3D; blocks-editor.md 2.4): `block` is
+ * under the block itself, `cards` under its item cards and its knowledge check. The block's
+ * background colour, the theme colour or its tint, or the page's white; a white card on a
+ * background unless the author made the cards clear. Undefined on a picture, which is no one
+ * colour: there the player keeps its white or black. The player draws accent and answer colours
+ * only where they keep 4.5:1 on these, and the editor warns by the same rule.
+ */
+export function blockSurfaces(
+  settings: BlockSettings | undefined,
+  theme: Theme | undefined,
+): { block: string | undefined; cards: string | undefined } {
+  const background = settings?.background;
+  const colors = themeColors(theme);
+  const block =
+    background?.kind === "color"
+      ? background.color
+      : background?.kind === "theme"
+        ? colors.theme
+        : background?.kind === "tint"
+          ? colors.tint
+          : background?.kind === "image"
+            ? undefined
+            : SURFACE;
+  const filled = background !== undefined && background.kind !== "none";
+  const cards = filled && settings?.cardStyle !== "transparent" ? SURFACE : block;
+  return { block, cards };
 }
 
 /** The colour of an overlay over a cover or header image, and the text drawn on it. */

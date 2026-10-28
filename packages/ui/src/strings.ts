@@ -224,6 +224,10 @@ export const english = {
   "question.incorrectColor": "Colour of wrong answers",
   "question.colorLow":
     "This colour is too light on white for text, so learners see the standard one. {color} would work.",
+  "question.colorLowOnBackground":
+    "This colour is hard to read as text on the block's background, so learners see the standard one. {color} would work.",
+  "question.colorOnPicture":
+    "On a picture background with clear cards, marks stay white or black, so learners do not see this colour.",
   "quiz.questions": "Questions",
   "quiz.questionList": "Questions in order",
   "quiz.questionName": "{number}. {type}: {text}",

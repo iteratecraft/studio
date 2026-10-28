@@ -5,9 +5,9 @@
 import type { Block, Course, Response } from "@course-suite/format";
 import {
   accentReadable,
+  blockSurfaces,
   FULL_BLEED,
   isCorrect,
-  SURFACE,
   textColor,
   textOn,
   variantSettings,
@@ -90,7 +90,21 @@ const RENDERERS: Record<string, Renderer> = {
  */
 export function renderBlock(block: Block, context: BlockContext): HTMLElement | undefined {
   const render = RENDERERS[`${block.category}/${block.variant}`];
-  const staticContext = { ...context, mediaUrl: context.mediaUrl ?? mediaUrl };
+  const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
+    block.settings ?? {};
+  // A picture background the course does not hold is not drawn: the block is on the page's white.
+  const image =
+    background?.kind === "image" &&
+    context.course.media.find((media) => media.key === background.image.key);
+  const surfaces = blockSurfaces(
+    background?.kind === "image" && !image ? undefined : block.settings,
+    context.course.theme,
+  );
+  const staticContext: StaticContext = {
+    ...context,
+    mediaUrl: context.mediaUrl ?? mediaUrl,
+    surface: surfaces.cards,
+  };
   let content: HTMLElement | undefined;
   try {
     content = render?.(block, staticContext);
@@ -99,8 +113,6 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     console.error(`Block ${block.id} could not be shown`, error);
   }
   if (!content) return undefined;
-  const { padding, contentWidth, background, textContrast, cardStyle, accentColor } =
-    block.settings ?? {};
   const full = FULL_BLEED.has(`${block.category}/${block.variant}`);
   const narration = narrationOf(block, staticContext);
   const top = narration && block.settings?.narration?.position === "top";
@@ -123,9 +135,6 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
   }
   // An image background with its overlay: a dark one makes the text light, a light one dark
   // (UI-BLOCKS-EDITOR-R22).
-  const image =
-    background?.kind === "image" &&
-    context.course.media.find((media) => media.key === background.image.key);
   if (background?.kind === "image" && image) {
     const dark = background.overlay !== "light";
     const alpha = Math.min(100, Math.max(0, background.opacity ?? 50));
@@ -150,16 +159,17 @@ export function renderBlock(block: Block, context: BlockContext): HTMLElement | 
     // Keep cards white (blocks-editor.md 2.4, W10 step 4): on by default.
     if (cardStyle !== "transparent") frame.classList.add("cards-white");
   }
+  // The accent where it keeps 4.5:1 on what it is drawn on: the block, and white cards on it; on a
+  // picture the frame keeps its white or black.
   if (accentColor) {
-    const color = fill?.color ?? SURFACE;
     const cards = frame.classList.contains("cards-white")
       ? [...frame.querySelectorAll<HTMLElement>(".check, .card")]
       : [];
     for (const [element, surface] of [
-      [frame, color] as const,
-      ...cards.map((card) => [card, SURFACE] as const),
+      [frame, surfaces.block] as const,
+      ...cards.map((card) => [card, surfaces.cards] as const),
     ]) {
-      if (!accentReadable(accentColor, surface)) continue;
+      if (surface === undefined || !accentReadable(accentColor, surface)) continue;
       element.style.setProperty("--accent", accentColor);
       element.style.setProperty("--button", accentColor);
       element.style.setProperty("--focus", accentColor);
@@ -265,7 +275,7 @@ function check(block: Block, context: StaticContext): HTMLElement | undefined {
     h("div", { class: "actions" }, submit, retry),
     spent,
   );
-  answerColors(form, settings.correctColor, settings.incorrectColor);
+  answerColors(form, context.surface, settings.correctColor, settings.incorrectColor);
 
   const show = (response: Response) => {
     const correct = isCorrect(question, response);
