@@ -7,6 +7,7 @@
 // column kept in the author's order.
 import type { Block, Course, LessonEntry, QuizEntry, Theme } from "@course-suite/format";
 import { quizCourse } from "@course-suite/format/test/courses";
+import { decodeResume } from "@course-suite/tracking";
 import type { Page } from "@playwright/test";
 import { expectAccessible } from "./axe.ts";
 import { adapterCalls, expect, test, useHooks } from "./fixture.ts";
@@ -25,6 +26,18 @@ const THEMES = [
 ] as const;
 
 const firstCheck = (page: Page) => page.locator("form.check").first();
+
+/** The answer and the number of tries of a check in the latest resume payload the player wrote. */
+async function savedTries(page: Page, block: string, question: string) {
+  const writes = (await adapterCalls(page)).filter((call) => call.method === "writeResume");
+  const latest = writes.at(-1)?.args[0];
+  const decoded = typeof latest === "string" ? decodeResume(latest) : undefined;
+  if (decoded?.status !== "ok") return undefined;
+  return {
+    response: decoded.state.answers?.[question],
+    tries: decoded.state.attempts?.[block]?.length ?? 0,
+  };
+}
 const color = (page: Page, selector: string, name: string) =>
   page.locator(selector).evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
@@ -65,9 +78,14 @@ for (const [theme, name] of THEMES) {
     await expect(check.getByRole("button", { name: "Try again" })).toBeHidden();
     await expect(page.getByText("Frogs lay their eggs in spring.")).toBeHidden();
     await expectAccessible(page, "a required check with no tries left");
+    // The save that holds the second try, not the one after the first: a reload must not overtake
+    // the resume delay and lean on the flush when the page goes.
     await expect
-      .poll(async () => (await adapterCalls(page)).some((c) => c.method === "writeResume"))
-      .toBe(true);
+      .poll(async () => savedTries(page, "blkkcsingl", "qkcsingle1"))
+      .toEqual({
+        response: "akcsnail01",
+        tries: 2,
+      });
 
     // A new visit: the answer and the spent tries come back.
     await page.reload();
