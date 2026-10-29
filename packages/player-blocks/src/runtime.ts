@@ -64,6 +64,11 @@ export interface Runtime {
   answered(quiz: QuizEntry, question: Question, response: Response | undefined): void;
   quizSubmitted(quiz: QuizEntry, score: number): void;
   quizRetried(quiz: QuizEntry): void;
+  /**
+   * The page may be about to go away: saves the state and commits what is pending, and the session
+   * goes on (`Tracker.save`). Nothing once the session has ended.
+   */
+  save(): void;
   /** The exit link or page-hide: ends the session (standards.md rules 7-9). Later calls do nothing. */
   exit(reason: "exit" | "page-hide"): void;
 }
@@ -224,6 +229,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
     quizRetried(quiz) {
       emit({ type: "quiz-retried", quiz: quiz.id });
       changed();
+    },
+
+    save() {
+      if (ended) return;
+      changed();
+      safely(() => tracker.save());
     },
 
     exit(reason) {
