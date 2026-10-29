@@ -5,5 +5,15 @@
     "types": ["node"],
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
-  "include": ["src", "test", "e2e", "demo", "moodle", "playwright.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "e2e",
+    "demo",
+    "moodle",
+    "ilias",
+    "lrs",
+    "catapult",
+    "playwright.config.ts"
+  ]
 }

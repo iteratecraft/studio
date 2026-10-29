@@ -1,0 +1,37 @@
+{
+  "common": {
+    "client_id": "coursesuite",
+    "server_timezone": "UTC"
+  },
+  "database": {
+    "type": "innodb",
+    "host": "db",
+    "port": 3306,
+    "database": "ilias",
+    "user": "ilias",
+    "password": "ilias",
+    "create_database": false
+  },
+  "filesystem": {
+    "data_dir": "/var/www/files"
+  },
+  "http": {
+    "path": "http://localhost:8260"
+  },
+  "language": {
+    "default_language": "en",
+    "install_languages": ["en"]
+  },
+  "logging": {
+    "enable": true,
+    "path_to_logfile": "/var/www/logs/ilias.log",
+    "errorlog_dir": "/var/www/logs/"
+  },
+  "systemfolder": {
+    "contact": {
+      "firstname": "Test",
+      "lastname": "Admin",
+      "email": "admin@example.com"
+    }
+  }
+}

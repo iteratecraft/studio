@@ -7,8 +7,20 @@
 | `check (windows-latest)` | Windows | Install, build, typecheck, lint, unit tests, guards, licences, the desktop app (Rust formatting and unit tests, release build, 15 MB size gate) and the browser tests (`pnpm test:e2e`, including a launch of the built desktop app): everything in the command table of `AGENTS.md` |
 | `moodle (SCORM 1.2 end to end)` | Linux | Our SCORM 1.2 packages in a real Moodle (M1-21) |
 
-The product is Windows-first (ADR-0001). The Moodle job is the one Linux job, an exception the
-project lead approved: it only hosts Moodle, whose containers need Linux.
+The product is Windows-first (ADR-0001). The Moodle job and the host jobs below are the Linux jobs,
+an exception the project lead approved: they only host third-party servers, whose containers need
+Linux.
+
+`.github/workflows/hosts.yml` (M2-21, D-26) runs beside CI on pull requests that change what goes
+into a package (the format, labels, tracking, player, exporters, zip and fonts packages), the
+conformance harnesses, the lockfile or the workflow itself; every night on `main`; and by hand. Its
+three jobs run in parallel with each other and with CI.
+
+| Job | Runner | What it does |
+|---|---|---|
+| `ilias (SCORM 1.2 and 2004 end to end)` | Linux | Our SCORM 1.2 and SCORM 2004 packages in a real ILIAS |
+| `lrs (xAPI in SQL LRS)` | Linux | Our xAPI package against a real LRS, speaking xAPI 2.0 and 1.0.3 |
+| `catapult (cmi5 content tests)` | Linux | Our cmi5 package in ADL CATAPULT's Content Test Suite; its reports are kept as the `catapult-cts-reports` artifact |
 
 Two more workflows never run on pull requests: `release.yml` builds the Windows installer on a `v*`
 tag or by hand, and `mirror-media-tool.yml` mirrors the media converter by hand (M2-19, D-49). Only
@@ -33,8 +45,8 @@ it in Chromium with Playwright. Then it reads what Moodle recorded from its SCOR
   score, so its manifest carries a mastery score and Moodle derives passed or failed from the score
   itself; only the test LMS shows the status word the course sent.
 - **SCORM 1.2 only.** Moodle does not implement SCORM 2004 sequencing fully, and it needs plugins for
-  xAPI and cmi5 (standards.md T-4). Those standards are verified in the conformance hosts
-  (`packages/conformance/e2e/standards.e2e.ts`); SCORM 2004 in a real LMS waits for ILIAS (T-5).
+  xAPI and cmi5 (standards.md T-4). SCORM 2004 runs in ILIAS, xAPI in SQL LRS and cmi5 in
+  CATAPULT (below); the conformance hosts (`packages/conformance/e2e/standards.e2e.ts`) cover all four.
 - **On failure, or when the job runs out of time,** it uploads the `moodle-e2e` artifact:
   Playwright traces and report, and the Moodle containers' logs (web server and PHP errors,
   database). Playwright stops after 25 minutes, or on CI after three failed tests, so the upload
@@ -74,6 +86,85 @@ Moodle answers on `http://localhost:8250`; set `MOODLE_PORT` for both `moodle:up
 You can rerun `test:moodle` against the same Moodle: every test makes its own course. To look
 around, log in as `learner` / `Learner-pass-1`, or as `admin` / `Admin-pass-1`. These passwords
 belong to a throwaway local test site; never reuse them.
+
+## Hosts beyond Moodle (M2-21)
+
+Each job builds its packages the way the editor's publish panel exports them
+(`packages/conformance/test/hosts.ts`: `exportCourseOf`, so the saved settings over the panel's
+defaults) from a short quiz course with two lessons and a one-question quiz that decides passed or
+failed (`packages/conformance/test/compost.ts`). Every image is pinned by digest and every download
+by SHA-256 or commit; pick only digests published at least two weeks earlier. CI caches the
+downloads and images, keyed on the files that pin them. `THIRD_PARTY_NOTICES.md` lists each host
+and its licence; none of them ships with anything we build.
+
+### ILIAS (SCORM 1.2 and 2004)
+
+ILIAS 11.5 (the packaged release, SHA-256 in `ilias/up.ts`) on PHP 8.4 with Apache and MariaDB 11.8.
+ILIAS publishes no container image, so `ilias/Dockerfile` builds the web server from PHP's official
+image with the extensions ILIAS's installation guide asks for (all but imagick, which the SCORM
+players never use). `up.ts` unpacks the release, installs ILIAS with its command-line setup
+(`ilias/config.json`) and creates the learner; `cli.php` uploads a package as a SCORM learning module
+the way ILIAS's upload form does, and reads the learner's tracking (SCORM 1.2: `scorm_tracking`;
+SCORM 2004: `cmi_node`).
+
+- **Learner paths,** for SCORM 1.2 and SCORM 2004 each: complete a lesson, open the next, leave the
+  player for the dashboard, relaunch, resume at that lesson and pass the quiz; and fail the quiz.
+- **Checks:** after each visit, the completion and success status, bookmark, raw score and suspend
+  data ILIAS keeps equal what the conformance test LMS keeps after the same visits.
+- Run it locally: `ilias:up` (about ten minutes the first time: it builds the web server image),
+  `test:ilias`, `ilias:down`. ILIAS answers on `http://localhost:8260` (`ILIAS_PORT` for both);
+  the learner is `learner` / `Learner-pass-1`. After editing `ilias/Dockerfile`, rebuild with
+  `docker compose -f packages/conformance/ilias/compose.yaml build`.
+
+### SQL LRS (xAPI)
+
+SQL LRS 0.9.9 by Yet Analytics (Apache-2.0), chosen because it is small (one container, its own
+SQLite store, no other service), permissively licensed, runs headless, and speaks both xAPI 2.0 and
+1.0.3, which it can also be held to (`LRSQL_SUPPORTED_VERSIONS`). CATAPULT's own setup uses it too.
+`lrs/compose.yaml` starts two: one with both versions, one with 1.0.3 only.
+
+- **Learner paths,** against each LRS: complete a lesson, close the course, relaunch with the same
+  registration, resume from the LRS's State document and pass the quiz; and fail the quiz.
+- **Checks:** the statements the LRS stores for the registration are the ones the test LMS's
+  in-memory LRS receives from the same visits, in the same order, with the same verbs, objects and
+  results (passed or failed with the score); the course makes no request outside its package and
+  the LRS; the page logs no error.
+- Run it locally: `lrs:up`, `test:lrs`, `lrs:down`. The LRSs answer on `http://localhost:8270/xapi/`
+  and `http://localhost:8271/xapi/` (`LRS_PORT`, `LRS103_PORT`).
+
+### CATAPULT (cmi5)
+
+ADL CATAPULT 1.0.8 (Apache-2.0): its Content Test Suite (CTS) and the cmi5 player the CTS launches
+courses through, which checks every request an AU makes against the cmi5 requirements. `up.ts`
+checks CATAPULT out at its pinned commit and `catapult/compose.yaml` builds the CTS and the player
+with CATAPULT's own Dockerfiles (their base images pinned by digest through build contexts), with
+MySQL 8.0 as CATAPULT uses it, SQL LRS as the player's LRS and nginx giving both one origin.
+
+- **Runs:** for each of a passed and a failed quiz, the test imports the cmi5 package into the CTS,
+  starts a conformance test, launches the AU, takes the quiz and closes the course, through the
+  CTS's REST API and Chromium.
+- **Checks:** no request broke a cmi5 requirement; the cmi5-defined statements arrive in order
+  (initialized, completed, passed, terminated; or initialized, failed, terminated); the CTS reports
+  the passed AU conformant and the failed one pending, as the course moves on only when passed.
+- **Report:** the CTS's report of each test, in the shape of the file its "Download" button saves,
+  goes to `catapult/reports/` and is kept as the `catapult-cts-reports` artifact on every run.
+- Run it locally: `catapult:up` (it needs git; about ten minutes the first time: it builds both
+  images), `test:catapult`, `catapult:down`. The CTS answers on `http://localhost:8280`
+  (`CATAPULT_PORT`); sign in as `admin` / `Admin-pass-1`.
+
+## Player performance budget (M2-21)
+
+Two checks in the Windows `check` job keep the player small and quick (ENG-04, D-26):
+
+- **Size:** `packages/exporters/src/player-budget.test.ts` (in `pnpm test`) fails when the player
+  script or style sheet, gzip-compressed, grows past its budget: 87 KiB and 13 KiB, the sizes on
+  2026-10-29 (76,930 B and 11,130 B) plus 15 %.
+- **First render and memory:** `packages/conformance/e2e/performance.e2e.ts` (in `pnpm test:e2e`)
+  opens a large course from disk (100 lessons, 820 blocks) three times and fails when the median
+  time until its cover is in the page, or the JavaScript heap in use then, exceeds its budget. Each
+  run prints what it measured.
+
+Raise a budget only with a reviewed reason in the pull request.
 
 ## Course corpus in CI
 

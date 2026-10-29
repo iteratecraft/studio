@@ -17,7 +17,16 @@
     "test:e2e": "playwright test",
     "moodle:up": "node moodle/up.ts",
     "moodle:down": "docker compose -f moodle/compose.yaml down --volumes",
-    "test:moodle": "playwright test -c moodle"
+    "test:moodle": "playwright test -c moodle",
+    "ilias:up": "node ilias/up.ts",
+    "ilias:down": "docker compose -f ilias/compose.yaml down --volumes",
+    "test:ilias": "playwright test -c ilias",
+    "lrs:up": "docker compose -f lrs/compose.yaml up --detach --wait",
+    "lrs:down": "docker compose -f lrs/compose.yaml down --volumes",
+    "test:lrs": "playwright test -c lrs",
+    "catapult:up": "node catapult/up.ts",
+    "catapult:down": "docker compose -f catapult/compose.yaml down --volumes",
+    "test:catapult": "playwright test -c catapult"
   },
   "dependencies": {
     "@course-suite/zip": "workspace:*",

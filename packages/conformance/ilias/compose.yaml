@@ -1,0 +1,58 @@
+# ILIAS for the end-to-end job (M2-21, standards.md T-5): ILIAS 11.5 on PHP 8.4 (Dockerfile) with
+# MariaDB 11.8, the newest it supports. Start it with
+# `pnpm --filter @course-suite/conformance ilias:up`, which downloads and checks the ILIAS release
+# into .cache/ first; see docs/ci.md. Images are pinned by digest; bump a digest only to one
+# published at least two weeks earlier.
+name: course-suite-ilias
+
+services:
+  db:
+    image: mariadb:11.8.8-noble@sha256:24e76fcec8c003a0362d0dd53f4806e7e79458d7fdeaf47437760e19496f5a9c
+    # ILIAS supports 3-byte UTF-8 only and needs strict SQL mode off (its installation guide).
+    command:
+      - --character-set-server=utf8mb3
+      - --collation-server=utf8mb3_general_ci
+      - --sql-mode=NO_ENGINE_SUBSTITUTION
+    environment:
+      MARIADB_DATABASE: ilias
+      MARIADB_USER: ilias
+      MARIADB_PASSWORD: ilias
+      MARIADB_ROOT_PASSWORD: ilias-root
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  # Unpacks the ILIAS release into the shared volume, beside the folders for its files and logs, all
+  # owned by the web server's user, then exits.
+  code:
+    build: .
+    image: course-suite-ilias-web
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        test -f /var/www/ilias/ilias_version.php
+        || (mkdir -p /var/www/ilias && tar -xzf /cache/ilias.tgz --strip-components=1 -C /var/www/ilias);
+        mkdir -p /var/www/files /var/www/logs && chown -R www-data:www-data /var/www
+    volumes:
+      - www:/var/www
+      - ./.cache/ilias.tgz:/cache/ilias.tgz:ro
+
+  webserver:
+    build: .
+    image: course-suite-ilias-web
+    depends_on:
+      db:
+        condition: service_healthy
+      code:
+        condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:${ILIAS_PORT:-8260}:80
+    volumes:
+      - www:/var/www
+      - ./:/harness:ro
+
+volumes:
+  www:
