@@ -432,8 +432,8 @@ Wave I, release:
 
 - [x] **M2-18** Publish settings panel, responsive preview and export (BLK-10, STD-08)
 - [x] **M2-19** Windows installer on tag, signing wired but skipped without secrets (M0-08, D-2)
-- [ ] **M2-20** Auto-update from GitHub Releases with signed metadata (M0-09)
-- [ ] **M2-21** Carried from M1 (D-26): ILIAS, an open-source LRS, CATAPULT cmi5 content tests, player performance budget
+- [x] **M2-20** Auto-update from GitHub Releases with signed metadata (M0-09)
+- [x] **M2-21** Carried from M1 (D-26): ILIAS, an open-source LRS, CATAPULT cmi5 content tests, player performance budget
 - [ ] **M2-22** User guide, release notes and the Desktop 0.1 exit review (ENG-40 start)
 
 ## Top risks
@@ -504,7 +504,7 @@ Wave I, release:
 | D-46 | Quiz flow (not in the spec) | **Decided 2026-10-26:** one question per page, submit, feedback, then a results page with retry | done |
 | D-47 | Converted media format (with D-12) | **Decided 2026-10-27:** video is converted to WebM (VP9 + Opus) and audio to MP3, royalty-free and possible with the LGPL build; uploaded MP4 H.264 is kept as it is | done |
 | D-48 | Largest single media file | **Decided 2026-10-27:** 2 GiB now; 5 GB once the project container supports ZIP64 and streams entries | done |
-| D-49 | ffmpeg download source (with D-43) | **Decided 2026-10-27:** mirror the pinned build to an iteratecraft GitHub release before Desktop 0.1 (M2-19); the SHA-256 stays the same | open until the lead runs the mirror job (docs/release.md) |
+| D-49 | ffmpeg download source (with D-43) | **Decided 2026-10-27:** mirror the pinned build to an iteratecraft GitHub release before Desktop 0.1 (M2-19); the SHA-256 stays the same; the mirror ran on 2026-10-29 and the app downloads from it, with the upstream release as the documented fallback | done |
 | D-50 | Default font when the author picks none | **Decided 2026-10-27:** the device's own fonts, so exports carry no font files | done |
 | D-51 | Rich-text styling (font, size, colour, line height, letter spacing, alignment, bullet style, indent) | **Decided 2026-10-27:** a closed set of named styles stored in the format, never free CSS; built in M2b | open (M2b) |
 | D-52 | Waves for deferred media items | **Decided 2026-10-27:** crop and alignment, video and embed width, video chapters, recorded narration in M2b; SRT, SBV and SUB caption import with SLD-10 in M5b; AI captions with LOC-09 in M6; AI speech with LOC-08 in M6b | done |
@@ -521,6 +521,13 @@ Wave I, release:
 | D-63 | Hide the cover page per output | **Decided 2026-10-29:** one switch for every output; the spec keeps separate web and LMS values | done |
 | D-64 | xAPI and cmi5 activity identifier | **Decided 2026-10-29:** the full activity address, checked as it is typed; the spec instead adds http:// to a bare name | done |
 | D-65 | Wave I layout | **Decided 2026-10-29:** two tasks side by side (publish and export; Windows installer), then review, fix round and re-review | done |
+| D-66 | Open-source LRS for the xAPI and cmi5 jobs | **Decided 2026-10-29:** SQL LRS by Yet Analytics (Apache-2.0): small, headless in one container, and the LRS behind the CATAPULT job too | done |
+| D-67 | When the ILIAS, LRS and CATAPULT jobs run | **Decided 2026-10-29:** in parallel with the Windows check, on pull requests that change what goes into exported packages, nightly on main and by hand; every image pinned by digest, nothing of theirs shipped | done |
+| D-68 | Player performance budget | **Decided 2026-10-29:** set from the windows-latest runner: heap 3.5 MB (today plus 15 %); median of 5 loads for main-thread time 380 ms, script time 50 ms and time to the cover 340 ms; script and style sheet size in gzip; the numbers live in docs/ci.md | done |
+| D-69 | How an update installs | **Decided 2026-10-29:** the app downloads and verifies the update first, then saves the open work or asks Save, Don’t save or Cancel, then installs in passive mode (a progress bar, no questions); a manual check works with automatic checks off; the once-a-day clock starts when a check starts; an admin switch that forces updates off is left to TEAM-19 | done |
+| D-70 | A release without the update signing secret | **Decided 2026-10-29:** still releases, without the update file and with a warning that installed apps are not offered it; a secret with no public key in the app stops the run | done |
+| D-71 | Update signing key | **Decided 2026-10-29:** made by the lead on 2026-10-29 (minisign key ID 984C19E090B8059B); its public key is built in from 0.1.0; the private key and password stay offline and in repository secrets, and losing them means every author reinstalls by hand | done |
+| D-72 | Wave J layout | **Decided 2026-10-29:** two tasks side by side (auto-update; hosts and performance budget), then review, fix round and re-review | done |
 
 ## How to read the backlog
 
