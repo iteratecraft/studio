@@ -3,6 +3,7 @@
 // later waves; under it the course overview (title, author, description and the outline), one open
 // lesson, the theme panel, or the preview of the course in the real player.
 import { type Entry, lessonLink } from "@course-suite/format";
+import type { HostInterface } from "@course-suite/host";
 import {
   Button,
   IconButton,
@@ -15,11 +16,13 @@ import {
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEFAULT_LANGUAGE, languageCode, shownTitle, TITLE_MAX } from "./course.js";
 import { CoverImageField } from "./cover.js";
+import type { Exports } from "./export.js";
 import { DraftField, DraftSession, LinkTargets, RichDraftField } from "./fields.js";
 import type { FontLibrary } from "./fonts.js";
 import { LessonContent, LessonView } from "./lesson.js";
 import type { Clipboard } from "./lesson-blocks.js";
 import { Outline } from "./outline.js";
+import { PublishView } from "./publish.js";
 import type { CourseSession } from "./session.js";
 import { ThemeView } from "./theme.js";
 
@@ -42,10 +45,14 @@ type View =
   | { kind: "overview"; from?: string }
   | { kind: "entry"; id: string }
   | { kind: "preview"; start?: string }
-  | { kind: "theme" };
+  | { kind: "theme" }
+  | { kind: "publish" };
 
 export interface EditorFrameProps {
   session: CourseSession;
+  host: HostInterface;
+  /** The app's exports (M2-18); without them the publish panel cannot export. */
+  exports: Exports | undefined;
   toasts: ToastQueue;
   onSave: () => void;
   onSaveAs: () => void;
@@ -60,6 +67,8 @@ export interface EditorFrameProps {
 
 export function EditorFrame({
   session,
+  host,
+  exports,
   toasts,
   onSave,
   onSaveAs,
@@ -171,7 +180,7 @@ export function EditorFrame({
                 {t("editor.saveAs")}
               </Button>
               <ToolbarSeparator />
-              {/* T1, W20: the theme panel beside the course in the real player. Publish: M2-18. */}
+              {/* T1, W20: the theme panel beside the course in the real player. */}
               <Button
                 variant="quiet"
                 isDisabled={view.kind === "theme"}
@@ -191,7 +200,12 @@ export function EditorFrame({
               >
                 {t("editor.preview")}
               </Button>
-              <Button variant="primary" isDisabled>
+              {/* A8, A9, A11 (M2-18): the publish settings and export. */}
+              <Button
+                variant="primary"
+                isDisabled={view.kind === "publish"}
+                onPress={() => go({ kind: "publish" })}
+              >
                 {t("editor.publish")}
               </Button>
             </Toolbar>
@@ -202,6 +216,15 @@ export function EditorFrame({
               library={library}
               fonts={library.source}
               media={session.media}
+              toasts={toasts}
+              onClose={() => go({ kind: "overview" })}
+            />
+          ) : view.kind === "publish" ? (
+            <PublishView
+              session={session}
+              host={host}
+              exports={exports}
+              fonts={library.source}
               toasts={toasts}
               onClose={() => go({ kind: "overview" })}
             />

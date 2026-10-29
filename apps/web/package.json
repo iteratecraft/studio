@@ -16,6 +16,7 @@
     "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/host": "workspace:*",
+    "@course-suite/jobs": "workspace:*",
     "@course-suite/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"

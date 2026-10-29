@@ -2,7 +2,7 @@
 // wired to the tracking core with the Blocks profile (rise.md rules 2-8; standards.md §5 rules 3-9
 // and 17). No DOM: the shell calls it, so tests run it under a fake clock.
 import type { Course, Question, QuizEntry, Response } from "@course-suite/format";
-import { isPassed, toInteraction } from "@course-suite/format";
+import { completionThreshold, isPassed, toInteraction } from "@course-suite/format";
 import {
   type Clock,
   createTracker,
@@ -110,11 +110,21 @@ export async function startRuntime(options: RuntimeOptions): Promise<Runtime> {
   let bookmark: string | undefined;
   try {
     const session = await tracker.start();
+    // Reset on update (rise.md rule 12, UI-PUBCOLLAB-R16): progress saved by another version of
+    // the package starts again, bookmark included; quiz results stay (blocks-publish-collab.md 2.2).
+    const reset =
+      course.publish?.resetOnUpdate === true &&
+      session.resume.status === "ok" &&
+      session.resume.packageVersion !== options.packageVersion;
     if (session.resume.status === "ok") {
       const ids = idsOf(course);
-      saved = pruneResume(session.resume.state, (id) => ids.has(id));
+      const state = session.resume.state;
+      saved = pruneResume(
+        reset ? (state.attempts ? { attempts: state.attempts } : {}) : state,
+        (id) => ids.has(id),
+      );
     }
-    bookmark = session.location;
+    if (!reset) bookmark = session.location;
   } catch (error) {
     failed(error);
   }
@@ -249,7 +259,11 @@ export function courseStatus(course: Course, progress: Progress): Partial<Status
       ? { completion: "incomplete", success: "failed", score, progress: share }
       : { completion: "incomplete", score, progress: share };
   }
-  if (!progress.courseDone()) return { completion: "incomplete", progress: share };
+  // The threshold counts whole lessons: the course completes with the lesson that reaches it
+  // (rise.md rule 6, UI-PUBCOLLAB-R20). A microlearning completes at 100 % only (rule 16).
+  const threshold = completionThreshold(course);
+  const done = threshold < 100 ? progress.coursePercent() >= threshold : progress.courseDone();
+  if (!done) return { completion: "incomplete", progress: share };
   return wording?.done === "passed"
     ? { completion: "completed", success: "passed", progress: share }
     : { completion: "completed", progress: share };

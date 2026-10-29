@@ -138,7 +138,24 @@ function boot(): void {
       // course keeps nothing (rise.md §4 "Published web package", ADR-0005): the debug adapter
       // holds the session in memory, and only a test hands it a storage.
       const memory = createMemoryAdapter(hooks?.storage ? { storage: hooks.storage } : {});
-      const adapter = connect(data) ?? memory;
+      const connected = connect(data);
+      // LMS-only launch (UI-PUBCOLLAB-R17, standards.md P-5): a learning-system package that finds
+      // none, and was not opened from disk, shows one line instead of the course and sends nothing.
+      if (
+        connected === undefined &&
+        data.course.publish?.lmsOnly === true &&
+        data.standard !== undefined &&
+        data.standard !== "web" &&
+        location.protocol !== "file:"
+      ) {
+        const message = labels["error.lmsOnly"];
+        root.replaceChildren(
+          h("main", { class: "load-error" }, h("p", { role: "alert" }, message)),
+        );
+        document.title = message;
+        return;
+      }
+      const adapter = connected ?? memory;
       return startRuntime({
         course: data.course,
         adapter,

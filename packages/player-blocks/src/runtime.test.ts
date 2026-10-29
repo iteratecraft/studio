@@ -60,6 +60,7 @@ function mapStorage(): KeyValueStorage & { items: Map<string, string> } {
 async function setup(
   courseValue: RuntimeOptions["course"],
   adapterOptions: MemoryAdapterOptions = {},
+  packageVersion = "1",
 ) {
   const clock = fakeClock();
   const adapter = createMemoryAdapter(adapterOptions);
@@ -67,7 +68,7 @@ async function setup(
     course: courseValue,
     adapter,
     clock,
-    packageVersion: "1",
+    packageVersion,
     resumeCap: RESUME_CAPS.scorm12,
   });
   const events: TimedEvent[] = [];
@@ -180,6 +181,38 @@ describe("completion model", () => {
       success: "passed",
       progress: 1,
     });
+  });
+
+  test("[rise:R6] UI-PUBCOLLAB-R20: a completion threshold completes the course with the lesson that reaches it", async () => {
+    const list = [lesson(text()), lesson(text()), lesson(text()), lesson(text())];
+    const half = course(list, {
+      publish: { standard: "scorm12", tracking: { kind: "completion", threshold: 50 } },
+    });
+    const { runtime, calls } = await setup(half);
+    runtime.enter(list[0] as LessonEntry);
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({ completion: "incomplete" });
+    runtime.enter(list[1] as LessonEntry);
+    // Two of four lessons: 50 %, and never a partial percent as the status (UI-PUBCOLLAB-R20).
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({
+      completion: "completed",
+      progress: 0.5,
+    });
+  });
+
+  test("[rise:3M] [rise:R16] a microlearning completes at 100 % viewed only, whatever threshold it holds", async () => {
+    const list = [lesson(text()), lesson(text())];
+    const micro = course(list, {
+      kind: "microlearning",
+      publish: { standard: "scorm12", tracking: { kind: "completion", threshold: 50 } },
+    });
+    const { runtime, calls } = await setup(micro);
+    runtime.enter(list[0] as LessonEntry);
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({
+      completion: "incomplete",
+      progress: 0.5,
+    });
+    runtime.enter(list[1] as LessonEntry);
+    expect(calls("reportStatus").at(-1)?.args[0]).toMatchObject({ completion: "completed" });
   });
 
   test("[rise:R7] [rise:R8] quiz tracking: failed only with a 'failed' wording, never after a pass; best score sent", async () => {
@@ -325,6 +358,36 @@ describe("resume", () => {
     expect(second.runtime.resumeAt).toBe(entry);
     expect(second.runtime.progress.status(list[0] as LessonEntry)).toBe("done");
     expect(second.runtime.progress.quiz(entry).attempt?.questions).toEqual(attempt.questions);
+  });
+
+  test("[rise:R12] UI-PUBCOLLAB-R16: with reset on update, progress saved by another package version starts again; quiz results stay", async () => {
+    const storage = mapStorage();
+    const entry = quiz(1);
+    const list = [lesson(text()), entry, lesson(text())];
+    const reset = course(list, { publish: { standard: "scorm12", resetOnUpdate: true } });
+    const first = await setup(reset, { storage }, "1");
+    first.runtime.enter(list[0] as LessonEntry);
+    first.runtime.enter(entry);
+    first.runtime.progress.startAttempt(entry);
+    first.runtime.quizSubmitted(entry, first.runtime.progress.submitAttempt(entry).percent);
+    first.runtime.exit("page-hide");
+
+    // The same package again: the learner resumes.
+    const same = await setup(reset, { storage }, "1");
+    expect(same.runtime.resumeAt).toBe(entry);
+    same.runtime.exit("page-hide");
+
+    // An update: bookmark and lesson progress are gone, the quiz's score is kept.
+    const updated = await setup(reset, { storage }, "2");
+    expect(updated.runtime.resumeAt).toBeUndefined();
+    expect(updated.runtime.progress.status(list[0] as LessonEntry)).toBe("not-started");
+    expect(updated.runtime.progress.quiz(entry).scores).toHaveLength(1);
+    updated.runtime.exit("page-hide");
+
+    // Without the switch an update resumes as before.
+    const kept = await setup({ ...reset, publish: { standard: "scorm12" } }, { storage }, "3");
+    expect(kept.runtime.progress.quiz(entry).scores).toHaveLength(1);
+    expect(kept.calls("initialize")).toHaveLength(1);
   });
 
   test("a stored state that is not ours is ignored and the course starts fresh", async () => {

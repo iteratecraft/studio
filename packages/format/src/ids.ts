@@ -1,5 +1,6 @@
 // Id minting (ADR-0002, "Ids").
 import type { Course } from "./course.js";
+import { activityIdOf } from "./publish.js";
 
 // The format package has no DOM or Node typings; Web Crypto is global in both.
 const webCrypto = () =>
@@ -39,7 +40,7 @@ export function withNewProjectId(course: Course): Course {
  * Built only from stable ids, so every republish keeps them and a text edit never changes them.
  */
 export function activityIri(course: Course, ...ids: string[]): string {
-  const base = course.publish?.activityId ?? `urn:uuid:${course.id}`;
+  const base = activityIdOf(course);
   return ids.length === 0 ? base : [base.replace(/\/+$/, ""), ...ids].join("/");
 }
 

@@ -38,6 +38,11 @@
       "$ref": "#/$defs/ExternalRef"
     },
     "publish": { "$ref": "#/$defs/PublishSettings" },
+    "packageVersion": {
+      "description": "Version of the last package exported or being exported; the next export is one higher. A record of exports, not a setting: the editor changes it outside the undo history.",
+      "type": "integer",
+      "minimum": 1
+    },
     "navigation": {
       "description": "How learners move through the course. Every setting is optional; the default is given with each.",
       "type": "object",
@@ -363,7 +368,15 @@
           "oneOf": [
             {
               "type": "object",
-              "properties": { "kind": { "const": "completion" } },
+              "properties": {
+                "kind": { "const": "completion" },
+                "threshold": {
+                  "description": "Percent of the lessons done that completes the course. Default 100.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                }
+              },
               "required": ["kind"],
               "unevaluatedProperties": false
             },
@@ -401,6 +414,18 @@
           ]
         },
         "lom": { "$ref": "#/$defs/LomMetadata" },
+        "resetOnUpdate": {
+          "description": "At launch, a learner whose progress was saved by another package version starts again: bookmark and lesson progress are cleared, quiz results stay. Default false.",
+          "type": "boolean"
+        },
+        "lmsOnly": {
+          "description": "Opened outside a learning system, and not from disk, the course shows an error instead of running. Default false.",
+          "type": "boolean"
+        },
+        "webSkipCover": {
+          "description": "Web package: open on the first lesson, without the cover page. Kept apart from the theme's cover setting, which LMS packages and the preview use. Default false.",
+          "type": "boolean"
+        },
         "exitLink": {
           "description": "Show an exit-course link in the course menu. Default false.",
           "type": "boolean"

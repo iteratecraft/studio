@@ -30,7 +30,9 @@ at a time in the editor.
   shows where a web embed plays without loading it. For the course theme (M2-17, ENG-08)
   `font-src` adds `blob:` for the fonts the preview frame holds in memory, and `connect-src` adds
   `'self'` so the editor can read the bytes of its own bundled fonts (`fetch` of the app's files)
-  to put them in the preview and in exported packages; it reaches no other origin.
+  to put them in the preview and in exported packages; it reaches no other origin. Export (M2-18)
+  builds each package in a Web Worker loaded from the app's own files (`worker-src` falls back to
+  `script-src 'self'`), so the policy needs no change for it.
 - **Commands:** app name and version, the open and save dialogs, the shell's own file commands
   (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
   `list_folder`), the media converter's commands (`media_converter`, `media_install`,

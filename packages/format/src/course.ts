@@ -21,6 +21,8 @@ export interface Course {
   /** Reserved: translation glossary, owned by another container. */
   glossaryRef?: ExternalRef;
   publish?: PublishSettings;
+  /** Version of the last package exported or being exported; the next export is one higher. A record of exports, not a setting: the editor changes it outside the undo history. */
+  packageVersion?: number;
   /** How learners move through the course. Every setting is optional; the default is given with each. */
   navigation?: {
     /** Lessons open only in order, each once the one before it is done; turns off learner mark-done. Default false; any quiz with skip-ahead turns it on. */
@@ -199,6 +201,8 @@ export interface PublishSettings {
   tracking?:
     | {
         kind: "completion";
+        /** Percent of the lessons done that completes the course. Default 100. */
+        threshold?: number;
       }
     | {
         kind: "quiz";
@@ -211,6 +215,12 @@ export interface PublishSettings {
   /** cmi5: what the LMS waits for before it counts the course as done. Default Passed when a quiz decides the result, otherwise Completed. */
   moveOn?: "Passed" | "Completed" | "CompletedAndPassed" | "CompletedOrPassed" | "NotApplicable";
   lom?: LomMetadata;
+  /** At launch, a learner whose progress was saved by another package version starts again: bookmark and lesson progress are cleared, quiz results stay. Default false. */
+  resetOnUpdate?: boolean;
+  /** Opened outside a learning system, and not from disk, the course shows an error instead of running. Default false. */
+  lmsOnly?: boolean;
+  /** Web package: open on the first lesson, without the cover page. Kept apart from the theme's cover setting, which LMS packages and the preview use. Default false. */
+  webSkipCover?: boolean;
   /** Show an exit-course link in the course menu. Default false. */
   exitLink?: boolean;
 }

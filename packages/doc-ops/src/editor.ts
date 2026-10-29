@@ -20,6 +20,16 @@ export interface EditorOptions {
   historyLimit?: number;
 }
 
+export interface DispatchOptions {
+  /**
+   * false: the change makes no undo step and leaves the undo and redo steps as they are, for a
+   * record the author does not edit, such as the version of the last exported package. Undo and
+   * redo replay their own ops by path, so keep such changes to properties no undoable command
+   * writes, or to values an undo may replace without harm. Default true.
+   */
+  history?: boolean;
+}
+
 export interface Editor {
   /** The current document. Never change it: every edit makes a new one, sharing what it kept. */
   readonly document: Course;
@@ -27,7 +37,7 @@ export interface Editor {
    * Applies one command, or a list of them as one unit: all or nothing, one undo step, one change
    * event. A rejected list changes nothing.
    */
-  dispatch(commands: Command | readonly Command[]): ApplyResult;
+  dispatch(commands: Command | readonly Command[], options?: DispatchOptions): ApplyResult;
   undo(): boolean;
   redo(): boolean;
   readonly canUndo: boolean;
@@ -81,11 +91,15 @@ export function createEditor(course: Course, options: EditorOptions = {}): Edito
     get document() {
       return document;
     },
-    dispatch(commands) {
+    dispatch(commands, options = {}) {
       const list = Array.isArray(commands) ? commands : [commands as Command];
       const result = applyCommands(document, list);
       if (!result.ok || result.ops.length === 0) return result;
       document = result.document;
+      if (options.history === false) {
+        emit(result.ops, result.ids, "do");
+        return result;
+      }
       undone = [];
       const top = done.at(-1);
       if (joining && top) {
