@@ -3,9 +3,10 @@
 // and hold no more JavaScript heap than the memory budget once it has. The script and style sheet
 // sizes are gated in @course-suite/exporters (src/player-budget.test.ts).
 //
-// Budgets: the median of three loads on the CI runner (windows-latest) on 2026-10-29, plus a margin
-// for a shared runner's noise (docs/ci.md, "Player performance budget"). Raise one only with a
-// reviewed reason in the pull request.
+// Budgets: the median of three loads on the CI runner (windows-latest) on 2026-10-29 (cover in
+// 168 ms, single loads 120 to 203 ms; 3.04 MB of heap), with a margin for a shared runner's noise:
+// three times the time, and the heap plus half, rounded up to a whole MiB (docs/ci.md, "Player
+// performance budget"). Raise one only with a reviewed reason in the pull request.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,9 +20,9 @@ import { webZip } from "../test/blocks.js";
 /** The budgets, in milliseconds and bytes. */
 const BUDGET = {
   /** From navigation start until the cover's begin link is in the page. */
-  coverMs: 2_000,
+  coverMs: 500,
   /** JavaScript heap in use after a garbage collection, with the cover shown. */
-  heapBytes: 24 * 1024 * 1024,
+  heapBytes: 5 * 1024 * 1024,
 };
 
 /** How many times the lessons of the two block fixtures are repeated. */

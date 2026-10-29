@@ -29,7 +29,11 @@ function cli<T>(args: string[], input?: Uint8Array): T {
     { encoding: "utf8", ...(input && { input }) },
   );
   // The JSON is the last line; anything before it is ILIAS talking on the command line.
-  return JSON.parse(output.trim().split("\n").at(-1) ?? "");
+  try {
+    return JSON.parse(output.trim().split("\n").at(-1) ?? "");
+  } catch {
+    throw new Error(`cli.php ${args[0]} printed no JSON:\n${output}`);
+  }
 }
 
 export interface Module {
@@ -60,6 +64,8 @@ export async function logIn(page: Page): Promise<void> {
   await page.getByLabel(/^password/i).fill("Learner-pass-1");
   await page.getByRole("button", { name: /^(log ?in|sign in)$/i }).click();
   await expect(page).not.toHaveURL(/\/login\.php/);
+  // Not held on the form that asks for a new password.
+  await expect(page).not.toHaveURL(/showPassword/);
 }
 
 /** The frame our launch page runs in, inside the module's data folder. */

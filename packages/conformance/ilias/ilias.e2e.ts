@@ -105,6 +105,8 @@ for (const [standard, version] of Object.entries(VERSIONS) as [
     const left = await trackedVisit(module);
     expect(comparable(version.ilias(left))).toEqual(comparable(reference as Kept));
     expect(version.ilias(left).suspend).toMatch(/^1\./);
+    // Launched for credit, as a site that grades SCORM launches it (cli.php site).
+    if (standard === "scorm12") expect(left.elements["cmi.core.credit"]).toBe("credit");
 
     const sco = await launch(page, module);
     await secondVisit(sco, course);

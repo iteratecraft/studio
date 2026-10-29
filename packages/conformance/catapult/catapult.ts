@@ -2,12 +2,7 @@
 // CATAPULT): import a course, start a conformance test, launch an AU, and read the result and the
 // report the CTS's own "Download" button gives (cts/client/src/store/service/tests.js).
 import { expect } from "@playwright/test";
-
-/** The CTS and the player behind one origin (nginx.conf). */
-export const CATAPULT_URL = `http://localhost:${process.env.CATAPULT_PORT ?? "8280"}`;
-
-/** The CTS's first user, made by up.ts (test only). */
-export const CTS_USER = { username: "admin", password: "Admin-pass-1" };
+import { CATAPULT_URL, CTS_USER } from "./site.ts";
 
 const AUTH = `Basic ${Buffer.from(`${CTS_USER.username}:${CTS_USER.password}`).toString("base64")}`;
 
@@ -76,7 +71,8 @@ export const summaries = async (sessionId: number) =>
 
 /**
  * The session's log once the CTS has recorded `verb` (by its last path segment, such as
- * "terminated"): the AU sends its last statements while its page unloads.
+ * "terminated"): the AU sends its last statements while its page unloads. After 30 seconds, the log
+ * as it is, so the test still saves the report before it fails.
  */
 export async function loggedUntil(
   sessionId: number,
@@ -91,7 +87,8 @@ export async function loggedUntil(
       },
       { timeout: 30_000, intervals: [1_000] },
     )
-    .toBe(true);
+    .toBe(true)
+    .catch(() => undefined);
   return latest;
 }
 

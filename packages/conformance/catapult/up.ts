@@ -5,12 +5,17 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { CATAPULT_URL, CTS_USER } from "./catapult.js";
+import { CATAPULT_URL, CTS_USER } from "./site.ts";
 
-/** CATAPULT 1.0.8, by its commit: git checks out exactly the files of that commit. */
+/**
+ * CATAPULT by commit, so git checks out exactly its files: 31a83baf, the merge just before the
+ * v1.0.8 tag (2026-01-20). The tagged commit raises tar in the player's package.json without its
+ * package-lock.json, so the player's Dockerfile (`npm ci`) cannot build it; this one is v1.0.8
+ * without that one change.
+ */
 const RELEASE = {
   repository: "https://github.com/adlnet/CATAPULT.git",
-  commit: "806c0baaa0fa99c9cb4f398ad7eb21fc5461c6e4",
+  commit: "31a83baf0e4dad34233cc34d76818199fd60e83b",
 };
 const SOURCE = join(import.meta.dirname, ".cache", "CATAPULT");
 // The images built from that commit carry it as their tag (compose.yaml), so a new commit builds

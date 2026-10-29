@@ -21,6 +21,8 @@ const LEARNER = ['login' => 'learner', 'password' => 'Learner-pass-1'];
 [, $action, $argument, $subtype] = $argv + [null, '', '', ''];
 $startup = new \ILIAS\Cron\CLI\StartUp(CLIENT, 'root');
 $startup->authenticate();
+// ILIAS names the web data folder relative to its web root, as its pages run there.
+chdir('/var/www/ilias/public');
 global $DIC;
 $db = $DIC->database();
 
@@ -67,6 +69,20 @@ try {
                 $user->saveAsNew();
                 $DIC->rbac()->admin()->assignUser(globalRole('User'), $user->getId());
             }
+            // A password set by an administrator is one to change at first login; the learner's
+            // counts as just chosen, so ILIAS opens the course rather than its password form.
+            $DIC->settings()->set('ps_password_change_on_first_login_enabled', '0');
+            $db->manipulateF(
+                'UPDATE usr_data SET last_password_change = %s, passwd_policy_reset = %s WHERE usr_id = %s',
+                ['integer', 'integer', 'integer'],
+                [time(), 0, learnerId()]
+            );
+            // Learning progress on, and SCORM modules tracked by it from upload, as a site that
+            // grades SCORM sets them (Administration > Learning Progress; Learning Modules SCORM).
+            // Without it ILIAS launches every module with no credit, and its SCORM 1.2 player then
+            // drops every status and score the SCO sets.
+            $DIC->settings()->set('enable_tracking', '1');
+            (new ilSetting('lm'))->set('scorm_lp_auto_activate', '1');
             $result = ['learner' => LEARNER['login'], 'id' => learnerId()];
             break;
 

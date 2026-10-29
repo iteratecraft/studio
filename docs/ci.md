@@ -14,7 +14,9 @@ Linux.
 `.github/workflows/hosts.yml` (M2-21, D-26) runs beside CI on pull requests that change what goes
 into a package (the format, labels, tracking, player, exporters, zip and fonts packages), the
 conformance harnesses, the lockfile or the workflow itself; every night on `main`; and by hand. Its
-three jobs run in parallel with each other and with CI.
+three jobs run in parallel with each other and with CI. Without their caches (the first run after
+a pin changes) each took on 2026-10-29: ILIAS 3 min 40 s, CATAPULT 3 min 35 s, SQL LRS 1 min 15 s;
+the Windows `check` job takes about 19 minutes, so they never lengthen a pull request's checks.
 
 | Job | Runner | What it does |
 |---|---|---|
@@ -101,9 +103,11 @@ and its licence; none of them ships with anything we build.
 
 ILIAS 11.5 (the packaged release, SHA-256 in `ilias/up.ts`) on PHP 8.4 with Apache and MariaDB 11.8.
 ILIAS publishes no container image, so `ilias/Dockerfile` builds the web server from PHP's official
-image with the extensions ILIAS's installation guide asks for (all but imagick, which the SCORM
-players never use). `up.ts` unpacks the release, installs ILIAS with its command-line setup
-(`ilias/config.json`) and creates the learner; `cli.php` uploads a package as a SCORM learning module
+image with the extensions ILIAS's installation guide asks for (imagick from PECL at a pinned
+version). `up.ts` unpacks the release, installs ILIAS with its command-line setup
+(`ilias/config.json`), creates the learner and turns learning progress on for SCORM modules, as a
+site that grades SCORM does (without it ILIAS launches a module with no credit, and its SCORM 1.2
+player drops every status and score); `cli.php` uploads a package as a SCORM learning module
 the way ILIAS's upload form does, and reads the learner's tracking (SCORM 1.2: `scorm_tracking`;
 SCORM 2004: `cmi_node`).
 
@@ -134,7 +138,8 @@ SQLite store, no other service), permissively licensed, runs headless, and speak
 
 ### CATAPULT (cmi5)
 
-ADL CATAPULT 1.0.8 (Apache-2.0): its Content Test Suite (CTS) and the cmi5 player the CTS launches
+ADL CATAPULT 1.0.8 (Apache-2.0; the commit just before its tag, whose player lockfile does not
+build, see `catapult/up.ts`): its Content Test Suite (CTS) and the cmi5 player the CTS launches
 courses through, which checks every request an AU makes against the cmi5 requirements. `up.ts`
 checks CATAPULT out at its pinned commit and `catapult/compose.yaml` builds the CTS and the player
 with CATAPULT's own Dockerfiles (their base images pinned by digest through build contexts), with
@@ -161,8 +166,10 @@ Two checks in the Windows `check` job keep the player small and quick (ENG-04, D
   2026-10-29 (76,930 B and 11,130 B) plus 15 %.
 - **First render and memory:** `packages/conformance/e2e/performance.e2e.ts` (in `pnpm test:e2e`)
   opens a large course from disk (100 lessons, 820 blocks) three times and fails when the median
-  time until its cover is in the page, or the JavaScript heap in use then, exceeds its budget. Each
-  run prints what it measured.
+  time until its cover is in the page, or the JavaScript heap in use then, exceeds its budget:
+  500 ms and 5 MiB. On the Windows runner on 2026-10-29 that was 168 ms (single loads 120 to
+  203 ms) and 3.04 MB; the budgets are three times the time, for a shared runner's noise, and the
+  heap plus half, rounded up to a whole MiB. Each run prints what it measured.
 
 Raise a budget only with a reviewed reason in the pull request.
 

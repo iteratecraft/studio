@@ -13,7 +13,14 @@ import { readPackage } from "../src/package.js";
 import { runXapiPackage, TEST_LAUNCH, type XapiRun } from "../src/run-xapi.js";
 import { compost, failQuiz, firstVisit, secondVisit } from "../test/compost.js";
 import { exportedZip } from "../test/hosts.js";
-import { LRS_20, LRS_103, type Lrs, type Statement, settledStatements } from "./lrs.js";
+import {
+  LRS_20,
+  LRS_103,
+  type Lrs,
+  type Statement,
+  settledState,
+  settledStatements,
+} from "./lrs.js";
 
 const course = compost("xapi");
 
@@ -78,17 +85,39 @@ async function against(
 ) {
   const pkg = await xapiPackage();
   let stored: Statement[] = [];
+  // Every request to the LRS and how it ended, attached to the test's report.
+  const traffic: string[] = [];
   for (const [i, drive] of visits.entries()) {
     const run = await runXapiPackage(pkg, {
       browser,
       launch: { endpoint: lrs.endpoint, auth: lrs.auth, registration },
+      prepare: async (page) => {
+        const toLrs = (url: string) => url.startsWith(lrs.endpoint);
+        page.on("requestfinished", async (request) => {
+          if (!toLrs(request.url())) return;
+          const response = await request.response();
+          traffic.push(`${i + 1} ${request.method()} ${request.url()} ${response?.status()}`);
+        });
+        page.on("requestfailed", (request) => {
+          if (toLrs(request.url())) {
+            traffic.push(
+              `${i + 1} ${request.method()} ${request.url()} ${request.failure()?.errorText}`,
+            );
+          }
+        });
+      },
       drive,
+      // The page stays open until the LRS has what the course sent while it closed.
+      waitForLrs: async () => {
+        stored = await settledStatements(lrs, registration, counts[i] ?? 1);
+        await settledState(lrs, registration);
+      },
     });
     expect(run.pageErrors).toEqual([]);
     expect(run.consoleErrors).toEqual([]);
     onlyPackageAndLrs(run, lrs);
-    stored = await settledStatements(lrs, registration, counts[i] ?? 1);
   }
+  await test.info().attach("lrs-traffic.txt", { body: traffic.join("\n") });
   return stored.map(said);
 }
 

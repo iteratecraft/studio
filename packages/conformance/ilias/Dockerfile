@@ -5,15 +5,18 @@
 # published at least two weeks earlier.
 FROM php:8.4.25-apache-bookworm@sha256:0629e7852d88a0939841973910d94157de7cd68e48acefac44546f8534b45d31
 
-# Required by ILIAS: gd, dom, xsl, pdo_mysql, curl, json, simplexml, libxml, xml, zip, mbstring.
-# The image already has dom, curl, json, simplexml, libxml, xml and mbstring. Not installed: imagick
-# (previews and image conversion; nothing the SCORM player uses) and the optional soap and ldap.
+# Required by ILIAS: gd, dom, xsl, pdo_mysql, curl, json, simplexml, libxml, xml, zip, imagick,
+# mbstring. The image already has dom, curl, json, simplexml, libxml, xml and mbstring; imagick comes
+# from PECL at a pinned version. Not installed: the optional soap and ldap.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libfreetype6-dev libjpeg62-turbo-dev libpng-dev libxslt1-dev libzip-dev libicu-dev \
+      libmagickwand-dev \
  && docker-php-ext-configure gd --with-freetype --with-jpeg \
  && docker-php-ext-install -j"$(nproc)" gd xsl zip pdo_mysql mysqli intl opcache \
- && rm -rf /var/lib/apt/lists/*
+ && pecl install imagick-3.8.0 \
+ && docker-php-ext-enable imagick \
+ && rm -rf /var/lib/apt/lists/* /tmp/pear
 
 # ILIAS's web root is the release's public/ folder, with its .htaccess rules (mod_rewrite).
 RUN a2enmod rewrite headers \

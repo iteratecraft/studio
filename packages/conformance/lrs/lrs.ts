@@ -1,6 +1,9 @@
 // The SQL LRS instances compose.yaml starts (M2-21), for the tests: their xAPI endpoints, the
 // credentials a launch link gives the course, and the statements they stored.
+import { activityIdOf } from "@course-suite/format";
 import { expect } from "@playwright/test";
+import { TEST_LAUNCH } from "../src/run-xapi.js";
+import { compost } from "../test/compost.js";
 
 export interface Lrs {
   name: string;
@@ -60,13 +63,46 @@ export async function statementsOf(lrs: Lrs, registration: string): Promise<Stat
 }
 
 /**
- * The statements for `registration` once the LRS has stored at least `atLeast` of them and no more
- * arrive: the course sends its last ones while its page unloads.
+ * Once the course's state document for `registration` (the test learner, the compost course) is in
+ * the LRS and stays the same between two reads: it is written after the statements.
+ */
+export async function settledState(lrs: Lrs, registration: string): Promise<void> {
+  const query = new URLSearchParams({
+    activityId: activityIdOf(compost("xapi")),
+    agent: JSON.stringify(TEST_LAUNCH.actor),
+    registration,
+    // The player's own state id (packages/tracking, XAPI_STATE_ID).
+    stateId: "course-state",
+  });
+  const read = async () => {
+    const response = await fetch(`${lrs.endpoint}activities/state?${query}`, {
+      headers: { Authorization: lrs.auth, "X-Experience-API-Version": lrs.version },
+    });
+    return response.ok ? await response.text() : undefined;
+  };
+  let previous: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        const latest = await read();
+        const same = latest !== undefined && latest === previous;
+        previous = latest;
+        return same;
+      },
+      { timeout: 20_000, intervals: [1_000] },
+    )
+    .toBe(true);
+}
+
+/**
+ * The statements for `registration` once the LRS has stored `expected` of them and no more arrive:
+ * the course sends its last ones while its page unloads. After 20 seconds, whatever it holds, so
+ * the caller's comparison shows what is missing.
  */
 export async function settledStatements(
   lrs: Lrs,
   registration: string,
-  atLeast: number,
+  expected: number,
 ): Promise<Statement[]> {
   let latest: Statement[] = [];
   let previous = -1;
@@ -75,10 +111,11 @@ export async function settledStatements(
       async () => {
         previous = latest.length;
         latest = await statementsOf(lrs, registration);
-        return latest.length >= atLeast && latest.length === previous;
+        return latest.length >= expected && latest.length === previous;
       },
-      { timeout: 30_000, intervals: [1_000] },
+      { timeout: 20_000, intervals: [1_000] },
     )
-    .toBe(true);
+    .toBe(true)
+    .catch(() => undefined);
   return latest;
 }

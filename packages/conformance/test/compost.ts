@@ -96,9 +96,13 @@ export async function secondVisit(sco: CourseFrame, course: Course) {
   await walkPages(sco, [second, ...rest]);
 }
 
-/** Opens the compost course's quiz from the cover and answers its one question; no retake. */
+/**
+ * Opens the compost course's quiz from its first lesson and answers its one question; no retake.
+ * The first lesson is shown before the quiz is opened, so every run reports the same pages.
+ */
 async function takeQuiz(sco: CourseFrame, answer: "Brown" | "Green") {
   await sco.getByRole("link", { name: label["course.begin"] }).click();
+  await expect(sco.locator("h1")).toHaveText("Why compost");
   await sco.evaluate(`location.hash = ${JSON.stringify(pageHash("quizfinal1"))}`);
   await sco.getByRole("button", { name: label["quiz.begin"] }).click();
   await sco.getByRole("radio", { name: answer }).check();
