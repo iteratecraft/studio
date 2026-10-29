@@ -430,8 +430,8 @@ Wave H, content (D-42: two halves, H1 = M2-12, M2-13, M2-17; H2 = M2-14, M2-15, 
 
 Wave I, release:
 
-- [ ] **M2-18** Publish settings panel, responsive preview and export (BLK-10, STD-08)
-- [ ] **M2-19** Windows installer on tag, signing wired but skipped without secrets (M0-08, D-2)
+- [x] **M2-18** Publish settings panel, responsive preview and export (BLK-10, STD-08)
+- [x] **M2-19** Windows installer on tag, signing wired but skipped without secrets (M0-08, D-2)
 - [ ] **M2-20** Auto-update from GitHub Releases with signed metadata (M0-09)
 - [ ] **M2-21** Carried from M1 (D-26): ILIAS, an open-source LRS, CATAPULT cmi5 content tests, player performance budget
 - [ ] **M2-22** User guide, release notes and the Desktop 0.1 exit review (ENG-40 start)
@@ -485,7 +485,7 @@ Wave I, release:
 | D-27 | Moodle version for the end-to-end job | **Decided 2026-10-25:** Moodle 5.3, pinned by release checksum and image digests | done |
 | D-28 | Sign-in names and passwords of the throwaway test Moodle | **Decided 2026-10-25:** fixed values committed in the repo; they work only inside the local test container | done |
 | D-29 | Platforms for Desktop 0.1 | **Decided 2026-10-25:** Windows only; the M2 exit run is on Windows, macOS and Linux follow the platform order | done |
-| D-30 | Product name | real name chosen before Desktop 0.1 goes public; options brought at the start of wave I | before Desktop 0.1 |
+| D-30 | Product name | **Decided 2026-10-29:** the working name "Course Suite" (identifier org.iteratecraft.coursesuite) ships in 0.1; the lead may still pick the final name before the first public release, after which a change leaves old install and data folders behind | open until the first public release |
 | D-31 | Desktop shell | **Decided 2026-10-25:** Tauri 2 instead of Electron, for a small download and low memory; the engine runs without Node.js (ADR-0006) | done |
 | D-32 | Editor UI tooling | **Decided 2026-10-25:** Vite for building, React Aria Components for accessible controls with our own styling, our own zip code for the project file, newest stable versions at least two weeks old, pinned exactly | done |
 | D-33 | Course file name | **Decided 2026-10-25:** `<name>.crs`, with autosaves in a hidden `.<name>.crs.autosave` folder next to it | done |
@@ -504,19 +504,23 @@ Wave I, release:
 | D-46 | Quiz flow (not in the spec) | **Decided 2026-10-26:** one question per page, submit, feedback, then a results page with retry | done |
 | D-47 | Converted media format (with D-12) | **Decided 2026-10-27:** video is converted to WebM (VP9 + Opus) and audio to MP3, royalty-free and possible with the LGPL build; uploaded MP4 H.264 is kept as it is | done |
 | D-48 | Largest single media file | **Decided 2026-10-27:** 2 GiB now; 5 GB once the project container supports ZIP64 and streams entries | done |
-| D-49 | ffmpeg download source (with D-43) | **Decided 2026-10-27:** mirror the pinned build to an iteratecraft GitHub release before Desktop 0.1 (M2-19); the SHA-256 stays the same | open until M2-19 |
+| D-49 | ffmpeg download source (with D-43) | **Decided 2026-10-27:** mirror the pinned build to an iteratecraft GitHub release before Desktop 0.1 (M2-19); the SHA-256 stays the same | open until the lead runs the mirror job (docs/release.md) |
 | D-50 | Default font when the author picks none | **Decided 2026-10-27:** the device's own fonts, so exports carry no font files | done |
 | D-51 | Rich-text styling (font, size, colour, line height, letter spacing, alignment, bullet style, indent) | **Decided 2026-10-27:** a closed set of named styles stored in the format, never free CSS; built in M2b | open (M2b) |
 | D-52 | Waves for deferred media items | **Decided 2026-10-27:** crop and alignment, video and embed width, video chapters, recorded narration in M2b; SRT, SBV and SUB caption import with SLD-10 in M5b; AI captions with LOC-09 in M6; AI speech with LOC-08 in M6b | done |
 | D-53 | Cover layouts | **Decided 2026-10-27:** four layouts: picture left, picture right, title over picture, no picture | done |
 | D-54 | Heading levels | **Decided 2026-10-27:** the editor disables or flags levels that skip one; the player publishes the level the author chose | done |
-| D-55 | Continue hint (UI-BLOCKS-R55) | **Default 2026-10-28:** the hint shows under the greyed-out continue button; the hint replacing the button comes in wave I | confirm |
-| D-56 | A required knowledge check whose tries run out | **Default 2026-10-28:** the rest of the lesson stays hidden and the editor warns the author; in a stepped microlearning the later steps stay locked, so it does not finish | confirm |
-| D-57 | Matching questions | **Default 2026-10-28:** the learner picks each match from a drop-down; drag-and-drop comes in M2b | confirm |
-| D-58 | Small interactive items left out of wave H2 | **Default 2026-10-28:** email and page-link buttons, audio and video inside interactive items, pulsing markers and crop in process cards move to M2b | confirm |
-| D-59 | Course search with other menus | **Default 2026-10-28:** search is off with the compact and overlay menus, as with a hidden sidebar, navigation off or restricted navigation | confirm |
-| D-60 | A knowledge check with no usable question | **Default 2026-10-28:** it shows nothing and counts as finished, so it never locks a course | confirm |
-| D-61 | Answer colours on a picture with clear cards | **Default 2026-10-28:** a check’s marks and the block accent use the overlay’s white or black, and the editor says so | confirm |
+| D-55 | Continue hint (UI-BLOCKS-R55) | **Decided 2026-10-29:** the hint replaces the greyed-out continue button until the requirement is met, as the spec says (built in M2-16, confirmed in M2-18) | done |
+| D-56 | A required knowledge check whose tries run out | **Decided 2026-10-29:** the rest of the lesson stays hidden and the editor warns the author; in a stepped microlearning the later steps stay locked, so it does not finish | done |
+| D-57 | Matching questions | **Decided 2026-10-29:** the learner picks each match from a drop-down; drag-and-drop comes in M2b | done |
+| D-58 | Small interactive items left out of wave H2 | **Decided 2026-10-29:** email and page-link buttons, audio and video inside interactive items, pulsing markers and crop in process cards move to M2b | done |
+| D-59 | Course search with other menus | **Decided 2026-10-29:** search is off with the compact and overlay menus, as with a hidden sidebar, navigation off or restricted navigation | done |
+| D-60 | A knowledge check with no usable question | **Decided 2026-10-29:** it shows nothing and counts as finished, so it never locks a course | done |
+| D-61 | Answer colours on a picture with clear cards | **Decided 2026-10-29:** a check’s marks and the block accent use the overlay’s white or black, and the editor says so | done |
+| D-62 | Windows installer type | **Decided 2026-10-29:** NSIS, installed for the current user without administrator rights (2.1 MB download); MSI would install per machine and need elevation | done |
+| D-63 | Hide the cover page per output | **Decided 2026-10-29:** one switch for every output; the spec keeps separate web and LMS values | done |
+| D-64 | xAPI and cmi5 activity identifier | **Decided 2026-10-29:** the full activity address, checked as it is typed; the spec instead adds http:// to a bare name | done |
+| D-65 | Wave I layout | **Decided 2026-10-29:** two tasks side by side (publish and export; Windows installer), then review, fix round and re-review | done |
 
 ## How to read the backlog
 
