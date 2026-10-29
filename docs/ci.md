@@ -145,12 +145,17 @@ checks CATAPULT out at its pinned commit and `catapult/compose.yaml` builds the 
 with CATAPULT's own Dockerfiles (their base images pinned by digest through build contexts), with
 MySQL 8.0 as CATAPULT uses it, SQL LRS as the player's LRS and nginx giving both one origin.
 
-- **Runs:** for each of a passed and a failed quiz, the test imports the cmi5 package into the CTS,
-  starts a conformance test, launches the AU, takes the quiz and closes the course, through the
-  CTS's REST API and Chromium.
-- **Checks:** no request broke a cmi5 requirement; the cmi5-defined statements arrive in order
-  (initialized, completed, passed, terminated; or initialized, failed, terminated); the CTS reports
-  the passed AU conformant and the failed one pending, as the course moves on only when passed.
+- **Runs,** through the CTS's REST API and Chromium, each in its own imported course and
+  conformance test: a learner completes a lesson and closes the course, is launched again (a second
+  session of the same registration), resumes at that lesson and passes the quiz; and a learner fails
+  the quiz.
+- **Checks:** in every session, no request broke a cmi5 requirement and the cmi5-defined statements
+  arrive in order (initialized, terminated; then initialized, completed, passed, terminated; or
+  initialized, failed, terminated); the relaunched cover's resume link goes to the lesson the first
+  session left open; the LRS holds passed or failed once, with the score (scaled, raw, min and max
+  on passed); the CTS reports the passed AU conformant and the failed one pending, as the course
+  moves on only when passed. The tests read the statements from the player's SQL LRS, which
+  `compose.yaml` also publishes on `http://localhost:8281/xapi/` (`CATAPULT_LRS_PORT`).
 - **Report:** the CTS's report of each test, in the shape of the file its "Download" button saves,
   goes to `catapult/reports/` and is kept as the `catapult-cts-reports` artifact on every run.
 - Run it locally: `catapult:up` (it needs git; about ten minutes the first time: it builds both
@@ -165,11 +170,22 @@ Two checks in the Windows `check` job keep the player small and quick (ENG-04, D
   script or style sheet, gzip-compressed, grows past its budget: 87 KiB and 13 KiB, the sizes on
   2026-10-29 (76,930 B and 11,130 B) plus 15 %.
 - **First render and memory:** `packages/conformance/e2e/performance.e2e.ts` (in `pnpm test:e2e`)
-  opens a large course from disk (100 lessons, 820 blocks) three times and fails when the median
-  time until its cover is in the page, or the JavaScript heap in use then, exceeds its budget:
-  500 ms and 5 MiB. On the Windows runner on 2026-10-29 that was 168 ms (single loads 120 to
-  203 ms) and 3.04 MB; the budgets are three times the time, for a shared runner's noise, and the
-  heap plus half, rounded up to a whole MiB. Each run prints what it measured.
+  opens a large course from disk (100 lessons, 820 blocks) five times and fails when a median
+  exceeds its budget:
+
+  | Measure, until the cover is in the page | Windows runner, 2026-10-29 | Budget |
+  |---|---|---|
+  | Main-thread busy time (Chrome's `TaskDuration`) | 188 ms | 380 ms, twice |
+  | Script time (Chrome's `ScriptDuration`) | 17 ms | 50 ms, three times |
+  | Wall-clock time until the begin link is in the page | 150 ms (120 to 168 ms in other runs) | 340 ms, twice the slowest |
+  | JavaScript heap in use after a garbage collection | 3,039,356 B (3.039 to 3.050 MB in every load) | 3,500,000 B, plus 15 % |
+
+  Busy time leaves out the gaps between the page's tasks, which a shared runner's load stretches
+  most; the wall clock also sees waiting that costs no CPU. The heap does not vary, so its
+  margin is small. A second test injects 250 ms of blocking work at start-up and 512 KiB of
+  retained memory, and fails unless the script and heap budgets catch them on any machine; on the
+  runner the main-thread and wall-clock budgets catch the blocking work too (461 ms and 433 ms). A
+  much faster or a heavily loaded machine moves the time figures: each run prints what it measured.
 
 Raise a budget only with a reviewed reason in the pull request.
 

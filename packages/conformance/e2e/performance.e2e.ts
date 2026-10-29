@@ -4,8 +4,8 @@
 // sheet sizes are gated in @course-suite/exporters (src/player-budget.test.ts).
 //
 // Each figure is the median of five loads. Time is measured twice: as the main thread's busy time
-// (Chrome's TaskDuration and ScriptDuration), which a shared runner's load disturbs far less than
-// the wall clock, and as the wall-clock time until the cover is in the page, which also sees waiting
+// (Chrome's TaskDuration and ScriptDuration), which a shared runner's load disturbs less than the
+// wall clock, and as the wall-clock time until the cover is in the page, which also sees waiting
 // that costs no CPU. The heap is deterministic (3.039 to 3.050 MB in every load measured). How the
 // budgets were set: docs/ci.md, "Player performance budget". The second test injects a known
 // regression and checks that the budgets catch it. Raise a budget only with a reviewed reason in
@@ -20,15 +20,25 @@ import { readZip } from "@course-suite/zip";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { webZip } from "../test/blocks.js";
 
-/** The budgets, in milliseconds and bytes; each is held against the median of `LOADS` loads. */
+/**
+ * The budgets, in milliseconds and bytes; each is held against the median of `LOADS` loads. Set
+ * from the median on the CI runner (windows-latest) on 2026-10-29: main thread 188 ms, script
+ * 17 ms, cover 150 ms (120 to 168 ms in earlier runs), heap 3,039,356 B.
+ */
 const BUDGET = {
-  /** Main-thread busy time (TaskDuration) from navigation until the cover is shown. */
-  mainThreadMs: 320,
-  /** JavaScript run in that time (ScriptDuration). */
-  scriptMs: 60,
-  /** From navigation start until the cover's begin link is in the page, by the wall clock. */
-  coverMs: 300,
-  /** JavaScript heap in use after a garbage collection, with the cover shown. */
+  /** Main-thread busy time (TaskDuration) until the cover is shown: twice the runner's. */
+  mainThreadMs: 380,
+  /**
+   * JavaScript run in that time (ScriptDuration): three times the runner's, as a few milliseconds
+   * of garbage collection already move so small a figure by a tenth or more.
+   */
+  scriptMs: 50,
+  /**
+   * From navigation start until the cover's begin link is in the page, by the wall clock: twice
+   * the runner's slowest median.
+   */
+  coverMs: 340,
+  /** JavaScript heap in use after a garbage collection, cover shown: the runner's plus 15 %. */
   heapBytes: 3_500_000,
 };
 
@@ -162,7 +172,7 @@ async function load(page: Page, regression?: typeof REGRESSION): Promise<Measure
 const median = (values: number[]) =>
   [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 
-/** The median of `LOADS` loads, each in a new page; logged, so a budget change starts from real numbers. */
+/** The median of `LOADS` loads, each in a new page; logged, for the next change of a budget. */
 async function measure(browser: Browser, what: string, regression?: typeof REGRESSION) {
   const loads: Measures[] = [];
   for (let i = 0; i < LOADS; i++) {
