@@ -100,6 +100,25 @@ test("[standards:R7] [standards:R9] page-hide ends the session: state saved, tim
   expect((await playerEvents(page)).at(-1)).toEqual({ type: "page-hide", reachedEnd: false });
 });
 
+test("[standards:P-16] before the page unloads, the state, time and a commit are saved and the session stays open", async ({
+  write,
+  open,
+  page,
+}) => {
+  await write();
+  await useHooks(page);
+  await open("#/lessons/lessonwhat");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const before = (await adapterCalls(page)).length;
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
+  const methods = (await adapterCalls(page)).slice(before).map((call) => call.method);
+  expect(methods.slice(-2)).toEqual(["writeSessionTime", "commit"]);
+  expect(methods).not.toContain("terminate");
+  // The leave did not happen: the learner goes on, and page-hide still ends the session.
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide")));
+  expect((await adapterCalls(page)).at(-1)?.method).toBe("terminate");
+});
+
 test("[standards:R8] the exit link ends the session and shows the goodbye page; normal exit at the end", async ({
   write,
   open,

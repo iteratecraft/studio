@@ -181,6 +181,12 @@ function boot(): void {
         if (runtime.saveFailed) notice();
         // Page-hide, not unload, so mobile browsers and a removed frame still save (standards.md rule 9).
         window.addEventListener("pagehide", () => runtime.exit("page-hide"));
+        // And a save just before, while the LMS can still choose how to send it (M2-21): ILIAS's
+        // SCORM 1.2 player sends a commit made during beforeunload as a beacon, but one made during
+        // page-hide as a synchronous request, which the browser refuses. Only a save: a leave that
+        // does not happen keeps the session open. A beforeunload listener keeps Firefox from putting
+        // the page in its back/forward cache; inside an LMS frame that cache has nothing to restore.
+        window.addEventListener("beforeunload", () => runtime.save());
         shell = h("div", { class: "player" });
         root.replaceChildren(notices, shell, errorScreen);
         // An LMS that names a page to return to gets an exit button to go back by.

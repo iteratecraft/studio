@@ -3,7 +3,18 @@
   "compilerOptions": {
     "noEmit": true,
     "types": ["node"],
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "e2e", "demo", "moodle", "playwright.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "e2e",
+    "demo",
+    "moodle",
+    "ilias",
+    "lrs",
+    "catapult",
+    "playwright.config.ts"
+  ]
 }
