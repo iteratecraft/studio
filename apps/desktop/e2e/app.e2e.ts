@@ -94,17 +94,17 @@ test("shows the dashboard with the app name and version it gets from the shell t
   await expect(page.getByRole("contentinfo")).toHaveText(`Version ${version}`);
 });
 
-test("M2-20: until the lead sets the update key, the build says it cannot update itself and checks nothing", async () => {
-  // tauri.conf.json carries no plugins.updater.pubkey yet (docs/release.md); release.test.ts pins
-  // it, and e2e/update.e2e.ts proves a build that carries one.
-  expect(config.plugins.updater.pubkey).toBe("");
+test("M2-20: the build carries the update key, so its settings offer update checks", async () => {
+  // tauri.conf.json carries the lead's plugins.updater.pubkey (docs/release.md); release.test.ts
+  // pins its shape, and e2e/update.e2e.ts proves an update end to end with a throwaway key.
+  expect(config.plugins.updater.pubkey).not.toBe("");
   await page.getByRole("button", { name: "Settings" }).click();
   const settings = page.getByRole("dialog", { name: "Settings" });
   await expect(
     settings.getByRole("switch", { name: "Check for updates automatically" }),
-  ).toBeDisabled();
-  await expect(settings).toContainText("This build cannot update itself.");
-  await expect(settings.getByRole("button", { name: "Check now" })).toBeDisabled();
+  ).toBeEnabled();
+  await expect(settings).not.toContainText("This build cannot update itself.");
+  await expect(settings.getByRole("button", { name: "Check now" })).toBeEnabled();
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toHaveCount(0);
 });
