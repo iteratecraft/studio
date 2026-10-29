@@ -72,8 +72,13 @@ test.beforeAll(async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
-  await expect.poll(() => browser.contexts()[0]?.pages()[0]).toBeTruthy();
-  page = browser.contexts()[0]?.pages()[0] as Page;
+  // The DevTools port can open before WebView2 has made the app's page: wait for the page within
+  // the same start-up budget, not an assertion's 5 s default (which a cold runner overran).
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("The app's WebView2 shows no browser context over CDP.");
+  page =
+    context.pages()[0] ??
+    (await context.waitForEvent("page", { timeout: Math.max(1, deadline - Date.now()) }));
 });
 
 test.afterAll(async () => {
