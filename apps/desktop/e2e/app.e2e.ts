@@ -29,6 +29,9 @@ const exe = join(import.meta.dirname, "../src-tauri/target/release/course-suite-
 const identifier = JSON.parse(
   readFileSync(join(import.meta.dirname, "../src-tauri/tauri.conf.json"), "utf8"),
 ).identifier as string;
+// The workspace version (tauri.conf.json reads it), so a release bump needs no test change.
+const version = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8"))
+  .version as string;
 const CDP_PORT = 9333;
 
 test.skip(
@@ -81,7 +84,7 @@ test.afterAll(async () => {
 test("shows the dashboard with the app name and version it gets from the shell through the host", async () => {
   await expect(page.getByRole("heading", { level: 1, name: "Your courses" })).toBeVisible();
   await expect(page.getByRole("banner")).toHaveText("Course Suite");
-  await expect(page.getByRole("contentinfo")).toHaveText("Version 0.0.0");
+  await expect(page.getByRole("contentinfo")).toHaveText(`Version ${version}`);
 });
 
 test("the editor runs under the release content security policy without a violation", async () => {

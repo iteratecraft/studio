@@ -51,7 +51,19 @@
     }
   },
   "bundle": {
-    "active": false,
-    "icon": ["icons/icon.ico", "icons/icon.png"]
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "iteratecraft",
+    "shortDescription": "Course Suite",
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

@@ -1,0 +1,151 @@
+# Windows installer (M2-19; M0-08, D-2, D-29; ADR-0006): on a version tag, or when started by
+# hand, builds the NSIS installer of the desktop app on Windows, writes its SHA-256 and attaches
+# both to a draft release, which the project lead checks and publishes. Nothing runs on pull
+# requests; `apps/desktop/test/release.test.ts` pins this file there instead.
+#
+# Code signing is wired but optional (D-2: Desktop 0.1 ships unsigned, with published checksums).
+# With the secrets WINDOWS_CERTIFICATE (the code-signing certificate as a base64 .pfx) and
+# WINDOWS_CERTIFICATE_PASSWORD, the app, the installer and its uninstaller are signed; without
+# them the build is unsigned and says so. See docs/release.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+
+# One run per tag or branch at a time; a second run waits instead of racing for the same release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      # Creating the draft release and uploading its files.
+      contents: write
+    env:
+      # Secrets cannot appear in `if:`; this says only whether both exist, never their values.
+      SIGNING_SET: ${{ secrets.WINDOWS_CERTIFICATE != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The version comes from the workspace (apps/desktop/package.json, which tauri.conf.json
+      # reads). A tag must name that same version, so a release can never carry another number.
+      - name: Read the version
+        id: version
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error title=Version mismatch::The tag $GITHUB_REF_NAME does not match apps/desktop/package.json ($version). Bump the version there in a pull request first, then tag the merged commit."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # The desktop app and the packages it is built from.
+      - run: pnpm build --filter @course-suite/desktop...
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      # Tauri merges tauri.windows.conf.json into tauri.conf.json by itself, so the build command
+      # below is the same with and without signing. The certificate stays in the runner's user
+      # store and the .pfx file is deleted at once.
+      - name: Import the code-signing certificate
+        if: env.SIGNING_SET == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          try {
+            $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          } finally {
+            Remove-Item $pfx
+          }
+          $config = @{ bundle = @{ windows = @{
+            certificateThumbprint = $cert.Thumbprint
+            digestAlgorithm = "sha256"
+            timestampUrl = "http://timestamp.digicert.com"
+          } } }
+          $path = Join-Path $env:GITHUB_WORKSPACE apps/desktop/src-tauri/tauri.windows.conf.json
+          [IO.File]::WriteAllText($path, ($config | ConvertTo-Json -Depth 4))
+      - name: Unsigned build
+        if: env.SIGNING_SET != 'true'
+        run: echo "::notice title=Unsigned installer::WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD are not set, so the installer is not signed (D-2); its SHA-256 is published with it."
+
+      # The same command builds the installer on a contributor's machine (apps/desktop/README.md).
+      - name: Build the installer
+        run: pnpm --filter @course-suite/desktop build:installer
+
+      # A file name without spaces, so the name in SHA256SUMS.txt is the name GitHub serves.
+      - name: Write the SHA-256 checksums
+        id: files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out"
+          cp "apps/desktop/src-tauri/target/release/bundle/nsis/Course Suite_${VERSION}_x64-setup.exe" \
+            "$out/Course-Suite_${VERSION}_x64-setup.exe"
+          cd "$out"
+          sha256sum --binary -- *.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+
+      # A draft is visible only to the repository's maintainers until the lead publishes it. An
+      # existing draft for this version gets the new files; a published release is never changed.
+      - name: Attach to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          OUT: ${{ steps.files.outputs.dir }}
+        run: |
+          signed=$([ "$SIGNING_SET" = true ] && echo "signed" || echo "not signed (D-2)")
+          {
+            echo "Course Suite $VERSION for Windows 10 and 11 (64-bit)."
+            echo
+            echo "The installer is $signed. Check the download before you run it: in PowerShell,"
+            echo '`Get-FileHash .\Course-Suite_'"$VERSION"'_x64-setup.exe` must print the SHA-256 below.'
+            echo
+            echo '```text'
+            cat "$OUT/SHA256SUMS.txt"
+            echo '```'
+          } > "$OUT/notes.md"
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          case "$draft" in
+            none)
+              gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Course Suite $VERSION" \
+                --notes-file "$OUT/notes.md" "$OUT"/*.exe "$OUT/SHA256SUMS.txt" ;;
+            true)
+              gh release edit "$TAG" --notes-file "$OUT/notes.md"
+              gh release upload "$TAG" --clobber "$OUT"/*.exe "$OUT/SHA256SUMS.txt" ;;
+            *)
+              echo "::error title=Release already published::$TAG is published; it is never changed. Bump the version for a new release."
+              exit 1 ;;
+          esac

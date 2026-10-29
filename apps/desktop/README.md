@@ -10,7 +10,7 @@ at a time in the editor.
 | `index.html`, `src/` | The frontend, built by Vite into `dist/`: `src/main.tsx` mounts the editor |
 | `src/desktop-host.ts` | The desktop adapter of `@course-suite/host`, the only code allowed to import `@tauri-apps/*` |
 | `src-tauri/` | The Rust shell: window, default menu, the dialog plugin, our file commands (`src/files.rs`) and the remembered picks (`src/picks.rs`) |
-| `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities |
+| `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities, and the Windows installer (M2-19) |
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
 | `src-tauri/src/media.rs`, `src-tauri/media-tool.json` | The media converter (M2-13, D-12, D-43): the pinned FFmpeg build, its download, check and fixed conversion |
 
@@ -90,7 +90,36 @@ pnpm --filter @course-suite/desktop test:e2e        # the page, then the built a
 
 For development, run `pnpm --filter @course-suite/desktop dev` (Vite on port 1420) and, in a second
 terminal in `src-tauri`, `cargo run --no-default-features`: without the `custom-protocol` feature
-the window loads the dev server instead of the built files. Installers come with M2-19.
+the window loads the dev server instead of the built files.
+
+To build the Windows installer, run `pnpm build`, then
+`pnpm --filter @course-suite/desktop build:installer`: Tauri's bundler builds the app and writes
+`src-tauri/target/release/bundle/nsis/Course Suite_<version>_x64-setup.exe`. The first run downloads
+NSIS into Tauri's cache (`%LOCALAPPDATA%\tauri`). The release workflow runs the same command
+(`docs/release.md`). `INSTALLER_E2E=1 pnpm --filter @course-suite/desktop exec playwright test
+--project installer` then installs it for you, starts it, measures it and uninstalls it again.
+
+## Install and uninstall
+
+Desktop 0.1 runs on Windows 10 and 11, 64-bit (D-29). It uses WebView2, which Windows already
+has; on a machine without it the installer fetches Microsoft's WebView2 setup first (ADR-0004 lists
+that download, and how to install on a closed network).
+
+- **Install:** download `Course-Suite_<version>_x64-setup.exe` from the project's GitHub releases
+  and check it against `SHA256SUMS.txt` from the same release: in PowerShell,
+  `Get-FileHash .\Course-Suite_<version>_x64-setup.exe` must print the same SHA-256. Desktop 0.1 is
+  not code-signed (D-2), so Windows SmartScreen may warn; choose *More info*, then *Run anyway*.
+  The installer needs no administrator rights: it installs for your user only, into
+  `%LOCALAPPDATA%\Course Suite`, and adds *Course Suite* to the Start menu, and to the desktop
+  unless you untick *Create desktop shortcut* on its last page. `/S` installs silently.
+- **Uninstall:** *Settings*, *Apps*, *Course Suite*, *Uninstall* (or `uninstall.exe` in the install
+  folder; `/S` for silent). It removes the program, its shortcuts and its entry in *Apps*, and
+  nothing else: your `.crs` course files stay wherever you saved them, and the app's data folder
+  `%LOCALAPPDATA%\org.iteratecraft.coursesuite` (your course list, font library and the media
+  converter) stays for a later install, as does the install folder it remembers in
+  `HKCU\Software\iteratecraft\Course Suite`. Tick *Delete the application data* in the uninstaller
+  only to remove both too; course files are never in that folder, and a file of yours left in the
+  install folder is kept.
 
 The app test launches the executable with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` set to open
 WebView2's DevTools port and drives the window with Playwright over CDP. It writes and removes a

@@ -17,6 +17,8 @@ export default defineConfig({
     },
     // The built executable, driven through WebView2's DevTools port (app.e2e.ts).
     { name: "app", testMatch: "app.e2e.ts" },
+    // The built installer: install, start and uninstall (installer.e2e.ts; INSTALLER_E2E=1 only).
+    { name: "installer", testMatch: "installer.e2e.ts" },
   ],
   webServer: {
     command: "vite --port 1421 --strictPort",
