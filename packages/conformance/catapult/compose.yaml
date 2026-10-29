@@ -1,0 +1,106 @@
+# ADL CATAPULT for the cmi5 end-to-end job (M2-21, STD-03, STD-07; standards.md T-2): its Content
+# Test Suite (CTS) and the cmi5 player it launches courses through, both built from CATAPULT's own
+# Dockerfiles at the commit up.ts checks out into .cache/, with MySQL as CATAPULT uses it, SQL LRS as
+# the LRS the player reports to, and nginx giving the CTS and the player one origin as CATAPULT's
+# own deployment does (nginx.conf); the LRS is published too, for the tests to read. Start it with `pnpm --filter @course-suite/conformance
+# catapult:up`; see docs/ci.md. Images, and the base images of CATAPULT's Dockerfiles, are pinned by
+# digest; bump a digest only to one published at least two weeks earlier.
+name: course-suite-catapult
+
+x-lrs-credentials: &lrs-credentials
+  LRS_ENDPOINT: http://lrs:8080/xapi/
+  LRS_USERNAME: coursesuite
+  LRS_PASSWORD: coursesuite-secret
+  # CATAPULT's default; the CTS sends every request to the LRS with this version.
+  LRS_XAPI_VERSION: 1.0.3
+
+services:
+  rdbms:
+    image: mysql:8.0.46-bookworm@sha256:9382e4f6f7f013231049ab854de9d0810594d028f4237b67102acc7ade8e3a99
+    command:
+      - mysqld
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # CATAPULT's MySQL client predates MySQL 8's default authentication.
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      DATABASE_USER: catapult
+      DATABASE_USER_PASSWORD: quartz
+      DATABASE_NAME: catapult_cts
+      PLAYER_DATABASE_NAME: catapult_player
+    volumes:
+      - ./.cache/CATAPULT/cts/init_db.sh:/docker-entrypoint-initdb.d/init_db.sh:ro
+    # Answers on TCP only once the initialisation (with networking off) is over.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+
+  lrs:
+    image: yetanalytics/lrsql:v0.9.9@sha256:d0054b96ebbb41b10b371e815e326918b70f0d1788e8d24afc60af465b8f41cd
+    environment:
+      LRSQL_API_KEY_DEFAULT: coursesuite
+      LRSQL_API_SECRET_DEFAULT: coursesuite-secret
+      LRSQL_ADMIN_USER_DEFAULT: admin
+      LRSQL_ADMIN_PASS_DEFAULT: Admin-pass-1
+      # CATAPULT's player passes the course page's Origin header on to the LRS, which refuses an
+      # origin it does not allow (403); the LRS is reachable only inside this network.
+      LRSQL_ALLOW_ALL_ORIGINS: "true"
+    # Also on this machine only, so the tests read the statements the course sent: the score on
+    # passed and failed (catapult.e2e.ts).
+    ports:
+      - 127.0.0.1:${CATAPULT_LRS_PORT:-8281}:8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/xapi/about"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  player:
+    build:
+      context: ./.cache/CATAPULT/player
+      additional_contexts:
+        "node:18": docker-image://node:18.20.8@sha256:c6ae79e38498325db67193d391e6ec1d224d96c693a8a4d943498556716d3783
+    image: course-suite-catapult-player:${CATAPULT_COMMIT:-local}
+    depends_on:
+      rdbms:
+        condition: service_healthy
+      lrs:
+        condition: service_healthy
+    environment:
+      <<: *lrs-credentials
+      PLAYER_API_ROOT: /player
+      CONTENT_URL: http://localhost:${CATAPULT_PORT:-8280}/player/content
+      API_KEY: cts
+      API_SECRET: cts-api-secret
+      TOKEN_SECRET: cts-token-secret
+
+  webservice:
+    build:
+      context: ./.cache/CATAPULT/cts
+      additional_contexts:
+        "node:14.17.3-alpine": docker-image://node:14.17.3-alpine@sha256:fb6cb918cc72869bd625940f42a7d8ae035c4e786d08187b94e8b91c6a534dfd
+    image: course-suite-catapult-cts:${CATAPULT_COMMIT:-local}
+    depends_on:
+      rdbms:
+        condition: service_healthy
+      player:
+        condition: service_started
+    environment:
+      <<: *lrs-credentials
+      PLAYER_BASE_URL: http://player:3398/player
+      PLAYER_KEY: cts
+      PLAYER_SECRET: cts-api-secret
+      CTS_SESSION_COOKIE_PASSWORD: a-test-only-cookie-password-of-32-characters-or-more
+
+  proxy:
+    image: nginx:1.31.6-alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    depends_on:
+      - webservice
+      - player
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - 127.0.0.1:${CATAPULT_PORT:-8280}:80

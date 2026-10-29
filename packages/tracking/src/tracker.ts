@@ -155,6 +155,13 @@ export interface Tracker {
   /** A quiz attempt was scored. */
   quizScored(quiz: string, attempt: QuizAttempt): void;
   /**
+   * Writes the pending state and the session time and commits them, leaving the session open: for
+   * a page that may be about to go away (standards.md P-16). Some LMSs store only what is committed
+   * before page-hide (M2-21: ILIAS's SCORM 1.2 player sends a commit made during page-hide as a
+   * synchronous request, which the browser refuses).
+   */
+  save(): void;
+  /**
    * Ends the session in the order of standards.md rule 7. Called while `start` is still pending, it
    * ends the session as soon as it opens. Later calls do nothing.
    */
@@ -277,6 +284,13 @@ export function createTracker(options: TrackerOptions): Tracker {
 
     quizScored(quiz, attempt) {
       if (active()) call(() => adapter.reportQuiz?.(quiz, attempt));
+    },
+
+    save() {
+      if (!active()) return;
+      flush();
+      call(() => adapter.writeSessionTime(sessionTime()));
+      call(() => adapter.commit());
     },
 
     exit,

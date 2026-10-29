@@ -8,45 +8,18 @@
 // Start Moodle first: `pnpm --filter @course-suite/conformance moodle:up` (docs/ci.md).
 import { scorm12Exporter } from "@course-suite/exporters";
 import { type Course, publishSettingsOf } from "@course-suite/format";
-import { PROJECT_ID } from "@course-suite/format/test/courses";
-import { english } from "@course-suite/labels";
-import { pageHash, pagesOf } from "@course-suite/player-blocks";
 import { type Browser, expect, type Frame, test } from "@playwright/test";
-import { readPackage } from "../src/package.js";
-import { closeSco, relaunchCmi, runPackage } from "../src/run-package.js";
 import type { CmiData } from "../src/test-lms.js";
 import { blocksZip, corpusCourses, fixtureCourses } from "../test/blocks.js";
-import { walkPages } from "../test/learner.js";
+import {
+  compost as compostCourse,
+  failQuiz,
+  firstVisit,
+  secondVisit,
+  testLmsVisits,
+} from "../test/compost.js";
 import { FALLING, failThrice, ids, pond } from "../test/pond.js";
 import { exitActivity, launch, logIn, type Tracks, trackedVisit, upload } from "./moodle.js";
-
-const label = english.labels;
-
-/** The first two pages of `course`; every course here has at least two. */
-function firstTwo(course: Course) {
-  const [first, second, ...rest] = pagesOf(course);
-  if (!first || !second) throw new Error(`${course.title} has fewer than two pages`);
-  return { first, second, rest };
-}
-
-/** First visit: begin, work through the first page, then open the second. */
-async function firstVisit(sco: Frame, course: Course) {
-  const { first, second } = firstTwo(course);
-  await sco.getByRole("link", { name: label["course.begin"] }).click();
-  await walkPages(sco, [first]);
-  await sco.evaluate(`location.hash = ${JSON.stringify(pageHash(second.id))}`);
-  await expect(sco.locator("h1")).toHaveText(second.title);
-}
-
-/** Second visit: the cover offers to resume at the second page; from there to the end. */
-async function secondVisit(sco: Frame, course: Course) {
-  const { second, rest } = firstTwo(course);
-  const resume = sco.getByRole("link", { name: label["course.resume"] });
-  await expect(resume).toHaveAttribute("href", pageHash(second.id));
-  await resume.click();
-  await expect(sco.locator("h1")).toHaveText(second.title);
-  await walkPages(sco, [second, ...rest]);
-}
 
 /** A SCORM 1.2 time span (HHHH:MM:SS.SS) in seconds. */
 const seconds = (time = "") =>
@@ -71,34 +44,12 @@ const keptByTestLms = (cmi: CmiData) => {
   return { status: core.lesson_status, location: core.lesson_location, score: core.score.raw };
 };
 
-/**
- * What the test LMS keeps after each of `visits`, each one a launch that resumes where the last
- * left off and ends with the learner closing the course. Moodle overrides the status word when the
- * manifest has a mastery score, so this reference, not Moodle, shows what our package reported.
- */
-async function keptByTestLmsAfter(
+/** What the test LMS keeps after each of `visits` (see testLmsVisits). */
+const keptByTestLmsAfter = async (
   browser: Browser,
   zip: Uint8Array,
   visits: ((sco: Frame) => Promise<void>)[],
-) {
-  const pkg = await readPackage(zip);
-  if (!pkg.ok) throw new Error(JSON.stringify(pkg.problems));
-  const kept = [];
-  let cmi: CmiData | undefined;
-  for (const visit of visits) {
-    const run = await runPackage(pkg.value, {
-      browser,
-      ...(cmi && { cmi: relaunchCmi(cmi) }),
-      drive: async (sco, host) => {
-        await visit(sco);
-        await closeSco(host);
-      },
-    });
-    cmi = run.cmi;
-    kept.push(keptByTestLms(cmi));
-  }
-  return kept;
-}
+) => (await testLmsVisits(browser, zip, visits)).map(keptByTestLms);
 
 // The format's fixtures, and the corpus when a test-courses checkout is present, each with the
 // settings the publish panel saves for it (M2-18): its own over the panel's defaults, LMS-only
@@ -139,70 +90,7 @@ for (const { name, media, ...fixture } of [...fixtureCourses(), ...(corpusCourse
   });
 }
 
-const paragraph = (id: string, text: string) => ({
-  id,
-  category: "text" as const,
-  variant: "paragraph" as const,
-  items: [{ id: `i${id.slice(1)}`, kind: "content" as const, text: `<p>${text}</p>` }],
-});
-
-/** Two lessons and a one-question quiz without retakes that decides passed or failed. */
-const compost: Course = {
-  schemaVersion: "1.0",
-  id: PROJECT_ID,
-  kind: "course",
-  title: "Compost basics",
-  sourceLanguage: "en",
-  publish: {
-    standard: "scorm12",
-    statusWording: { done: "passed", notDone: "failed" },
-    passingScore: 80,
-    tracking: { kind: "quiz", quiz: "quizfinal1" },
-  },
-  entries: [
-    {
-      id: "lessonone1",
-      kind: "lesson",
-      title: "Why compost",
-      blocks: [paragraph("tpara00001", "Compost feeds the soil.")],
-    },
-    {
-      id: "lessontwo1",
-      kind: "lesson",
-      title: "Greens and browns",
-      blocks: [paragraph("tpara00002", "Mix wet greens with dry browns.")],
-    },
-    {
-      id: "quizfinal1",
-      kind: "quiz",
-      title: "Final check",
-      settings: { retries: 0 },
-      questions: [
-        {
-          id: "qbrown0001",
-          kind: "single-choice",
-          prompt: "<p>Is cardboard a green or a brown?</p>",
-          answers: [
-            { id: "abrown0001", text: "Brown", correct: true },
-            { id: "agreen0001", text: "Green", correct: false },
-          ],
-        },
-      ],
-    },
-  ],
-  media: [],
-};
-
-/** Fails the one-question quiz on the first visit; the quiz allows no retake. */
-async function failQuiz(sco: Frame) {
-  await sco.getByRole("link", { name: label["course.begin"] }).click();
-  await sco.evaluate(`location.hash = ${JSON.stringify(pageHash("quizfinal1"))}`);
-  await sco.getByRole("button", { name: label["quiz.begin"] }).click();
-  await sco.getByRole("radio", { name: "Green" }).check();
-  await sco.getByRole("button", { name: label["quiz.submit"] }).click();
-  await sco.getByRole("button", { name: label["quiz.showResults"] }).click();
-  await expect(sco.locator(".quiz-outcome")).toHaveText(label["quiz.failed"]);
-}
+const compost = compostCourse("scorm12");
 
 test("[standards:T-4] [standards:R2] [standards:R8] [standards:R9] [standards:R11] [standards:R12] [standards:P-7] [rise:R1] [rise:R2] [rise:R7] a learner completes a lesson, closes, relaunches, resumes at the next lesson and passes: our package reports passed with the score and Moodle keeps it", async ({
   browser,

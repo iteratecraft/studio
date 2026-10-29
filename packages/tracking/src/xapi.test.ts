@@ -139,6 +139,13 @@ function fakeLrs(versions = ["1.0.3"]) {
     }
     const key = `${params.activityId} ${params.agent} ${params.registration} ${params.stateId}`;
     if (request.method === "PUT") {
+      // xAPI concurrency, as SQL LRS keeps it in 1.0.3 and 2.0 (M2-21): a write over a document
+      // must say whether it expects one, and is refused when it is wrong.
+      const exists = state.has(key);
+      const ifMatch = request.headers["If-Match"];
+      const ifNoneMatch = request.headers["If-None-Match"];
+      if (exists && ifMatch === undefined && ifNoneMatch === undefined) return answer(409);
+      if ((ifMatch === "*" && !exists) || (ifNoneMatch === "*" && exists)) return answer(412);
       state.set(key, request.body ?? "");
       return answer(204);
     }
@@ -433,6 +440,38 @@ describe("state", () => {
     expect(JSON.parse([...first.lrs.state.values()][0] ?? "{}").totalTimeMs).toBe(20_000);
   });
 
+  test.each([[["1.0.3"]], [["1.0.3", "2.0.0"]]])(
+    "[standards:X-4] [standards:X-7] M2-21: every state write to an LRS that speaks %j says whether it expects the document, so the LRS keeps each one, in the session that made it and the next",
+    async (versions) => {
+      const lrs = fakeLrs(versions);
+      const errors: unknown[] = [];
+      const first = setup(lrs, { errors });
+      await first.tracker.start();
+      first.tracker.setLocation("#/lessons/lessonone1");
+      first.tracker.saveState({ location: "lessonone1", done: [] });
+      await first.clock.advance(20_000);
+      first.tracker.setLocation("#/lessons/lessontwo1");
+      first.tracker.saveState({ location: "lessontwo1", done: ["lessonone1"] });
+      await first.clock.advance(20_000);
+      first.tracker.exit(false);
+      await settle();
+      // The next session finds the document and writes over it.
+      const second = setup(lrs, { errors });
+      await second.tracker.start();
+      second.tracker.saveState({ location: "lessontwo1", done: ["lessonone1", "lessontwo1"] });
+      second.tracker.exit(false);
+      await settle();
+
+      const writes = lrs.lrs.requests.filter((r) => r.method === "PUT");
+      expect(writes.length).toBeGreaterThan(2);
+      expect(
+        writes.map((r) => r.headers["If-None-Match"] ?? `If-Match ${r.headers["If-Match"]}`),
+      ).toEqual(["*", ...writes.slice(1).map(() => "If-Match *")]);
+      expect(errors).toEqual([]);
+      expect([...lrs.lrs.state.values()]).toEqual([writes.at(-1)?.body]);
+    },
+  );
+
   test("[standards:X-4] a state document that cannot be read stops tracking instead of overwriting it", async () => {
     const lrs = fakeLrs();
     const { tracker, clock, requests } = setup(lrs);
@@ -519,11 +558,29 @@ describe("an LRS that never answers", () => {
     await settle();
     lrs.lrs.hang = true;
     tracker.left("lessonone1");
+    await settle();
+    const sent = requests.length;
     tracker.exit(false);
     await clock.advance(REQUEST_TIMEOUT_MS * 2);
-    const closing = requests.filter((r) => r.keepalive);
+    const closing = requests.slice(sent);
     expect(closing.length).toBeGreaterThan(0);
-    expect(closing.every((r) => r.signal === undefined)).toBe(true);
+    expect(closing.every((r) => r.keepalive && r.signal === undefined)).toBe(true);
+  });
+
+  test("[standards:R9] [standards:C-6] M2-21: a request on its way when the page closes outlives it and is not sent again", async () => {
+    const lrs = fakeLrs();
+    const { tracker, requests } = setup(lrs);
+    await tracker.start();
+    await settle();
+    lrs.lrs.hang = true;
+    tracker.entered("lessonone1");
+    await settle();
+    const onItsWay = requests.at(-1);
+    expect(onItsWay).toMatchObject({ method: "POST", path: "statements", keepalive: true });
+    tracker.exit(false);
+    await settle();
+    // An LRS (or a cmi5 LMS) would otherwise get the same statements twice.
+    expect(requests.filter((r) => r.body === onItsWay?.body)).toHaveLength(1);
   });
 });
 
@@ -603,25 +660,28 @@ describe("delivery", () => {
     expect(requests.filter((r) => r.path === "statements")).toHaveLength(4);
   });
 
-  test("[standards:R9] [standards:R16] a closing page sends what is still queued with keepalive, only to the LRS", async () => {
+  test("[standards:R9] [standards:R16] a closing page sends what is still queued with keepalive, only to the LRS, its state first", async () => {
     const lrs = fakeLrs();
     const { tracker, requests } = setup(lrs);
     await tracker.start();
     await settle();
     lrs.lrs.failNext = 1;
     tracker.entered("lessonone1");
+    // The send fails and waits for its retry.
+    await settle();
     tracker.saveState({ location: "lessonone1" });
     tracker.left("lessonone1");
     tracker.exit(false);
     await settle();
-    // The batch that was on its way goes again on its own, then the rest, then the state.
+    // The state first (M2-21: a cmi5 LMS takes nothing after terminated), then the batch that
+    // was waiting for its retry, again on its own, then the rest.
     const last = requests.slice(-3);
     expect(last.map((r) => `${r.method} ${r.path} ${r.keepalive}`)).toEqual([
-      "POST statements true",
-      "POST statements true",
       "PUT activities/state true",
+      "POST statements true",
+      "POST statements true",
     ]);
-    expect(last.slice(0, 2).map((r) => JSON.parse(r.body ?? "[]").length)).toEqual([1, 1]);
+    expect(last.slice(1).map((r) => JSON.parse(r.body ?? "[]").length)).toEqual([1, 1]);
     // Nothing after the session ends.
     tracker.entered("quizfinal1");
     await settle();

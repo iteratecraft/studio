@@ -202,6 +202,38 @@ describe("session time", () => {
   });
 });
 
+describe("save before leaving", () => {
+  test("[standards:P-16] a save writes pending data and session time, commits, and the session goes on", async () => {
+    const { adapter, clock, tracker, since } = setup();
+    await tracker.start();
+    tracker.saveState({ done: ["lesson0001"] });
+    clock.advance(100);
+    const from = adapter.calls.length;
+    tracker.save();
+    expect(since(from)).toEqual(["writeResume", "writeSessionTime", "commit"]);
+    expect(adapter.calls.find((c) => c.method === "writeSessionTime")?.args).toEqual([100]);
+    // The state is written once; the session is still open for the exit that follows.
+    const next = adapter.calls.length;
+    tracker.exit(false);
+    expect(since(next)).toEqual(["writeSessionTime", "setExit", "commit", "terminate"]);
+  });
+
+  test("[standards:R15] a save writes nothing before start, in review mode or after exit", async () => {
+    const review = setup({ launch: { mode: "review" } });
+    review.tracker.save();
+    await review.tracker.start();
+    review.tracker.save();
+    expect(review.methods()).toEqual(["initialize"]);
+
+    const { tracker, methods } = setup();
+    await tracker.start();
+    tracker.exit(false);
+    const ended = methods().length;
+    tracker.save();
+    expect(methods()).toHaveLength(ended);
+  });
+});
+
 describe("exit", () => {
   test("[standards:R7] exit writes pending data, then session time, exit value, commit, terminate", async () => {
     const { adapter, clock, tracker, since } = setup();

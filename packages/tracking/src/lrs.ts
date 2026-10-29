@@ -1,8 +1,9 @@
 // LRS client shared by the xAPI adapter and, next, the cmi5 adapter (STD-06; standards.md X-5,
 // X-7, rule 16, ADR-0004): it talks only to the endpoint it is given. Statements go out in the order
 // they were sent, one request at a time; state documents are written after them, the latest version
-// of each. A failed request is retried after 100, 400, 400, 600 and 600 ms, then every 5 seconds
-// while the client reports itself offline, until it goes through. A request with no full answer
+// of each, except on a closing page, which writes them first. A failed request is retried after 100,
+// 400, 400, 600 and 600 ms, then every 5 seconds while the client reports itself offline, until it
+// goes through. A request with no full answer
 // within 10 seconds is given up and aborted, so an LRS that never answers cannot hold the course on
 // its loading screen, stall the statement queue or keep the offline banner from showing.
 import type { Clock } from "./tracker.js";
@@ -136,6 +137,24 @@ export function timedRequest(
   });
 }
 
+/**
+ * Bodies up to this many bytes go with keepalive, so a request on its way when the page goes away
+ * still arrives instead of being sent again (M2-21: CATAPULT's cmi5 player counts a cmi5-defined
+ * statement sent twice as a broken requirement). A page may have 64 KiB of keepalive bodies in
+ * flight; this leaves room for the writes of a closing page.
+ */
+const KEEPALIVE_MAX_BYTES = 32 * 1024;
+
+/** The UTF-8 length of `text`. */
+function utf8Length(text: string): number {
+  let bytes = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
 /** The last writes of a closing page wait for nobody, so they are never cut off. */
 const untimedRequest = async (transport: Transport, url: string, request: HttpRequest) => {
   const response = await transport(url, request);
@@ -168,6 +187,21 @@ export function createLrs(options: LrsOptions): Lrs {
   let timer: unknown;
   /** Statements in the batch on its way or waiting for a retry; a retry sends the same batch. */
   let batchSize = 0;
+  /** State documents the LRS holds, by query: one read at launch, or one this client wrote. */
+  const held = new Set<string>();
+  /** The request on its way, and whether it outlives the page (keepalive). */
+  let onItsWay: { path: string; body: string | undefined; survives: boolean } | undefined;
+
+  /**
+   * A write over a state document must say whether it expects the document to exist (xAPI
+   * concurrency: 1.0.3 Part Three 3.1, required in 2.0); an LRS that holds to it refuses one that
+   * does not with 409, as SQL LRS does in both versions (M2-21). This client is the document's only
+   * writer, so it says just that: If-Match * once the document exists, If-None-Match * before.
+   * shortcut: no ETag is kept, so a write from another session in between is overwritten; keep the
+   * ETags read and written if two sessions of one registration ever have to be told apart.
+   */
+  const precondition = (exists: boolean): Record<string, string> =>
+    exists ? { "If-Match": "*" } : { "If-None-Match": "*" };
 
   const headers = (body: boolean): Record<string, string> => ({
     "X-Experience-API-Version": version,
@@ -175,10 +209,15 @@ export function createLrs(options: LrsOptions): Lrs {
     ...(body && { "Content-Type": "application/json" }),
   });
 
-  async function request(path: string, init: HttpRequest): Promise<[Outcome, Answer?]> {
+  /** `untimed` for the last writes of a closing page. */
+  async function request(
+    path: string,
+    init: HttpRequest,
+    untimed = false,
+  ): Promise<[Outcome, Answer?]> {
     let response: Answer;
     try {
-      response = init.keepalive
+      response = untimed
         ? await untimedRequest(transport, endpoint + path, init)
         : await timedRequest(transport, clock, endpoint + path, init);
     } catch (error) {
@@ -208,7 +247,9 @@ export function createLrs(options: LrsOptions): Lrs {
     if (!next) return;
     const [path, init, done] = next;
     busy = true;
+    onItsWay = { path, body: init.body, survives: init.keepalive === true };
     void request(path, init).then(async ([outcome, response]) => {
+      onItsWay = undefined;
       if (closed) return;
       if (outcome === "retry" || outcome === "timeout") {
         failures++;
@@ -231,20 +272,24 @@ export function createLrs(options: LrsOptions): Lrs {
           ),
         );
       }
-      done();
+      done(outcome === "sent");
       pump();
     });
   }
 
-  function nextRequest(): [string, HttpRequest, () => void] | undefined {
+  const survives = (body: string) =>
+    utf8Length(body) <= KEEPALIVE_MAX_BYTES ? { keepalive: true } : {};
+
+  function nextRequest(): [string, HttpRequest, (sent: boolean) => void] | undefined {
     if (statements.length > 0) {
       // The same batch again after a failure: had the first try reached the LRS, a larger batch
       // would come back 409 and take the new statements with it.
       const batch = statements.slice(0, batchSize || BATCH);
       batchSize = batch.length;
+      const body = JSON.stringify(batch);
       return [
         "statements",
-        { method: "POST", headers: headers(true), body: JSON.stringify(batch) },
+        { method: "POST", headers: headers(true), body, ...survives(body) },
         () => {
           statements.splice(0, batch.length);
           batchSize = 0;
@@ -256,8 +301,14 @@ export function createLrs(options: LrsOptions): Lrs {
     const [params, body] = first.value;
     return [
       `activities/state?${params}`,
-      { method: "PUT", headers: headers(true), body },
-      () => {
+      {
+        method: "PUT",
+        headers: { ...headers(true), ...precondition(held.has(params)) },
+        body,
+        ...survives(body),
+      },
+      (sent) => {
+        if (sent) held.add(params);
         // A newer version written while this one was on its way is still to send.
         if (states.get(params) === body) states.delete(params);
       },
@@ -271,7 +322,10 @@ export function createLrs(options: LrsOptions): Lrs {
         method: "GET",
         headers: headers(false),
       });
-      if (outcome === "sent" && response) return response.body;
+      if (outcome === "sent" && response) {
+        if (resource === "activities/state") held.add(query(params));
+        return response.body;
+      }
       if (response?.status === 404) return undefined;
       // The course waits on this read: an LRS that let one try run out of time is not asked again.
       if (outcome === "refused" || outcome === "timeout" || ++failed > RETRY_DELAYS_MS.length) {
@@ -335,25 +389,40 @@ export function createLrs(options: LrsOptions): Lrs {
       if (closed) return;
       closed = true;
       clock.clearTimeout(timer);
-      // A batch still on its way is sent again on its own; the LRS keeps one statement per id.
-      for (let i = 0; i < statements.length; ) {
+      // State first: a closing cmi5 session's last statement is terminated, and its LMS refuses
+      // anything that arrives after it (M2-21, CATAPULT: cmi5 8.1.2.0-2).
+      // shortcut: the requests go out at once, so this orders their start, not their arrival; a
+      // page that goes away cannot wait for one before the next. Sequence them if an LMS ever
+      // refuses a state write that started first.
+      for (const [params, body] of states) {
+        const path = `activities/state?${params}`;
+        const writing = onItsWay?.path === path;
+        if (writing && onItsWay?.survives && onItsWay.body === body) continue;
+        // A write still on its way is taken to have made the document.
+        const exists = held.has(params) || writing;
+        void request(
+          path,
+          {
+            method: "PUT",
+            headers: { ...headers(true), ...precondition(exists) },
+            body,
+            keepalive: true,
+          },
+          true,
+        );
+      }
+      // A batch on its way with keepalive arrives by itself. One that does not outlive the page,
+      // or waits for a retry, is sent again on its own; the LRS keeps one statement per id.
+      const arriving = onItsWay?.path === "statements" && onItsWay.survives ? batchSize : 0;
+      for (let i = arriving; i < statements.length; ) {
         const size = i === 0 && batchSize > 0 ? batchSize : BATCH;
         const body = JSON.stringify(statements.slice(i, i + size));
         i += size;
-        void request("statements", {
-          method: "POST",
-          headers: headers(true),
-          body,
-          keepalive: true,
-        });
-      }
-      for (const [params, body] of states) {
-        void request(`activities/state?${params}`, {
-          method: "PUT",
-          headers: headers(true),
-          body,
-          keepalive: true,
-        });
+        void request(
+          "statements",
+          { method: "POST", headers: headers(true), body, keepalive: true },
+          true,
+        );
       }
     },
   };
