@@ -8,14 +8,16 @@
 // "Course Suite Update Test" with their own identifier, program name, install folder and data
 // folder, their window stays hidden, the installer runs silently, and the page is driven over
 // WebView2's DevTools port, never with keyboard or mouse input on the desktop. Everything it
-// installed, wrote and generated (the key pair included) is removed at the end. It builds in
-// `src-tauri/target/update-e2e` (about 10 minutes the first time), after `pnpm build`:
+// installed, wrote and generated (the key pair and the updater's download in %TEMP% included) is
+// removed at the end. It builds in `src-tauri/target/update-e2e` (about 10 minutes the first
+// time), after `pnpm build`:
 // UPDATE_E2E=1 pnpm --filter @course-suite/desktop exec playwright test --project update
 import { execFileSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -47,6 +49,16 @@ const exe = join(installDir, `${BINARY}.exe`);
 const dataFolder = join(process.env.LOCALAPPDATA ?? "", IDENTIFIER);
 const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${NAME}`;
 const rememberedKey = `HKCU\\Software\\${config.bundle.publisher}\\${NAME}`;
+/**
+ * The folders the updater downloads an installer into and keeps after starting it, named
+ * `<product name>-<version>-updater-<random>` in %TEMP% (tauri-plugin-updater's `make_temp_dir`).
+ * Only the test app's name matches, never the real app's.
+ */
+const DOWNLOAD = new RegExp(`^${NAME}-\\d+\\.\\d+\\.\\d+-updater-`);
+const updaterFolders = () =>
+  readdirSync(tmpdir())
+    .filter((name) => DOWNLOAD.test(name))
+    .map((name) => join(tmpdir(), name));
 
 /** Runs this workspace's Tauri CLI without a shell, so paths with spaces stay whole. */
 const tauri = (args: string[], env: Record<string, string> = {}) =>
@@ -165,6 +177,8 @@ test.beforeAll(async () => {
   test.setTimeout(40 * 60_000);
   // Never replace an installation of the test app left behind by an interrupted run.
   expect(existsSync(installDir), `${installDir} exists; uninstall it first`).toBe(false);
+  // Nor count an interrupted run's downloads as this run's.
+  expect(updaterFolders(), "an earlier run's update downloads; delete them first").toEqual([]);
   work = mkdtempSync(join(tmpdir(), "course-suite-update-"));
 
   // The throwaway key pair; the private key never leaves this folder, which is deleted after.
@@ -238,7 +252,11 @@ test.afterAll(async () => {
   } finally {
     // The key pair, the builds' settings and the project, whatever happened above.
     if (work) rmSync(work, { recursive: true, force: true, maxRetries: 5 });
+    // The installers the updater downloaded, which it leaves in %TEMP% after starting them.
+    for (const folder of updaterFolders())
+      rmSync(folder, { recursive: true, force: true, maxRetries: 5 });
   }
+  expect(updaterFolders(), "the updater's downloads are removed from %TEMP%").toEqual([]);
 });
 
 test("M2-20, D-62: the old version installs for the current user, opens the author's project and refuses an update whose signature is not its key's", async () => {
@@ -317,6 +335,10 @@ test("M2-20, D-62: from settings, Check now finds the update, checks its signatu
   expect(requests.filter((url) => url.endsWith(".exe"))).toHaveLength(2);
   // The same install folder, and no second copy anywhere.
   expect(existsSync(exe)).toBe(true);
+  // The updater kept the installer it ran in a folder of its own in %TEMP%, which afterAll removes.
+  const downloads = updaterFolders();
+  expect(downloads).toHaveLength(1);
+  expect(readdirSync(downloads[0] as string)).toEqual([`${NAME}-${NEW}-installer.exe`]);
 
   // Started again the same day: no check at start. The project is still listed and opens.
   await updated.waitForTimeout(5_000);
