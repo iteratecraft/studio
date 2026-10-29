@@ -2,7 +2,17 @@
 // CATAPULT): import a course, start a conformance test, launch an AU, and read the result and the
 // report the CTS's own "Download" button gives (cts/client/src/store/service/tests.js).
 import { expect } from "@playwright/test";
+import type { Lrs } from "../lrs/lrs.js";
 import { CATAPULT_URL, CTS_USER } from "./site.ts";
+
+/** The player's SQL LRS, as compose.yaml publishes it, with the credentials it gives the player. */
+export const CATAPULT_LRS: Lrs = {
+  name: "CATAPULT's LRS",
+  endpoint: `http://localhost:${process.env.CATAPULT_LRS_PORT ?? "8281"}/xapi/`,
+  auth: `Basic ${Buffer.from("coursesuite:coursesuite-secret").toString("base64")}`,
+  // compose.yaml's LRS_XAPI_VERSION: the version the player and the CTS speak to it.
+  version: "1.0.3",
+};
 
 const AUTH = `Basic ${Buffer.from(`${CTS_USER.username}:${CTS_USER.password}`).toString("base64")}`;
 
@@ -37,9 +47,19 @@ export const startTest = (courseId: number) =>
     },
   });
 
-/** Launches the test's AU in Normal mode; the launch URL opens it the way the CTS's frame does. */
+/**
+ * Launches the test's AU in Normal mode, a new session of the test's registration each time; the
+ * launch URL opens it the way the CTS's frame does.
+ */
 export const launchAu = (testId: number, auIndex = 0) =>
   api<{ id: number; launchUrl: string }>("POST", "sessions", { testId, auIndex });
+
+/** The registration a launch URL gives the AU (cmi5 section 8.1): the one its statements carry. */
+export function registrationOf(launchUrl: string): string {
+  const registration = new URL(launchUrl).searchParams.get("registration");
+  if (!registration) throw new Error(`No registration in the launch URL ${launchUrl}`);
+  return registration;
+}
 
 export interface Log {
   id: number;

@@ -2,7 +2,7 @@
 # Test Suite (CTS) and the cmi5 player it launches courses through, both built from CATAPULT's own
 # Dockerfiles at the commit up.ts checks out into .cache/, with MySQL as CATAPULT uses it, SQL LRS as
 # the LRS the player reports to, and nginx giving the CTS and the player one origin as CATAPULT's
-# own deployment does (nginx.conf). Start it with `pnpm --filter @course-suite/conformance
+# own deployment does (nginx.conf); the LRS is published too, for the tests to read. Start it with `pnpm --filter @course-suite/conformance
 # catapult:up`; see docs/ci.md. Images, and the base images of CATAPULT's Dockerfiles, are pinned by
 # digest; bump a digest only to one published at least two weeks earlier.
 name: course-suite-catapult
@@ -48,6 +48,10 @@ services:
       # CATAPULT's player passes the course page's Origin header on to the LRS, which refuses an
       # origin it does not allow (403); the LRS is reachable only inside this network.
       LRSQL_ALLOW_ALL_ORIGINS: "true"
+    # Also on this machine only, so the tests read the statements the course sent: the score on
+    # passed and failed (catapult.e2e.ts).
+    ports:
+      - 127.0.0.1:${CATAPULT_LRS_PORT:-8281}:8080
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/xapi/about"]
       interval: 2s

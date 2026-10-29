@@ -1,12 +1,15 @@
 // Player performance budget (M2-21, D-26; ENG-04 "Bundle size and first load"): a large course,
-// published as a plain web package and opened from disk, must show its cover within the time budget
-// and hold no more JavaScript heap than the memory budget once it has. The script and style sheet
-// sizes are gated in @course-suite/exporters (src/player-budget.test.ts).
+// published as a plain web package and opened from disk, must show its cover within the time
+// budgets and hold no more JavaScript heap than the memory budget once it has. The script and style
+// sheet sizes are gated in @course-suite/exporters (src/player-budget.test.ts).
 //
-// Budgets: the median of three loads on the CI runner (windows-latest) on 2026-10-29 (cover in
-// 168 ms, single loads 120 to 203 ms; 3.04 MB of heap), with a margin for a shared runner's noise:
-// three times the time, and the heap plus half, rounded up to a whole MiB (docs/ci.md, "Player
-// performance budget"). Raise one only with a reviewed reason in the pull request.
+// Each figure is the median of five loads. Time is measured twice: as the main thread's busy time
+// (Chrome's TaskDuration and ScriptDuration), which a shared runner's load disturbs far less than
+// the wall clock, and as the wall-clock time until the cover is in the page, which also sees waiting
+// that costs no CPU. The heap is deterministic (3.039 to 3.050 MB in every load measured). How the
+// budgets were set: docs/ci.md, "Player performance budget". The second test injects a known
+// regression and checks that the budgets catch it. Raise a budget only with a reviewed reason in
+// the pull request.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -14,16 +17,32 @@ import { pathToFileURL } from "node:url";
 import { type Course, type Entry, validateCourse } from "@course-suite/format";
 import { interactiveBlocksCourse, staticBlocksCourse } from "@course-suite/format/test/courses";
 import { readZip } from "@course-suite/zip";
-import { expect, type Page, test } from "@playwright/test";
+import { type Browser, expect, type Page, test } from "@playwright/test";
 import { webZip } from "../test/blocks.js";
 
-/** The budgets, in milliseconds and bytes. */
+/** The budgets, in milliseconds and bytes; each is held against the median of `LOADS` loads. */
 const BUDGET = {
-  /** From navigation start until the cover's begin link is in the page. */
-  coverMs: 500,
+  /** Main-thread busy time (TaskDuration) from navigation until the cover is shown. */
+  mainThreadMs: 320,
+  /** JavaScript run in that time (ScriptDuration). */
+  scriptMs: 60,
+  /** From navigation start until the cover's begin link is in the page, by the wall clock. */
+  coverMs: 300,
   /** JavaScript heap in use after a garbage collection, with the cover shown. */
-  heapBytes: 5 * 1024 * 1024,
+  heapBytes: 3_500_000,
 };
+
+type Measures = { [K in keyof typeof BUDGET]: number };
+
+/** Loads per measurement; the median of an odd number is one of the loads. */
+const LOADS = 5;
+
+/**
+ * The regression the second test injects: 250 ms of blocking work at start-up, which the first
+ * budgets missed (a cover 2.5 times slower on the runner passed them), and 512 KiB of retained
+ * memory, a sixth of the heap.
+ */
+const REGRESSION = { blockMs: 250, retainedDoubles: 65_536 };
 
 /** How many times the lessons of the two block fixtures are repeated. */
 const COPIES = 20;
@@ -86,8 +105,8 @@ test.beforeAll(async () => {
 
 test.afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-/** One load of the course: when its cover was ready, and the heap in use then. */
-async function load(page: Page) {
+/** One load of the course in `page`, with `regression` injected when given: what its cover cost. */
+async function load(page: Page, regression?: typeof REGRESSION): Promise<Measures> {
   // Records the moment the begin link first appears, without waiting on the test's own polling.
   await page.addInitScript(() => {
     const seen = () => {
@@ -101,41 +120,89 @@ async function load(page: Page) {
       if (seen()) observer.disconnect();
     }).observe(document, { childList: true, subtree: true });
   });
+  if (regression) {
+    // On the main thread while the page starts, as a slower player start-up would be.
+    await page.addInitScript(({ blockMs, retainedDoubles }) => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const end = performance.now() + blockMs;
+        while (performance.now() < end) {
+          // Blocking work.
+        }
+      });
+      (window as unknown as { retained: number[] }).retained = Array.from(
+        { length: retainedDoubles },
+        (_, i) => i + 0.5,
+      );
+    }, regression);
+  }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable");
   await page.goto(pathToFileURL(join(dir, "index.html")).href);
   await expect(page.getByRole("link", { name: "Begin course" })).toBeVisible();
+  const { metrics } = await cdp.send("Performance.getMetrics");
+  const seconds = (name: string) => {
+    const metric = metrics.find((m) => m.name === name);
+    if (!metric) throw new Error(`Chrome reported no ${name}`);
+    return metric.value;
+  };
   const coverMs = await page.evaluate(
     () => (window as unknown as { coverReady: number }).coverReady,
   );
-  const cdp = await page.context().newCDPSession(page);
   await cdp.send("HeapProfiler.collectGarbage");
   const { usedSize } = await cdp.send("Runtime.getHeapUsage");
   await cdp.detach();
-  return { coverMs, heapBytes: usedSize };
+  return {
+    mainThreadMs: seconds("TaskDuration") * 1000,
+    scriptMs: seconds("ScriptDuration") * 1000,
+    coverMs,
+    heapBytes: usedSize,
+  };
 }
 
 const median = (values: number[]) =>
   [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 
-test("M2-21 player performance budget: a large course shows its cover within the time budget and holds no more heap than the memory budget", async ({
-  browser,
-}) => {
-  const loads = [];
-  for (let i = 0; i < 3; i++) {
+/** The median of `LOADS` loads, each in a new page; logged, so a budget change starts from real numbers. */
+async function measure(browser: Browser, what: string, regression?: typeof REGRESSION) {
+  const loads: Measures[] = [];
+  for (let i = 0; i < LOADS; i++) {
     const page = await browser.newPage();
-    loads.push(await load(page));
+    loads.push(await load(page, regression));
     await page.close();
   }
-  const measured = {
-    coverMs: Math.round(median(loads.map((l) => l.coverMs))),
-    heapBytes: median(loads.map((l) => l.heapBytes)),
-  };
-  // In the CI log, so the next budget change starts from real numbers.
-  console.log(
-    `Player performance on a large course: ${JSON.stringify({ measured, loads, BUDGET })}`,
-  );
+  const keys = Object.keys(BUDGET) as (keyof Measures)[];
+  const measured = Object.fromEntries(
+    keys.map((key) => {
+      const value = median(loads.map((l) => l[key]));
+      return [key, key === "heapBytes" ? value : Math.round(value)];
+    }),
+  ) as Measures;
+  console.log(`${what}: ${JSON.stringify({ measured, BUDGET, loads })}`);
   test
     .info()
     .annotations.push({ type: "player-performance", description: JSON.stringify(measured) });
-  expect(measured.coverMs).toBeLessThanOrEqual(BUDGET.coverMs);
-  expect(measured.heapBytes).toBeLessThanOrEqual(BUDGET.heapBytes);
+  return measured;
+}
+
+/** The budgets `measured` exceeds. */
+const exceeded = (measured: Measures) =>
+  (Object.keys(BUDGET) as (keyof Measures)[]).filter((key) => measured[key] > BUDGET[key]);
+
+test("M2-21 player performance budget: a large course shows its cover within the time budgets and holds no more heap than the memory budget", async ({
+  browser,
+}) => {
+  const measured = await measure(browser, "Player performance on a large course");
+  expect(exceeded(measured), JSON.stringify({ measured, BUDGET })).toEqual([]);
+});
+
+test("M2-21 player performance budget: 250 ms more blocking work at start-up, or 512 KiB more heap, exceeds the budgets", async ({
+  browser,
+}) => {
+  const measured = await measure(browser, "Player performance with a regression", REGRESSION);
+  // The script budget catches the blocking work on any machine, however fast or loaded: the work
+  // alone is 250 ms of script. The main-thread and wall-clock budgets are twice the runner's own
+  // figures, so they catch it on the runner they were set on, but a fast machine stays under them.
+  expect(exceeded(measured), JSON.stringify({ measured, BUDGET })).toEqual(
+    expect.arrayContaining(["scriptMs", "heapBytes"]),
+  );
 });
