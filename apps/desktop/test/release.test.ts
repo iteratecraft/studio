@@ -323,15 +323,16 @@ describe("M2-20: the release workflow's update metadata", () => {
   });
 
   test(
-    "without the secret, an app without an update key is released without update metadata, and says so; one with a key stops the release",
+    "without the secret, update signing is skipped cleanly: a notice for an app without an update key, a warning for one with a key",
     runsBash,
     () => {
       const skipped = setUp("").run("No update metadata");
       expect(skipped.status).toBe(0);
       expect(skipped.out).toContain("::notice title=No update metadata::");
-      const stopped = setUp("RWQkey").run("No update metadata");
-      expect(stopped.status).not.toBe(0);
-      expect(stopped.out).toContain("::error title=No update signing key::");
+      const warned = setUp("RWQkey").run("No update metadata");
+      expect(warned.status).toBe(0);
+      expect(warned.out).toContain("::warning title=No update metadata::");
+      expect(warned.out).not.toContain("::notice");
     },
   );
 

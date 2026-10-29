@@ -12,8 +12,9 @@
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD when the key has one), Tauri's bundler signs the installer for
 # the app's updater, and latest.json, which names it with that signature, goes on the draft too.
 # Once the lead publishes the release, installed apps find it at releases/latest. Without the
-# secret, there is no update metadata and the workflow says so; a build whose app carries an
-# update key (plugins.updater.pubkey) refuses to go on without it.
+# secret, update signing is skipped: the release has no update metadata and the workflow says so
+# (a warning when the app carries an update key, plugins.updater.pubkey, since installed apps are
+# then not offered this release).
 name: Release
 
 on:
@@ -127,8 +128,8 @@ jobs:
         run: |
           pubkey=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').plugins.updater.pubkey")
           if [ -n "$pubkey" ]; then
-            echo "::error title=No update signing key::The app carries an update key, so installed apps expect latest.json on this release, but TAURI_SIGNING_PRIVATE_KEY is not set (docs/release.md)."
-            exit 1
+            echo "::warning title=No update metadata::TAURI_SIGNING_PRIVATE_KEY is not set, so update signing is skipped: the release has no latest.json, and installed apps are not offered it although the app carries an update key (M2-20, docs/release.md)."
+            exit 0
           fi
           echo "::notice title=No update metadata::TAURI_SIGNING_PRIVATE_KEY is not set and the app carries no update key, so the release has no latest.json and installed apps are not offered it (M2-20, docs/release.md)."
 

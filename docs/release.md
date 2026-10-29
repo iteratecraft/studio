@@ -51,8 +51,9 @@ project lead tags, runs the release workflows, edits releases and sets secrets.
      its password.
   2. In a pull request, paste the contents of `course-suite-update.key.pub` (one line) as
      `plugins.updater.pubkey` in `apps/desktop/src-tauri/tauri.conf.json`; `release.test.ts`
-     checks its shape. Merge it before the next tag. From then on the workflow refuses to release
-     without the secret, and refuses the secret without the public key.
+     checks its shape. Merge it before the next tag. From then on a run without the secret still
+     releases, but skips update signing with a warning (installed apps are not offered that
+     release); a run with the secret but without the public key stops.
   3. Keep the key file and its password in two safe places offline. They never go in the
      repository, an issue or a chat. Without them no installed copy can be updated again: a new key
      needs every author to install the next version by hand.
