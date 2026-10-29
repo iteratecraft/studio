@@ -427,6 +427,16 @@ test.describe("learner-side rules", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 320, height: 640 });
     await open("#/lessons/lessonall1");
+    // Every animation or transition that starts is recorded, so a short one that has already
+    // finished by the time the test looks still counts.
+    await page.evaluate(() => {
+      const w = window as unknown as { started: string[] };
+      w.started = [];
+      document.addEventListener("animationstart", (e) => w.started.push(e.animationName));
+      document.addEventListener("transitionrun", (e) => w.started.push(e.propertyName));
+    });
+    const started = () =>
+      page.evaluate(() => (window as unknown as { started: string[] }).started.slice());
     const animations = () => page.evaluate(() => document.getAnimations().length);
     await page.getByRole("button", { name: "Show contents" }).press("Enter");
     expect(await animations()).toBe(0);
@@ -437,11 +447,14 @@ test.describe("learner-side rules", () => {
       location.hash = "#/lessons/quizall001";
     });
     await page.getByRole("button", { name: "Begin quiz" }).press("Enter");
+    await expect(page.getByRole("button", { name: "Begin quiz" })).toHaveCount(0);
     expect(await animations()).toBe(0);
+    expect(await started()).toEqual([]);
 
-    // Without the preference the contents slide in.
+    // Without the preference the contents slide in. The slide lasts 0.2 s, so a slow machine
+    // can finish it before the test reads the running animations: wait for its start instead.
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.getByRole("button", { name: "Show contents" }).press("Enter");
-    expect(await animations()).toBe(1);
+    await expect.poll(started).toContain("outline-in");
   });
 });
