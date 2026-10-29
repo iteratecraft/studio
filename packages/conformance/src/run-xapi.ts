@@ -47,6 +47,12 @@ export interface XapiRunOptions {
   drive?: (page: Page) => Promise<void>;
   /** How long to wait for the LRS to go quiet after the page closes. Default 10 seconds. */
   timeoutMs?: number;
+  /**
+   * For a launch link that names another LRS (M2-21): waits until it has what the course sent on
+   * leaving. Closing the page closes its browser context, which cancels keepalive requests still
+   * on their way.
+   */
+  waitForLrs?: () => Promise<void>;
 }
 
 export interface XapiRun {
@@ -115,6 +121,7 @@ export async function runXapiPackage(
       // Leaving the page is the learner closing the course: it fires pagehide (standards.md rule 9).
       await page.goto("about:blank");
       await quiet(lms.lrs, options.timeoutMs ?? 10_000);
+      await options.waitForLrs?.();
       return run;
     } finally {
       await page.close();

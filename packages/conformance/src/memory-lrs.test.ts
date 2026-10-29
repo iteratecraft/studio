@@ -184,4 +184,27 @@ describe("in-memory LRS (S-5 test subset)", () => {
     await fetch(url("bookmark"), { method: "DELETE", headers });
     expect((await fetch(url("bookmark"), { headers })).status).toBe(404);
   });
+
+  test("[standards:X-7] M2-21: a state write over a document must say whether it expects one, in 1.0.3 and 2.0, as SQL LRS keeps it", async () => {
+    lms = await startTestLms();
+    const url = `${lms.xapiEndpoint}activities/state?${new URLSearchParams({
+      activityId: "https://example.org/course",
+      agent,
+      stateId: "progress",
+    })}`;
+    const v2 = { ...headers, "X-Experience-API-Version": "2.0.0" };
+    const put = (extra: Record<string, string>, version = v2) =>
+      fetch(url, { method: "PUT", headers: { ...version, ...extra }, body: "{}" }).then(
+        (r) => r.status,
+      );
+    expect(await put({ "If-Match": "*" })).toBe(412);
+    expect(await put({ "If-None-Match": "*" })).toBe(204);
+    expect(await put({})).toBe(409);
+    expect(await put({ "If-None-Match": "*" })).toBe(412);
+    expect(await put({ "If-Match": "*" })).toBe(204);
+    expect(await put({}, headers)).toBe(409);
+    expect(await put({ "If-Match": "*" }, headers)).toBe(204);
+    const preflight = await fetch(url, { method: "OPTIONS" });
+    expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain("If-None-Match");
+  });
 });

@@ -93,7 +93,7 @@ export function createMemoryLrs(options: MemoryLrsOptions = {}): MemoryLrs {
       response.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
       response.setHeader(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, X-Experience-API-Version",
+        "Authorization, Content-Type, X-Experience-API-Version, If-Match, If-None-Match",
       );
       return send(204);
     }
@@ -186,6 +186,17 @@ export function createMemoryLrs(options: MemoryLrsOptions = {}): MemoryLrs {
       if (method !== "PUT" && method !== "POST") return send(405);
       const contentType = request.headers["content-type"] ?? "application/octet-stream";
       const previous = state.get(key);
+      // Concurrency (M2-21, as SQL LRS keeps it in 1.0.3 and 2.0): a PUT over an existing document
+      // that does not say what it expects is refused (409); a wildcard precondition that fails is 412.
+      // shortcut: wildcards only, no ETags; the player sends only those.
+      const ifMatch = request.headers["if-match"];
+      const ifNoneMatch = request.headers["if-none-match"];
+      if (method === "PUT" && previous && ifMatch === undefined && ifNoneMatch === undefined) {
+        return send(409, {
+          error: "a write to an existing document needs If-Match or If-None-Match",
+        });
+      }
+      if ((ifMatch === "*" && !previous) || (ifNoneMatch === "*" && previous)) return send(412);
       // POST merges JSON objects into an existing JSON document (xAPI 1.0.3, Part Three 2.2).
       if (method === "POST" && previous && contentType.startsWith("application/json")) {
         const before = parseObject(previous.body);
