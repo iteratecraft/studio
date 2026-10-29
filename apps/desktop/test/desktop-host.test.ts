@@ -1,7 +1,7 @@
 // The desktop adapter of the host interface (M2-02) against a stand-in for Tauri: which shell
 // command each call makes, with which path. The shell's own checks of those paths are Rust unit
 // tests (src-tauri/src/files.rs) and the app smoke test (e2e/app.e2e.ts).
-import { HostError } from "@course-suite/host";
+import { HostError, UpdateError } from "@course-suite/host";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createDesktopHost } from "../src/desktop-host.js";
 
@@ -13,6 +13,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   },
 }));
 vi.mock("@tauri-apps/api/path", () => ({ sep: () => "\\" }));
+const { listen } = vi.hoisted(() => ({ listen: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen }));
 vi.mock("@tauri-apps/api/app", () => ({ getName: vi.fn(), getVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 const { onCloseRequested } = vi.hoisted(() => ({ onCloseRequested: vi.fn() }));
@@ -84,7 +86,64 @@ test("the desktop host has no job port: long tasks keep the one contract of @cou
     "media",
     "onCloseRequested",
     "storage",
+    "updates",
   ]);
+});
+
+test("M2-20: the updater's refusals become UpdateErrors with their reason; anything else is a failure", async () => {
+  const updates = createDesktopHost().updates;
+  if (!updates) throw new Error("the desktop host has updates");
+  invoke.mockResolvedValueOnce({ version: "0.2.0", notes: "" });
+  expect(await updates.check()).toEqual({ version: "0.2.0", notes: "" });
+  for (const reason of ["unavailable", "network", "invalid", "signature", "failed"]) {
+    invoke.mockRejectedValueOnce(`${reason}: details`);
+    const error = await updates.check().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(UpdateError);
+    expect(error).toMatchObject({ reason, message: "details" });
+  }
+  invoke.mockRejectedValueOnce("The installer could not start");
+  await expect(updates.install()).rejects.toMatchObject({
+    reason: "failed",
+    message: "The installer could not start",
+  });
+  expect(invoke.mock.calls.map(([command]) => command)).toEqual([
+    ...Array(6).fill("update_check"),
+    "update_install",
+  ]);
+});
+
+test("M2-20: aborting a download asks the shell to stop it and rejects with the signal's reason, even when it had just finished", async () => {
+  const updates = createDesktopHost().updates;
+  if (!updates) throw new Error("the desktop host has updates");
+  const stop = new AbortController();
+  let finish: (value?: unknown) => void = () => {};
+  invoke.mockImplementation((command: string) =>
+    command === "update_download" ? new Promise((resolve) => (finish = resolve)) : undefined,
+  );
+  const download = updates.download({ signal: stop.signal });
+  stop.abort(new Error("stopped"));
+  finish();
+  await expect(download).rejects.toThrow("stopped");
+  expect(invoke.mock.calls.map(([command]) => command)).toEqual([
+    "update_download",
+    "update_cancel",
+  ]);
+});
+
+test("M2-20: Help > Check for updates reaches the listener, which can stop listening", async () => {
+  const unlisten = vi.fn();
+  let fire: () => void = () => {};
+  listen.mockImplementation(async (_event: string, handler: () => void) => {
+    fire = handler;
+    return unlisten;
+  });
+  const heard = vi.fn();
+  const stop = createDesktopHost().updates?.onCheckRequested(heard);
+  expect(listen).toHaveBeenCalledWith("check-for-updates", expect.any(Function));
+  fire();
+  expect(heard).toHaveBeenCalledOnce();
+  stop?.();
+  await vi.waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
 });
 
 test("a file's change time comes from the shell, and a missing file has none", async () => {

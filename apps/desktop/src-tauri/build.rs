@@ -14,6 +14,11 @@ fn main() {
             "media_install",
             "media_convert",
             "media_cancel",
+            "update_ready",
+            "update_check",
+            "update_download",
+            "update_cancel",
+            "update_install",
         ]),
     ))
     .expect("failed to run the Tauri build script");

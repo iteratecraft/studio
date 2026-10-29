@@ -19,6 +19,8 @@ export default defineConfig({
     { name: "app", testMatch: "app.e2e.ts" },
     // The built installer: install, start and uninstall (installer.e2e.ts; INSTALLER_E2E=1 only).
     { name: "installer", testMatch: "installer.e2e.ts" },
+    // Two test builds, installed and updated one to the other (update.e2e.ts; UPDATE_E2E=1 only).
+    { name: "update", testMatch: "update.e2e.ts" },
   ],
   webServer: {
     command: "vite --port 1421 --strictPort",

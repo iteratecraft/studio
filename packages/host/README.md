@@ -23,6 +23,7 @@ Apache-2.0, layer `engine`. No dependencies; it runs in a browser, a Web Worker 
 | `storage` | Small string values kept between sessions (settings, recent files); never projects or media |
 | `onCloseRequested(allow)` | Asks `allow` before the app window closes, so the editor can offer to save; the window closes only when it resolves to true |
 | `media` (optional) | The media converter (D-12, D-43; M2-13): `converter()` says whether it is installed, its name, licence and download size; `installConverter(options)` downloads, checks and keeps it; `convert(file, "audio" \| "video", options)` turns a picked or data file into WebM (VP9 and Opus) or MP3. `options` carry an `AbortSignal` and a progress callback. Only the desktop host has it |
+| `updates` (optional) | Updates of the app itself (M2-20): `available()` says whether the build carries an update key, without connecting; `check()` asks the latest published release, `null` when there is nothing newer; `download(options)` fetches the update and checks its signature against the built-in key (`AbortSignal`, progress in bytes); `install()` runs it, replacing the app and restarting it; `onCheckRequested(listener)` hears Help > Check for updates. Failures reject with `UpdateError`, whose `reason` the editor puts in plain words. Only the desktop host has it; the memory host takes a stand-in (`init.updates`) |
 
 `FileRef.id` is opaque: a path on desktop, a key in memory. Keep it and hand it back, never parse
 it. A file the user did not pick, outside the data folder, is refused with

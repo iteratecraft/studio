@@ -167,6 +167,69 @@ export interface HostMedia {
   ): Promise<ConvertedMedia>;
 }
 
+// M2-20: updates of the desktop app.
+
+/** A newer version of the app, found by `HostUpdates.check`. */
+export interface AppUpdate {
+  version: string;
+  /** What changed, as plain text from the release; may be empty. */
+  notes: string;
+}
+
+/**
+ * Why an update could not be checked, downloaded or installed:
+ * - `unavailable`: this build cannot update itself (no update signing key is built in);
+ * - `network`: the release site could not be reached, or the download broke off;
+ * - `invalid`: the release's update information could not be read, or has nothing for this
+ *   computer;
+ * - `signature`: the download does not carry a valid signature of this app's key, so it was not
+ *   installed;
+ * - `cancelled`: the author stopped the download;
+ * - `failed`: anything else, such as the installer not starting.
+ */
+export type UpdateFailure =
+  | "unavailable"
+  | "network"
+  | "invalid"
+  | "signature"
+  | "cancelled"
+  | "failed";
+
+/** An update that did not happen; the installed app keeps working. */
+export class UpdateError extends Error {
+  constructor(
+    readonly reason: UpdateFailure,
+    message: string,
+  ) {
+    super(message);
+    this.name = "UpdateError";
+  }
+}
+
+/**
+ * Updating the desktop app from the project's published releases (M2-20, ADR-0004). The editor
+ * decides when to check and asks the author before anything is downloaded. Failures reject with
+ * an `UpdateError`.
+ */
+export interface HostUpdates {
+  /** Whether this build can update itself, without connecting anywhere. */
+  available(): Promise<boolean>;
+  /** Asks the latest published release whether it is newer; `null` when it is not. */
+  check(): Promise<AppUpdate | null>;
+  /**
+   * Downloads the update the last check found and checks its signature against the key built
+   * into the app; `onProgress` gets bytes. Aborting the signal stops it. Nothing is installed yet.
+   */
+  download(options?: MediaTaskOptions): Promise<void>;
+  /**
+   * Runs the downloaded update's installer, which replaces the app in place and starts the new
+   * version: the page goes away, so it resolves only where an edition cannot restart.
+   */
+  install(): Promise<void>;
+  /** Help > Check for updates in the app's menu; returns a function that stops listening. */
+  onCheckRequested(listener: () => void): () => void;
+}
+
 /**
  * What the editors get from the edition they run in. Long tasks are not here: they keep the one
  * job contract of @course-suite/jobs (ENG-15), which wave G wires to the host's files.
@@ -177,6 +240,8 @@ export interface HostInterface {
   readonly storage: HostStorage;
   /** Converting audio and video; only where the edition can (the desktop app). */
   readonly media?: HostMedia;
+  /** Updating the app itself; only where the edition installs it (the desktop app). */
+  readonly updates?: HostUpdates;
   /**
    * Asks `allow` before the app window closes, for example to offer to save unsaved work: the
    * window closes when it resolves to true and stays open otherwise. One listener at a time, the

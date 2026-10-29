@@ -963,6 +963,32 @@ body,
   overflow-wrap: anywhere;
 }
 
+/* M2-20: app settings and updates of the desktop app */
+.be-bar-end {
+  margin-inline-start: auto;
+}
+
+.be-settings-heading {
+  margin: 0;
+  font-size: var(--cs-text-md);
+}
+
+.be-update-help {
+  margin: 0;
+  color: var(--cs-text-muted);
+  font-size: var(--cs-text-sm);
+}
+
+.be-update-notes {
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--cs-space-2);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Text and static blocks (M2-12): items, pictures and tables in a block's fields. */
 .be-item {
   display: flex;

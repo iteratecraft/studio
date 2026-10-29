@@ -103,7 +103,15 @@ test("the main capability grants only the commands the desktop host uses", () =>
     "allow-media-install",
     "allow-media-convert",
     "allow-media-cancel",
+    // Updates (src-tauri/src/update.rs, M2-20): whether the build can update, check, download with
+    // the signature checked, cancel, and run the checked installer. No updater plugin command.
+    "allow-update-ready",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-cancel",
+    "allow-update-install",
   ]);
+  expect(JSON.stringify(read("capabilities/main.json").permissions)).not.toContain("updater:");
 });
 
 test("D-43: the media converter is a pinned LGPL build from a public GitHub release, never bundled", () => {

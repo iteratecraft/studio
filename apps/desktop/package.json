@@ -28,6 +28,7 @@
     "@course-suite/fonts": "workspace:*",
     "@course-suite/format": "workspace:*",
     "@course-suite/preview": "workspace:*",
+    "@course-suite/project": "workspace:*",
     "@playwright/test": "catalog:",
     "@tauri-apps/cli": "2.12.2",
     "@types/node": "catalog:",

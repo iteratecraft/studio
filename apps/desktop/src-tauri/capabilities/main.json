@@ -1,6 +1,6 @@
 {
   "identifier": "main",
-  "description": "The main window: app name and version, open and save dialogs, the shell's own file commands, which allow only the data folder, files the user picked and their autosave folders (src/files.rs), the close-request event with destroy, so the editor can offer to save before the window closes, and the media converter's commands (src/media.rs: its pinned download, a fixed conversion of a file the page may read, and cancel). Nothing else.",
+  "description": "The main window: app name and version, open and save dialogs, the shell's own file commands, which allow only the data folder, files the user picked and their autosave folders (src/files.rs), the close-request event with destroy, so the editor can offer to save before the window closes, the media converter's commands (src/media.rs: its pinned download, a fixed conversion of a file the page may read, and cancel), and the updater's commands (src/update.rs: whether the build can update, check, download with its signature checked, cancel, and run the checked installer). Nothing else.",
   "windows": ["main"],
   "permissions": [
     "core:app:allow-name",
@@ -20,6 +20,11 @@
     "allow-media-converter",
     "allow-media-install",
     "allow-media-convert",
-    "allow-media-cancel"
+    "allow-media-cancel",
+    "allow-update-ready",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-cancel",
+    "allow-update-install"
   ]
 }

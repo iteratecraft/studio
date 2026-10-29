@@ -7,6 +7,14 @@
 # With the secrets WINDOWS_CERTIFICATE (the code-signing certificate as a base64 .pfx) and
 # WINDOWS_CERTIFICATE_PASSWORD, the app, the installer and its uninstaller are signed; without
 # them the build is unsigned and says so. See docs/release.md.
+#
+# Update metadata (M2-20; M0-09, ADR-0006): with the secret TAURI_SIGNING_PRIVATE_KEY (and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD when the key has one), Tauri's bundler signs the installer for
+# the app's updater, and latest.json, which names it with that signature, goes on the draft too.
+# Once the lead publishes the release, installed apps find it at releases/latest. Without the
+# secret, update signing is skipped: the release has no update metadata and the workflow says so
+# (a warning when the app carries an update key, plugins.updater.pubkey, since installed apps are
+# then not offered this release).
 name: Release
 
 on:
@@ -36,6 +44,7 @@ jobs:
     env:
       # Secrets cannot appear in `if:`; this says only whether both exist, never their values.
       SIGNING_SET: ${{ secrets.WINDOWS_CERTIFICATE != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+      UPDATE_SIGNING_SET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     defaults:
       run:
         shell: bash
@@ -97,8 +106,38 @@ jobs:
         if: env.SIGNING_SET != 'true'
         run: echo "::notice title=Unsigned installer::WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD are not set, so the installer is not signed (D-2); its SHA-256 is published with it."
 
+      # The updater's signature (M2-20): Tauri merges tauri.windows.conf.json, which the step above
+      # may have written, so this adds to it. The app must carry the public key of the same pair.
+      - name: Sign the update for the updater
+        if: env.UPDATE_SIGNING_SET == 'true'
+        run: |
+          pubkey=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').plugins.updater.pubkey")
+          if [ -z "$pubkey" ]; then
+            echo "::error title=No update key in the app::TAURI_SIGNING_PRIVATE_KEY is set, but plugins.updater.pubkey in apps/desktop/src-tauri/tauri.conf.json is empty, so the app could never check this signature. Paste the public key there in a pull request first (docs/release.md)."
+            exit 1
+          fi
+          node -e "
+            const fs = require('fs');
+            const path = 'apps/desktop/src-tauri/tauri.windows.conf.json';
+            const config = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : {};
+            config.bundle = { ...config.bundle, createUpdaterArtifacts: true };
+            fs.writeFileSync(path, JSON.stringify(config));
+          "
+      - name: No update metadata
+        if: env.UPDATE_SIGNING_SET != 'true'
+        run: |
+          pubkey=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').plugins.updater.pubkey")
+          if [ -n "$pubkey" ]; then
+            echo "::warning title=No update metadata::TAURI_SIGNING_PRIVATE_KEY is not set, so update signing is skipped: the release has no latest.json, and installed apps are not offered it although the app carries an update key (M2-20, docs/release.md)."
+            exit 0
+          fi
+          echo "::notice title=No update metadata::TAURI_SIGNING_PRIVATE_KEY is not set and the app carries no update key, so the release has no latest.json and installed apps are not offered it (M2-20, docs/release.md)."
+
       # The same command builds the installer on a contributor's machine (apps/desktop/README.md).
       - name: Build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm --filter @course-suite/desktop build:installer
 
       # A file name without spaces, so the name in SHA256SUMS.txt is the name GitHub serves.
@@ -116,6 +155,36 @@ jobs:
           cat SHA256SUMS.txt
           echo "dir=$out" >> "$GITHUB_OUTPUT"
 
+      # The updater's metadata (M2-20): the version, the address the installer will have once the
+      # release is published, and its signature. Installed apps read it at releases/latest, which
+      # GitHub serves only from the latest published release, never from a draft or a pre-release.
+      - name: Write the update information
+        if: env.UPDATE_SIGNING_SET == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_REPO: ${{ github.repository }}
+          OUT: ${{ steps.files.outputs.dir }}
+        run: |
+          exe="Course-Suite_${VERSION}_x64-setup.exe"
+          cp "apps/desktop/src-tauri/target/release/bundle/nsis/Course Suite_${VERSION}_x64-setup.exe.sig" "$OUT/$exe.sig"
+          node -e '
+            const fs = require("fs");
+            const [version, repo, exe, sig, out] = process.argv.slice(1);
+            const release = `https://github.com/${repo}/releases`;
+            const info = {
+              version,
+              notes: `What changed: ${release}/tag/v${version}`,
+              platforms: {
+                "windows-x86_64": {
+                  signature: fs.readFileSync(sig, "utf8").trim(),
+                  url: `${release}/download/v${version}/${exe}`,
+                },
+              },
+            };
+            fs.writeFileSync(out, JSON.stringify(info, null, 2));
+          ' "$VERSION" "$GH_REPO" "$exe" "$OUT/$exe.sig" "$OUT/latest.json"
+          cat "$OUT/latest.json"
+
       # A draft is visible only to the repository's maintainers until the lead publishes it. An
       # existing draft for this version gets the new files; a published release is never changed.
       - name: Attach to the draft release
@@ -127,6 +196,8 @@ jobs:
           OUT: ${{ steps.files.outputs.dir }}
         run: |
           signed=$([ "$SIGNING_SET" = true ] && echo "signed" || echo "not signed (D-2)")
+          files=("$OUT"/*.exe "$OUT/SHA256SUMS.txt")
+          [ ! -f "$OUT/latest.json" ] || files+=("$OUT/latest.json" "$OUT"/*.sig)
           {
             echo "Course Suite $VERSION for Windows 10 and 11 (64-bit)."
             echo
@@ -141,10 +212,10 @@ jobs:
           case "$draft" in
             none)
               gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Course Suite $VERSION" \
-                --notes-file "$OUT/notes.md" "$OUT"/*.exe "$OUT/SHA256SUMS.txt" ;;
+                --notes-file "$OUT/notes.md" "${files[@]}" ;;
             true)
               gh release edit "$TAG" --notes-file "$OUT/notes.md"
-              gh release upload "$TAG" --clobber "$OUT"/*.exe "$OUT/SHA256SUMS.txt" ;;
+              gh release upload "$TAG" --clobber "${files[@]}" ;;
             *)
               echo "::error title=Release already published::$TAG is published; it is never changed. Bump the version for a new release."
               exit 1 ;;

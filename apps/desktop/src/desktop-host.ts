@@ -1,8 +1,10 @@
 // The desktop adapter of the host interface (M2-02): HostInterface over Tauri's API, its official
-// dialog plugin and the shell's own file commands (src-tauri/src/files.rs), which check every path
-// against one scope rule. This folder is the only place allowed to import @tauri-apps/*
-// (biome.json); the capability file in src-tauri/capabilities grants exactly the commands used here.
+// dialog plugin, the shell's own file commands (src-tauri/src/files.rs), which check every path
+// against one scope rule, and its updater commands (src-tauri/src/update.rs, M2-20). This folder is
+// the only place allowed to import @tauri-apps/* (biome.json); the capability file in
+// src-tauri/capabilities grants exactly the commands used here.
 import {
+  type AppUpdate,
   type ConverterInfo,
   checkDataName,
   createKeyValueStorage,
@@ -11,11 +13,15 @@ import {
   HostError,
   type HostErrorCode,
   type HostInterface,
+  type HostUpdates,
   type MediaTaskOptions,
   projectFolder,
+  UpdateError,
+  type UpdateFailure,
 } from "@course-suite/host";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { Channel, type InvokeArgs, type InvokeOptions, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { sep } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -66,6 +72,51 @@ async function task<T>(
     signal?.removeEventListener("abort", stop);
   }
 }
+
+/** The updater's refusals start with an UpdateFailure and a colon (src-tauri/src/update.rs). */
+const UPDATE_FAILURE = /^(unavailable|network|invalid|signature|cancelled|failed): /;
+
+/** Calls one of the updater's commands, turning its refusals into UpdateErrors. */
+async function updater<T>(command: string, args?: InvokeArgs): Promise<T> {
+  try {
+    return await invoke<T>(command, args);
+  } catch (error) {
+    const message = String(error);
+    const reason = (UPDATE_FAILURE.exec(message)?.[1] ?? "failed") as UpdateFailure;
+    throw new UpdateError(reason, message.replace(UPDATE_FAILURE, ""));
+  }
+}
+
+/** The shell's updater (M2-20): Tauri's updater plugin behind the commands of update.rs. */
+const updates: HostUpdates = {
+  available: () => invoke<boolean>("update_ready"),
+  check: () => updater<AppUpdate | null>("update_check"),
+  download: async ({ signal, onProgress } = {}) => {
+    signal?.throwIfAborted();
+    const progress = new Channel<[number, number]>();
+    progress.onmessage = ([done, total]) => onProgress?.(done, total);
+    const stop = () => void invoke("update_cancel");
+    signal?.addEventListener("abort", stop);
+    try {
+      await updater<void>("update_download", { onProgress: progress });
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", stop);
+    }
+    // A cancel that came as the download finished: the caller gets it, and nothing is installed.
+    signal?.throwIfAborted();
+  },
+  install: () => updater<void>("update_install"),
+  onCheckRequested: (listener) => {
+    // Help > Check for updates in the window's menu (update.rs).
+    const stop = listen("check-for-updates", () => listener());
+    return () => {
+      void stop.then((unlisten) => unlisten());
+    };
+  },
+};
 
 const readFile = async (path: string) =>
   new Uint8Array(await call<ArrayBuffer>("read_file", { path }));
@@ -142,6 +193,7 @@ export function createDesktopHost(): HostInterface {
     },
     // WebView2 keeps localStorage in the app's own profile folder, so it is private to the app.
     storage: createKeyValueStorage(localStorage),
+    updates,
     onCloseRequested: (allow) => {
       // While a page listener exists, the shell leaves closing to it (destroy when allowed).
       const stop = getCurrentWindow().onCloseRequested(async (event) => {

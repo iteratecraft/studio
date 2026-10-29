@@ -18,6 +18,32 @@ const mirror = text(".github/workflows/mirror-media-tool.yml");
 /** A workflow's `on:` block, as written. */
 const triggers = (workflow: string) => /^on:\n(?:(?: .*)?\n)*/m.exec(workflow)?.[0].trimEnd();
 
+/** The `run: |` script of a workflow's step, by the step's name, as bash gets it. */
+function stepScript(workflow: string, name: string): string {
+  const lines = workflow.split("\n");
+  const at = lines.indexOf(`      - name: ${name}`);
+  expect(at, name).toBeGreaterThan(0);
+  const run = lines.findIndex((line, i) => i > at && line === "        run: |");
+  const body: string[] = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line !== "" && !line.startsWith("          ")) break;
+    body.push(line.slice(10));
+  }
+  return body.join("\n");
+}
+
+// GitHub's Windows runners run `shell: bash` with Git's bash, as these tests do.
+const bash =
+  process.platform === "win32"
+    ? resolve(
+        execFileSync("git", ["--exec-path"], { encoding: "utf8" }).trim(),
+        "../../../bin/bash.exe",
+      )
+    : "bash";
+// Each run starts bash, node and a few coreutils: about 0.3 s here, several seconds on a cold
+// Windows runner, so these tests get more than the default 5 s.
+const runsBash = { timeout: 60_000 };
+
 describe("M2-19: the Windows installer", () => {
   test("is Tauri's NSIS installer, installed for the current user without administrator rights", () => {
     expect(config.bundle.active).toBe(true);
@@ -91,32 +117,11 @@ describe("D-49: the media converter mirror", () => {
 
   // The workflow's own script, run by bash with the flags GitHub uses, against a fake GitHub
   // (fake-github.sh) in a checkout whose pin is the real one but for a small stand-in archive.
-  const script = (() => {
-    const lines = mirror.split("\n");
-    const at = lines.indexOf("      - name: Mirror the build");
-    expect(lines[at + 1]).toBe("        run: |");
-    const body: string[] = [];
-    for (const line of lines.slice(at + 2)) {
-      if (line !== "" && !line.startsWith("          ")) break;
-      body.push(line.slice(10));
-    }
-    return body.join("\n");
-  })();
+  const script = stepScript(mirror, "Mirror the build");
   const fakeGitHub = readFileSync(join(import.meta.dirname, "fake-github.sh"), "utf8");
-  // GitHub's Windows runners run `shell: bash` with Git's bash, as this does.
-  const bash =
-    process.platform === "win32"
-      ? resolve(
-          execFileSync("git", ["--exec-path"], { encoding: "utf8" }).trim(),
-          "../../../bin/bash.exe",
-        )
-      : "bash";
   const build = Buffer.from("a stand-in for the pinned archive\n");
   let dir = "";
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
-  // Each run starts bash, node and a few coreutils: about 0.3 s here, several seconds on a cold
-  // Windows runner, so these tests get more than the default 5 s.
-  const runsBash = { timeout: 60_000 };
 
   /** A checkout with the real pin apart from `changes`, and a run of the workflow's script in it. */
   const setUp = (changes: Record<string, unknown>) => {
@@ -230,5 +235,168 @@ describe("ADR-0004: the installer's outbound connections", () => {
     expect(row).toContain("only on a machine without the WebView2 runtime");
     expect(row).toContain("`offlineInstaller`");
     expect(row).toContain("`embedBootstrapper`");
+  });
+});
+
+describe("M2-20: updates from GitHub Releases", () => {
+  const updater = config.plugins.updater;
+
+  test("[teams-collab:3R] R13: the app asks only the latest published release of this repository, over https", () => {
+    // GitHub serves releases/latest from the newest release that is neither a draft nor a
+    // pre-release, so a draft or the media converter's mirror (a pre-release) is never offered.
+    expect(updater.endpoints).toEqual([
+      "https://github.com/iteratecraft/studio/releases/latest/download/latest.json",
+    ]);
+    expect(Object.keys(updater).filter((key) => key.startsWith("dangerous"))).toEqual([]);
+  });
+
+  test("D-62: a signature binds its version, nothing older is installed, and the per-user install is replaced showing only its progress", () => {
+    expect(updater.requireSignedVersion).toBe(true);
+    expect(updater.allowDowngrades).toBeUndefined();
+    expect(updater.windows).toEqual({ installMode: "passive" });
+  });
+
+  test("the public key is one value the lead fills in; the release workflow alone makes update files", () => {
+    const { pubkey } = updater;
+    // Empty until then (the app says it cannot update), or the public key `tauri signer generate`
+    // writes: two lines of minisign, in base64.
+    if (pubkey !== "") {
+      expect(Buffer.from(pubkey, "base64").toString()).toMatch(
+        /^untrusted comment: minisign public key: [0-9A-F]{16}\nRW[A-Za-z0-9+/]{54}\n?$/,
+      );
+    }
+    expect(config.bundle.createUpdaterArtifacts).toBeUndefined();
+  });
+});
+
+describe("M2-20: the release workflow's update metadata", () => {
+  let dir = "";
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const shell = "apps/desktop/src-tauri";
+
+  /** A checkout whose app carries `pubkey`, with `files` in it, and a run of a step's script. */
+  const setUp = (pubkey: string, files: Record<string, string> = {}) => {
+    dir = mkdtempSync(join(tmpdir(), "release-"));
+    const at = (...parts: string[]) => join(dir, ...parts).replaceAll("\\", "/");
+    const all = {
+      [`${shell}/tauri.conf.json`]: JSON.stringify({ plugins: { updater: { pubkey } } }),
+      ...files,
+    };
+    for (const [path, content] of Object.entries(all)) {
+      mkdirSync(join(at("checkout"), path, ".."), { recursive: true });
+      writeFileSync(at("checkout", path), content);
+    }
+    mkdirSync(at("out"));
+    const run = (step: string, env: Record<string, string> = {}) => {
+      writeFileSync(at("step.sh"), stepScript(release, step));
+      const result = spawnSync(bash, ["--noprofile", "--norc", "-eo", "pipefail", at("step.sh")], {
+        cwd: at("checkout"),
+        encoding: "utf8",
+        env: { ...process.env, OUT: at("out"), ...env },
+      });
+      return { status: result.status, out: result.stdout };
+    };
+    return { run, at };
+  };
+
+  test("the signing secret reaches only the installer build, and latest.json and the signature go on the draft", () => {
+    const steps = release.split(/\n {6}- /);
+    const using = steps.filter((step) =>
+      /secrets\.TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)? }}/.test(step),
+    );
+    expect(using.map((step) => step.split("\n")[0])).toEqual(["name: Build the installer"]);
+    expect(release).toContain(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not a template
+      "UPDATE_SIGNING_SET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+    );
+    for (const name of ["Sign the update for the updater", "Write the update information"]) {
+      expect(steps.find((step) => step.startsWith(`name: ${name}`))).toContain(
+        "if: env.UPDATE_SIGNING_SET == 'true'",
+      );
+    }
+    expect(steps.find((step) => step.startsWith("name: No update metadata"))).toContain(
+      "if: env.UPDATE_SIGNING_SET != 'true'",
+    );
+    expect(release).toContain(
+      '[ ! -f "$OUT/latest.json" ] || files+=("$OUT/latest.json" "$OUT"/*.sig)',
+    );
+  });
+
+  test(
+    "without the secret, update signing is skipped cleanly: a notice for an app without an update key, a warning for one with a key",
+    runsBash,
+    () => {
+      const skipped = setUp("").run("No update metadata");
+      expect(skipped.status).toBe(0);
+      expect(skipped.out).toContain("::notice title=No update metadata::");
+      const warned = setUp("RWQkey").run("No update metadata");
+      expect(warned.status).toBe(0);
+      expect(warned.out).toContain("::warning title=No update metadata::");
+      expect(warned.out).not.toContain("::notice");
+    },
+  );
+
+  test(
+    "with the secret, an app without an update key stops the release; with one, the bundler is told to sign, keeping the code-signing settings",
+    runsBash,
+    () => {
+      const stopped = setUp("").run("Sign the update for the updater");
+      expect(stopped.status).not.toBe(0);
+      expect(stopped.out).toContain("::error title=No update key in the app::");
+
+      const codeSigning = { bundle: { windows: { certificateThumbprint: "AB12" } } };
+      const { run, at } = setUp("RWQkey", {
+        [`${shell}/tauri.windows.conf.json`]: JSON.stringify(codeSigning),
+      });
+      expect(run("Sign the update for the updater").status).toBe(0);
+      expect(
+        JSON.parse(readFileSync(at("checkout", shell, "tauri.windows.conf.json"), "utf8")),
+      ).toEqual({ bundle: { ...codeSigning.bundle, createUpdaterArtifacts: true } });
+    },
+  );
+
+  test(
+    "latest.json names the version, where the installer is once the release is published, and the bundler's signature of it",
+    runsBash,
+    () => {
+      const signature = Buffer.from("untrusted comment: signature\nRUQ...\n").toString("base64");
+      const { run, at } = setUp("RWQkey", {
+        [`${shell}/target/release/bundle/nsis/Course Suite_1.2.3_x64-setup.exe.sig`]: signature,
+      });
+      const result = run("Write the update information", {
+        VERSION: "1.2.3",
+        GH_REPO: "iteratecraft/studio",
+      });
+      expect(result.status).toBe(0);
+      const releases = "https://github.com/iteratecraft/studio/releases";
+      expect(JSON.parse(readFileSync(at("out", "latest.json"), "utf8"))).toEqual({
+        version: "1.2.3",
+        notes: `What changed: ${releases}/tag/v1.2.3`,
+        platforms: {
+          "windows-x86_64": {
+            signature,
+            url: `${releases}/download/v1.2.3/Course-Suite_1.2.3_x64-setup.exe`,
+          },
+        },
+      });
+      expect(readFileSync(at("out", "Course-Suite_1.2.3_x64-setup.exe.sig"), "utf8")).toBe(
+        signature,
+      );
+    },
+  );
+});
+
+describe("ADR-0004: the updater's outbound connections", () => {
+  const adr = text("docs/adr/0004-outbound-connections.md");
+  const row = adr.split("\n").find((line) => line.startsWith("| Update check and download"));
+
+  test("M2-20: the update check and download have a row: GitHub only, when, and the off switch", () => {
+    expect(row).toContain(
+      "`https://github.com/iteratecraft/studio/releases/latest/download/latest.json`",
+    );
+    expect(row).toContain("GitHub only");
+    expect(row).toContain("at most once a day");
+    expect(row).toContain("never while offline");
+    expect(row).toContain("Check for updates automatically");
   });
 });

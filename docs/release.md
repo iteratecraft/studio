@@ -2,12 +2,14 @@
 
 The Windows installer (M2-19; D-2, D-29) is built by `.github/workflows/release.yml` on a version
 tag (`v*`), or when the workflow is started by hand. It builds Tauri's NSIS installer on
-`windows-latest`, writes `SHA256SUMS.txt` and attaches both to a **draft** release. Only the
+`windows-latest`, writes `SHA256SUMS.txt` and attaches both to a **draft** release, with the
+signed update information `latest.json` and the installer's `.sig` once the update key is set
+(M2-20). Only the
 project lead tags, runs the release workflows, edits releases and sets secrets.
 
 | Workflow | Runs on | What it does |
 |---|---|---|
-| `release.yml` | a pushed `v*` tag, or Run workflow | Installer and checksums on a draft release `v<version>` |
+| `release.yml` | a pushed `v*` tag, or Run workflow | Installer, checksums and, with the update key, `latest.json` and the signature on a draft release `v<version>` |
 | `mirror-media-tool.yml` | Run workflow only | Copies the pinned FFmpeg build to this repository's release (D-49) |
 
 ## Once, before the first release
@@ -32,6 +34,30 @@ project lead tags, runs the release workflows, edits releases and sets secrets.
   `WINDOWS_CERTIFICATE_PASSWORD`. The workflow then imports it, and Tauri signs the app, the
   installer and its uninstaller with SHA-256 and a DigiCert timestamp. A cloud signing service
   without a `.pfx` needs Tauri's `signCommand` instead.
+- [ ] **Update signing key (M2-20).** Installed apps update themselves only to an installer signed
+  with the key pair whose public key is built into them. Until the lead makes it, every build says
+  it cannot update itself and connects nowhere for updates, and the workflow says it wrote no update
+  information. Once, on a machine you trust, in the repository:
+
+  ```bash
+  pnpm install
+  pnpm --filter @course-suite/desktop exec tauri signer generate -w "$HOME/.tauri/course-suite-update.key"
+  ```
+
+  It asks for a password: give it one. It writes the private key and, beside it,
+  `course-suite-update.key.pub`.
+  1. Repository *Settings*, *Secrets and variables*, *Actions*: add `TAURI_SIGNING_PRIVATE_KEY`,
+     the whole contents of `course-suite-update.key`, and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`,
+     its password.
+  2. In a pull request, paste the contents of `course-suite-update.key.pub` (one line) as
+     `plugins.updater.pubkey` in `apps/desktop/src-tauri/tauri.conf.json`; `release.test.ts`
+     checks its shape. Merge it before the next tag. From then on a run without the secret still
+     releases, but skips update signing with a warning (installed apps are not offered that
+     release); a run with the secret but without the public key stops.
+  3. Keep the key file and its password in two safe places offline. They never go in the
+     repository, an issue or a chat. Without them no installed copy can be updated again: a new key
+     needs every author to install the next version by hand.
+
 - [ ] **Name and identifier (D-30, D-34).** "Course Suite" and `org.iteratecraft.coursesuite` are
   working values. Change them before the first public release: the identifier names the app data
   folder, and the product name names the install folder, the Start menu entry and the uninstall
@@ -54,17 +80,29 @@ project lead tags, runs the release workflows, edits releases and sets secrets.
    the branch it runs on into a draft for `v<version>`; publishing that draft creates the tag.
 4. [ ] Wait for the *Release* workflow (about 15 minutes). A second run for the same version
    replaces the files of the draft; a published release is never changed.
-5. [ ] In the draft, download `Course-Suite_<version>_x64-setup.exe` and check it against
+5. [ ] Once the update key is set, the draft also holds `latest.json` and
+   `Course-Suite_<version>_x64-setup.exe.sig`; `latest.json` names this version, the installer's
+   address once published and its signature. Without them the run shows *No update metadata*.
+6. [ ] In the draft, download `Course-Suite_<version>_x64-setup.exe` and check it against
    `SHA256SUMS.txt`: `Get-FileHash .\Course-Suite_<version>_x64-setup.exe` in PowerShell.
-6. [ ] On a clean Windows 10 and Windows 11 (Windows Sandbox will do), without administrator
+7. [ ] On a clean Windows 10 and Windows 11 (Windows Sandbox will do), without administrator
    rights: run the installer (an unsigned one shows SmartScreen's *More info*, *Run anyway*); the
    app is in the Start menu as *Course Suite*; create a course, save it as a `.crs` file, add a
    video that needs converting (the converter downloads from the mirror); close and reopen it; then
    uninstall it from *Settings*, *Apps*. The `.crs` file is still there.
-7. [ ] On a Windows machine with the repository, the installer test measures the same build:
+8. [ ] On a Windows machine with the repository, the installer test measures the same build:
    `INSTALLER_E2E=1 pnpm --filter @course-suite/desktop exec playwright test --project installer`
    (it installs into your user profile and uninstalls again; see `apps/desktop/README.md`).
-8. [ ] Write the release notes (M2-22) above the checksums in the draft, and publish it.
+9. [ ] On the same machine, the update test builds two versions with a key it makes and deletes,
+   installs the older, and checks it refuses a forged signature and then updates to the newer and
+   still opens a course (about 10 minutes the first time; nothing shows on screen, and it removes
+   what it installed): `UPDATE_E2E=1 pnpm --filter @course-suite/desktop exec playwright test
+   --project update`.
+10. [ ] Write the release notes (M2-22) above the checksums in the draft, and publish it as the
+    latest release, not as a pre-release: installed apps are offered only the latest published
+    release, at their next start (at most once a day) or from *Help*, *Check for updates*. On a
+    machine with the previous version, *Help*, *Check for updates* now offers it; *Install and
+    restart* replaces the install and starts the new version.
 
 A mistake in a published release is fixed by a new version, never by changing its files or moving
 its tag.

@@ -26,9 +26,10 @@ import { FRAME_URL, previewPackage } from "@course-suite/preview";
 import { type Browser, chromium, expect, type Page, test } from "@playwright/test";
 
 const exe = join(import.meta.dirname, "../src-tauri/target/release/course-suite-desktop.exe");
-const identifier = JSON.parse(
+const config = JSON.parse(
   readFileSync(join(import.meta.dirname, "../src-tauri/tauri.conf.json"), "utf8"),
-).identifier as string;
+);
+const identifier = config.identifier as string;
 // The workspace version (tauri.conf.json reads it), so a release bump needs no test change.
 const version = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8"))
   .version as string;
@@ -88,8 +89,24 @@ test.afterAll(async () => {
 
 test("shows the dashboard with the app name and version it gets from the shell through the host", async () => {
   await expect(page.getByRole("heading", { level: 1, name: "Your courses" })).toBeVisible();
-  await expect(page.getByRole("banner")).toHaveText("Course Suite");
+  // The app's name, and its settings (M2-20).
+  await expect(page.getByRole("banner")).toHaveText("Course SuiteSettings");
   await expect(page.getByRole("contentinfo")).toHaveText(`Version ${version}`);
+});
+
+test("M2-20: until the lead sets the update key, the build says it cannot update itself and checks nothing", async () => {
+  // tauri.conf.json carries no plugins.updater.pubkey yet (docs/release.md); release.test.ts pins
+  // it, and e2e/update.e2e.ts proves a build that carries one.
+  expect(config.plugins.updater.pubkey).toBe("");
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(
+    settings.getByRole("switch", { name: "Check for updates automatically" }),
+  ).toBeDisabled();
+  await expect(settings).toContainText("This build cannot update itself.");
+  await expect(settings.getByRole("button", { name: "Check now" })).toBeDisabled();
+  await settings.getByRole("button", { name: "Done" }).click();
+  await expect(settings).toHaveCount(0);
 });
 
 test("the editor runs under the release content security policy without a violation", async () => {
