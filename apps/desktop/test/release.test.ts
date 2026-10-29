@@ -183,17 +183,13 @@ describe("D-49: the media converter mirror", () => {
     },
   );
 
-  test(
-    "with url at the mirror, it runs the same and says the app downloads it",
-    runsBash,
-    () => {
-      const { run, mirrored } = setUp({});
-      const result = run();
-      expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
-      expect(result.status).toBe(0);
-      expect(existsSync(mirrored)).toBe(true);
-    },
-  );
+  test("with url at the mirror, it runs the same and says the app downloads it", runsBash, () => {
+    const { run, mirrored } = setUp({});
+    const result = run();
+    expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
+    expect(result.status).toBe(0);
+    expect(existsSync(mirrored)).toBe(true);
+  });
 
   test(
     "a download whose SHA-256 is not the pinned one is refused and nothing is uploaded",
