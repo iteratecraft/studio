@@ -99,11 +99,10 @@ describe("D-49: the media converter mirror", () => {
   const file = basename(pin.upstream);
   const mirrorUrl = `https://github.com/iteratecraft/studio/releases/download/${pin.folder}/${file}`;
 
-  test("the app downloads the pinned build from its upstream release until the mirror run has checked it", () => {
+  test("the app downloads the pinned build from the mirror, which keeps the upstream build's SHA-256", () => {
     expect(pin.upstream).toMatch(/^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\//);
-    // A follow-up pull request points `url` at `mirrorUrl` once the mirror workflow has run on
-    // main; until then a mirror address here is a download that does not exist yet.
-    expect(pin.url).toBe(pin.upstream);
+    // The mirror workflow copied the build here unchanged and checked its SHA-256 (D-49).
+    expect(pin.url).toBe(mirrorUrl);
     // The release is never taken for an app release (v*), which the release workflow builds.
     expect(pin.folder).not.toMatch(/^v/);
   });
@@ -165,7 +164,7 @@ describe("D-49: the media converter mirror", () => {
     "with url still at upstream, the first run builds the mirror address from folder and the file name, uploads the build there and checks the copy",
     runsBash,
     () => {
-      const { run, mirrored } = setUp({});
+      const { run, mirrored } = setUp({ url: pin.upstream });
       const first = run();
       expect(first.out).toContain(`::notice title=Mirrored::${mirrorUrl} (SHA-256`);
       expect(first.out).toContain("Point media-tool.json url at it in a pull request.");
@@ -184,17 +183,13 @@ describe("D-49: the media converter mirror", () => {
     },
   );
 
-  test(
-    "with url at the mirror (the follow-up pull request), it runs the same and says the app downloads it",
-    runsBash,
-    () => {
-      const { run, mirrored } = setUp({ url: mirrorUrl });
-      const result = run();
-      expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
-      expect(result.status).toBe(0);
-      expect(existsSync(mirrored)).toBe(true);
-    },
-  );
+  test("with url at the mirror, it runs the same and says the app downloads it", runsBash, () => {
+    const { run, mirrored } = setUp({});
+    const result = run();
+    expect(result.out).toContain(`::notice title=Mirrored::the app downloads ${mirrorUrl}`);
+    expect(result.status).toBe(0);
+    expect(existsSync(mirrored)).toBe(true);
+  });
 
   test(
     "a download whose SHA-256 is not the pinned one is refused and nothing is uploaded",
