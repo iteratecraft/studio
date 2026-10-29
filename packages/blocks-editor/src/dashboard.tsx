@@ -66,6 +66,8 @@ export interface DashboardProps {
   /** An action on one course, or on the courses selected together. */
   onAction: (action: ItemAction, items: readonly LibraryItem[]) => void;
   onEmptyDeleted: () => void;
+  /** Opens the app settings (M2-20); no settings button without it. */
+  onSettings?: () => void;
 }
 
 export function Dashboard(props: DashboardProps) {
@@ -91,6 +93,11 @@ export function Dashboard(props: DashboardProps) {
     <div className="be-dashboard">
       <header className="be-bar">
         <span className="be-brand">{props.appName}</span>
+        {props.onSettings && (
+          <Button variant="quiet" className="be-bar-end" onPress={props.onSettings}>
+            {t("settings.open")}
+          </Button>
+        )}
       </header>
       <main className="be-dashboard-main">
         <div className="be-heading-row">

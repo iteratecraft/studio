@@ -90,6 +90,9 @@ importers:
       '@course-suite/preview':
         specifier: workspace:*
         version: link:../../packages/preview
+      '@course-suite/project':
+        specifier: workspace:*
+        version: link:../../packages/project
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.0

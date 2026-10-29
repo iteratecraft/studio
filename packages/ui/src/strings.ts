@@ -978,6 +978,44 @@ export const english = {
   "captions.addCue": "Add a caption",
   "captions.unreadable": "This caption file cannot be read.",
 
+  // M2-20: app settings and updates of the desktop app
+  "settings.open": "Settings",
+  "settings.title": "Settings",
+  "settings.done": "Done",
+  "update.title": "Updates",
+  "update.auto": "Check for updates automatically",
+  "update.autoHelp":
+    "Once a day when the app starts, and only while you are online. Nothing is downloaded or installed until you agree.",
+  "update.unavailableHelp":
+    "This build cannot update itself. New versions are on the project's releases page.",
+  "update.current": "You have version {version}.",
+  "update.checkNow": "Check now",
+  "update.checking": "Checking for updates",
+  "update.none": "You have the latest version of {app}, {version}.",
+  "update.offline": "You are offline. Connect to the internet, then check again.",
+  "update.found": "{app} {version} is available",
+  "update.foundBody":
+    "You have version {current}. Installing takes about a minute, then {app} starts again. Your courses stay where they are.",
+  "update.notes": "What changed",
+  "update.later": "Not now",
+  "update.install": "Install and restart",
+  "update.downloading": "Downloading {app} {version}",
+  "update.installing": "Installing {app} {version}",
+  "update.checkFailed": "Could not check for updates",
+  "update.failedTitle": "The update was not installed",
+  "update.failed.unavailable":
+    "This build of {app} has no update key, so it cannot check for updates or update itself. New versions are on the project's releases page.",
+  "update.failed.network":
+    "The release site could not be reached. Check your internet connection and try again later.",
+  "update.failed.invalid":
+    "The release site's update information could not be read. Try again later.",
+  "update.failed.signature":
+    "The download does not carry a valid signature of {app}, so it was not installed.",
+  "update.failed.failed": "Something went wrong: {details}",
+  "update.keepsWorking": "Your current version keeps working.",
+  "update.notRestarted":
+    "Your course was not closed, so the app did not restart. Your current version keeps working; check for updates again when you are ready.",
+
   // Course preview (M2-11)
   "preview.label": "Preview",
   "preview.frame": "Course preview",

@@ -55,6 +55,7 @@ import {
 } from "./library.js";
 import { CourseSession, openCourseFile } from "./session.js";
 import { COURSE_TEMPLATES, courseFrom } from "./templates.js";
+import { useUpdates } from "./updates.js";
 
 export interface BlocksEditorAppProps {
   host: HostInterface;
@@ -730,6 +731,15 @@ function App({ host, exportWorker }: { host: HostInterface; exportWorker?: () =>
   current.current = session;
   useEffect(() => () => current.current?.close(), []);
 
+  // Updates of the desktop app (M2-20): open work is saved, or the author asked, before a restart.
+  const updates = useUpdates({
+    host,
+    app: app?.name ?? "",
+    version: app?.version ?? "",
+    ask,
+    beforeRestart: () => closing.current(),
+  });
+
   if (!app) return null;
   return (
     <>
@@ -772,9 +782,11 @@ function App({ host, exportWorker }: { host: HostInterface; exportWorker?: () =>
           onOpen={() => void openFromDialog().catch(failure)}
           onAction={onAction}
           onEmptyDeleted={() => void emptyDeleted()}
+          {...(updates.openSettings && { onSettings: updates.openSettings })}
         />
       )}
       {dialog}
+      {updates.progress}
       <ToastRegion queue={toasts} />
     </>
   );

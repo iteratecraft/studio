@@ -8,6 +8,7 @@ import {
   HostError,
   type HostInterface,
   type HostMedia,
+  type HostUpdates,
   type OpenOptions,
   projectFolder,
   type SaveOptions,
@@ -27,6 +28,8 @@ export interface MemoryHostInit {
    * like the browser. Its input must be a file the editor may read, as on desktop.
    */
   media?: HostMedia;
+  /** A stand-in updater (M2-20), for tests of the update flow; without it the host has none. */
+  updates?: HostUpdates;
 }
 
 export interface MemoryHost extends HostInterface {
@@ -65,7 +68,7 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
     removeItem: (key) => values.delete(key),
   };
   let closeListener: (() => Promise<boolean>) | undefined;
-  const { media } = init;
+  const { media, updates } = init;
   return {
     disk,
     requestClose: async () => (closeListener ? closeListener() : true),
@@ -140,6 +143,7 @@ export function createMemoryHost(init: MemoryHostInit = {}): MemoryHost {
       },
     },
     storage: createKeyValueStorage(store),
+    ...(updates && { updates }),
     ...(media && {
       media: {
         ...media,

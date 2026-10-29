@@ -13,6 +13,7 @@ at a time in the editor.
 | `src-tauri/tauri.conf.json` | Window, content security policy, enabled capabilities, and the Windows installer (M2-19) |
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
 | `src-tauri/src/media.rs`, `src-tauri/media-tool.json` | The media converter (M2-13, D-12, D-43): the pinned FFmpeg build, its download, check and fixed conversion |
+| `src-tauri/src/update.rs` | Updates (M2-20): Tauri's updater plugin behind five commands, and *Help*, *Check for updates* in the window's menu |
 
 ## Security boundary
 
@@ -36,9 +37,10 @@ at a time in the editor.
 - **Commands:** app name and version, the open and save dialogs, the shell's own file commands
   (`data_folder`, `read_file`, `file_modified`, `write_atomic`, `rename_file`, `remove_path`,
   `list_folder`), the media converter's commands (`media_converter`, `media_install`,
-  `media_convert`, `media_cancel`; below), and listening for the window's close request with
-  `destroy` to close it, so the editor can offer to save first (`HostInterface.onCloseRequested`).
-  Nothing else, and only for the `main` window. No file system plugin command is granted: the
+  `media_convert`, `media_cancel`; below), the updater's commands (`update_ready`,
+  `update_check`, `update_download`, `update_cancel`, `update_install`; below), and listening for
+  the window's close request with `destroy` to close it, so the editor can offer to save first
+  (`HostInterface.onCloseRequested`), and for *Help*, *Check for updates*. Nothing else, and only for the `main` window. No file system plugin command is granted: the
   plugin only records the files the user picks in a dialog.
 - **Remembered picks:** `src/picks.rs` keeps the newest 100 files picked in a dialog in
   `picked.txt` beside the data folder, out of the page's reach, and allows them again at the next
@@ -69,6 +71,18 @@ at a time in the editor.
   names the task's files in `media-work`, so every media command first checks it is a plain id (1 to
   64 letters, digits and hyphens), never a path. Nothing is unpacked unless the download's size and
   SHA-256 are the pin's. No shell is involved. The build is not in the app or its installer.
+- **Updates (`src/update.rs`, M2-20):** Tauri's updater plugin, with its settings in
+  `plugins.updater` of `tauri.conf.json`: the only address is this repository's
+  `releases/latest/download/latest.json` over https, which GitHub serves from the latest published
+  release only; `requireSignedVersion` makes the signature cover the version too, so an older
+  signed installer cannot be passed off as newer; the NSIS installer runs in `passive` mode (its
+  progress bar only) and starts the app again. The page gets five commands and no plugin command:
+  `update_ready` (whether `pubkey` is set; empty until the lead sets it, docs/release.md),
+  `update_check`, `update_download` (the signature is checked against `pubkey` as it ends, and
+  the installer kept in memory), `update_cancel` and `update_install`, which checks it again and
+  runs it; on Windows the app exits as it starts. The page decides when to check (the blocks
+  editor: at start at most once a day, never offline or when turned off in *Settings*) and asks
+  the author before downloading. The menu item only sends the page an event.
 - **Drag and drop:** the window's own file-drop handling is off (`dragDropEnabled: false`), so
   files dragged from the desktop reach the editor's drop zones as the browser's `File`s, which it
   reads; a drop grants no path.
@@ -98,6 +112,12 @@ To build the Windows installer, run `pnpm build`, then
 NSIS into Tauri's cache (`%LOCALAPPDATA%\tauri`). The release workflow runs the same command
 (`docs/release.md`). `INSTALLER_E2E=1 pnpm --filter @course-suite/desktop exec playwright test
 --project installer` then installs it for you, starts it, measures it and uninstalls it again.
+`UPDATE_E2E=1 pnpm --filter @course-suite/desktop exec playwright test --project update` proves
+the updater (M2-20): it builds versions 0.0.1 and 0.0.2 of a separate *Course Suite Update Test*
+app in `src-tauri/target/update-e2e` with a key pair it makes for the run, serves the update from a
+local server, installs 0.0.1 silently, checks that it refuses a signature of another key, updates
+it in place to 0.0.2 and opens a course in it, with the window hidden throughout; then it
+uninstalls it and deletes the keys and its data folder.
 
 ## Install and uninstall
 

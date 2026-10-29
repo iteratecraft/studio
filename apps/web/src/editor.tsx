@@ -5,14 +5,21 @@
 // stand-in media converter (M2-13) whose download and conversion stop half way until the test
 // calls `editorTest.converter.finish()` or the author cancels. `?hold-export` holds each export's
 // build until the test calls `editorTest.exports.release()` (M2-18), so cancel can be tested.
+// `?updates` gives the host a stand-in updater (M2-20): `?updates=found` finds version 9.9.10 at
+// start, `?updates=unavailable` is a build without an update key; `editorTest.updates` sets what
+// the next check answers, picks Help > Check for updates (`menu()`) and finishes a download.
 import "@course-suite/ui/styles.css";
 import "@course-suite/blocks-editor/styles.css";
 import { BlocksEditorApp } from "@course-suite/blocks-editor";
 import {
+  type AppUpdate,
   createMemoryHost,
   type HostMedia,
+  type HostUpdates,
   type MediaTaskOptions,
   type MemoryHost,
+  UpdateError,
+  type UpdateFailure,
 } from "@course-suite/host";
 // The export worker as the desktop app starts it (M2-18, ADR-0006).
 import ExportWorker from "@course-suite/jobs/export-worker?worker";
@@ -37,6 +44,21 @@ interface EditorTest {
     /** Lets the task waiting half way finish. */
     finish(): void;
   };
+  /** The stand-in updater, with `?updates`. */
+  updates: {
+    /** Whether the build has an update key. */
+    ready: boolean;
+    /** What the next check answers: an update, `null` for none, or the reason it fails. */
+    answer: AppUpdate | null | UpdateFailure;
+    /** The reason the next download fails once finished; undefined: it succeeds. */
+    downloadFails?: UpdateFailure;
+    /** What it was asked to do: `check`, `download`, `install`. */
+    calls: string[];
+    /** The author picks Help > Check for updates. */
+    menu(): void;
+    /** Lets the download waiting half way finish. */
+    finish(): void;
+  };
 }
 
 declare global {
@@ -48,17 +70,31 @@ declare global {
 const theme = new URLSearchParams(location.search).get("theme");
 if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
 
-/** A task that reports half its work, then waits for the test to finish it or for cancel. */
-function halfway<T>({ signal, onProgress }: MediaTaskOptions, total: number, result: () => T) {
+/**
+ * A task that reports half its work, then waits for the test to finish it (`hold` gets the
+ * finish function; the converter's by default) or for cancel. A result that throws rejects.
+ */
+function halfway<T>(
+  { signal, onProgress }: MediaTaskOptions,
+  total: number,
+  result: () => T,
+  hold = (finish: () => void) => {
+    test.converter.finish = finish;
+  },
+) {
   return new Promise<T>((resolve, reject) => {
     signal?.throwIfAborted();
     onProgress?.(total / 2, total);
     const stop = () => reject(signal?.reason);
     signal?.addEventListener("abort", stop);
-    test.converter.finish = () => {
+    hold(() => {
       signal?.removeEventListener("abort", stop);
-      resolve(result());
-    };
+      try {
+        resolve(result());
+      } catch (error) {
+        reject(error);
+      }
+    });
   });
 }
 
@@ -87,18 +123,67 @@ const converter: HostMedia = {
   },
 };
 
+/** The stand-in updater: what a check finds is set by the test, and a download waits half way. */
+const updatesMode = new URLSearchParams(location.search).get("updates");
+const menuListeners = new Set<() => void>();
+const updater: HostUpdates = {
+  available: async () => test.updates.ready,
+  check: async () => {
+    test.updates.calls.push("check");
+    const { answer } = test.updates;
+    if (typeof answer === "string") throw new UpdateError(answer, `stand-in ${answer}`);
+    return answer;
+  },
+  download: (options = {}) => {
+    test.updates.calls.push("download");
+    return halfway(
+      options,
+      12_000_000,
+      () => {
+        const reason = test.updates.downloadFails;
+        if (reason) throw new UpdateError(reason, `stand-in ${reason}`);
+      },
+      (finish) => {
+        test.updates.finish = finish;
+      },
+    );
+  },
+  // The real one ends the page as the installer starts; this one never settles.
+  install: () => {
+    test.updates.calls.push("install");
+    return new Promise(() => {});
+  },
+  onCheckRequested: (listener) => {
+    menuListeners.add(listener);
+    return () => menuListeners.delete(listener);
+  },
+};
+
 const test: EditorTest = {
   host: createMemoryHost({
     onPickOpen: () => test.open,
     onPickSave: (options) =>
       test.save === undefined ? (options.suggestedName ?? null) : test.save,
     ...(new URLSearchParams(location.search).has("converter") && { media: converter }),
+    ...(updatesMode !== null && { updates: updater }),
   }),
   open: [],
   save: undefined,
   restart: () => {},
   exports: { release: () => {}, held: 0, terminated: 0 },
   converter: { installed: false, calls: [], finish: () => {} },
+  updates: {
+    ready: updatesMode !== "unavailable",
+    answer:
+      updatesMode === "found"
+        ? { version: "9.9.10", notes: "Faster preview.\nClearer error messages." }
+        : null,
+    calls: [],
+    menu: () => {
+      for (const listener of menuListeners) listener();
+    },
+    finish: () => {},
+  },
 };
 window.editorTest = test;
 
