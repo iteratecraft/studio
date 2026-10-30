@@ -351,6 +351,9 @@ test.describe("knowledge checks", () => {
     await style.getByRole("button", { name: /Background/ }).click();
     await page.getByRole("option", { name: "Dark" }).click();
     await expect(page.getByRole("listbox")).toHaveCount(0);
+    // The list hands focus back to its button a moment after it closes; Escape before then
+    // reaches nothing and leaves the dialog open.
+    await expect(style.getByRole("button", { name: /Background/ })).toBeFocused();
     await close(style);
     await expect(await warning()).toHaveCount(0);
     await close(format);
