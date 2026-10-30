@@ -407,4 +407,89 @@ mod tests {
         assert_eq!(names, vec![OsString::from("course.zip")]);
         fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Two different contents of a few megabytes, so a write takes long enough to be killed in.
+    fn contents() -> (Vec<u8>, Vec<u8>) {
+        let a: Vec<u8> = (0..3 * 1024 * 1024).map(|i| (i % 251) as u8).collect();
+        let b: Vec<u8> = a.iter().map(|byte| byte.wrapping_add(1)).collect();
+        (a, b)
+    }
+
+    const CHILD: &str = "files::tests::killed_writer";
+
+    /// The child of the kill test below: with KILLED_WRITER_TARGET set, it replaces that file with
+    /// one content and then the other until it is killed. On its own it does nothing.
+    #[test]
+    fn killed_writer() {
+        let Some(target) = std::env::var_os("KILLED_WRITER_TARGET") else {
+            return;
+        };
+        let (a, b) = contents();
+        println!("writing");
+        for i in 0u64.. {
+            replace_atomically(Path::new(&target), if i % 2 == 0 { &b } else { &a }).unwrap();
+        }
+    }
+
+    /// M2 exit and ENG-11 on the desktop's own write path: a process killed at a random moment while
+    /// it replaces a project file leaves the old file or the new one whole, never a mix.
+    #[test]
+    fn a_process_killed_while_replacing_a_file_leaves_the_old_or_the_new_one_whole() {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, SystemTime};
+
+        let dir = std::env::temp_dir().join(format!("write-killed-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("Killed.crs");
+        let (a, b) = contents();
+        fs::write(&target, &a).unwrap();
+        /// The writer, killed when dropped, so a failed assertion never leaves it running.
+        struct Writer(std::process::Child);
+        impl Drop for Writer {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+
+        let mut killed_mid_write = 0;
+        for round in 0..30 {
+            let mut writer = Writer(
+                Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", CHILD, "--nocapture", "--test-threads=1"])
+                    .env("KILLED_WRITER_TARGET", &target)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .unwrap(),
+            );
+            // Once it says it is writing (after the test harness's "test … ... " on the same line),
+            // let it run for 0 to 150 ms, then kill it outright.
+            let mut lines = BufReader::new(writer.0.stdout.take().unwrap()).lines();
+            assert!(
+                lines.any(|line| line.unwrap().ends_with("writing")),
+                "round {round}"
+            );
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos();
+            std::thread::sleep(Duration::from_millis(u64::from(nanos % 150)));
+            drop(writer);
+
+            let bytes = fs::read(&target).unwrap();
+            assert!(bytes == a || bytes == b, "round {round}: the file is a mix");
+            for entry in fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path != target {
+                    killed_mid_write += 1;
+                    fs::remove_file(path).unwrap();
+                }
+            }
+        }
+        // The kills did land inside writes, leaving their temporary files, not only between them.
+        assert!(killed_mid_write > 0);
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }
