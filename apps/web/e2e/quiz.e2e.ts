@@ -303,6 +303,8 @@ test.describe("knowledge checks", () => {
     await check.getByRole("button", { name: /Question type$/ }).click();
     await page.getByRole("option", { name: "Matching" }).click();
     await expect(check.getByRole("group", { name: /^Pair/ })).toHaveCount(3);
+    // A press before the list hands focus back to its button can be lost; wait for it.
+    await expect(check.getByRole("button", { name: /Question type$/ })).toBeFocused();
     await check.getByRole("button", { name: "Add Pair 4" }).click();
     await check.getByRole("textbox", { name: "Item 4", exact: true }).fill("Heron");
     await check.getByRole("textbox", { name: "Match for item 4" }).fill("Fish");
