@@ -435,6 +435,10 @@ Wave I, release:
 - [x] **M2-20** Auto-update from GitHub Releases with signed metadata (M0-09)
 - [x] **M2-21** Carried from M1 (D-26): ILIAS, an open-source LRS, CATAPULT cmi5 content tests, player performance budget
 - [ ] **M2-22** User guide, release notes and the Desktop 0.1 exit review (ENG-40 start)
+  - [x] User guide in docs/guide/ and release notes in docs/releases/0.1.0.md
+  - [x] Exit review in docs/exit-review/desktop-0.1.md, with the tests it was missing
+  - [ ] A Narrator and Magnifier pass by a person (D-77)
+  - [ ] The lead publishes the v0.1.0 draft release with the notes
 
 ## Top risks
 
@@ -528,6 +532,12 @@ Wave I, release:
 | D-70 | A release without the update signing secret | **Decided 2026-10-29:** still releases, without the update file and with a warning that installed apps are not offered it; a secret with no public key in the app stops the run | done |
 | D-71 | Update signing key | **Decided 2026-10-29:** made by the lead on 2026-10-29 (minisign key ID 984C19E090B8059B); its public key is built in from 0.1.0; the private key and password stay offline and in repository secrets, and losing them means every author reinstalls by hand | done |
 | D-72 | Wave J layout | **Decided 2026-10-29:** two tasks side by side (auto-update; hosts and performance budget), then review, fix round and re-review | done |
+| D-73 | Help > User guide | **Decided 2026-10-30:** the desktop menu opens the guide on main in the default browser, from Rust with no new command or permission (ADR-0004: opening a page is not an app connection); the v0.1.0 build predates it, so it ships in the next version | done |
+| D-74 | Third-party names in author-facing text | **Decided 2026-10-30:** the guide and release notes say "open-source learning systems" and do not name Moodle or ILIAS; developer docs and CI keep the names | done |
+| D-75 | The scripted Desktop 0.1 run | **Decided 2026-10-30:** the editor journey runs on Windows in check, and the Linux moodle job runs it again and passes its SCORM 1.2 package in Moodle, so moodle does not wait for check; met with a limit | done |
+| D-76 | Edits outside undo | **Decided 2026-10-30:** Rename on Your courses and Copy to another course write course files outside any undo history, because no course, or not the target course, is open there; every edit in the course editor undoes and redoes | done |
+| D-77 | Screen reader and Magnifier | **Decided 2026-10-30:** automated keyboard journeys and axe cover the editor; a Narrator and Magnifier pass by a person stays open under M2-22 as the last Desktop 0.1 gate | open |
+| D-78 | Wave K layout | **Decided 2026-10-30:** two tasks side by side (user guide and release notes; exit review), then review, fix round and re-review | done |
 
 ## How to read the backlog
 
