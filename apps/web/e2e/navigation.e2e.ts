@@ -412,10 +412,15 @@ test.describe("the navigation section", () => {
     await expect(select(page, "How learners move through it")).toContainText("Steps");
     await chooseByKeyboard(page, "Step indicator", "Numbered");
     const frame = await player(page);
-    await frame.getByRole("link", { name: "Begin course" }).click();
-    await expect(
-      frame.getByRole("navigation", { name: "Steps" }).getByRole("button").first(),
-    ).toHaveText("1");
+    // The preview reloads a moment after the change, and a click in the frame it replaces is
+    // lost; click again until the new frame shows the numbered steps.
+    await expect(async () => {
+      const begin = frame.getByRole("link", { name: "Begin course" });
+      if (await begin.isVisible()) await begin.click();
+      await expect(
+        frame.getByRole("navigation", { name: "Steps" }).getByRole("button").first(),
+      ).toHaveText("1", { timeout: 1000 });
+    }).toPass();
     await chooseByKeyboard(page, "How learners move through it", "Continuous scroll");
     await expect(select(page, "Step indicator")).toHaveCount(0);
     await chooseByKeyboard(page, "How learners move through it", "Steps");
