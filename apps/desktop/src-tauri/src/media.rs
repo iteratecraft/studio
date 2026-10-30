@@ -128,7 +128,7 @@ fn is_installed(install: &Path) -> bool {
 }
 
 /// A program that ships with Windows, by its full path, so no search path is involved.
-fn system_tool(name: &str) -> PathBuf {
+pub(crate) fn system_tool(name: &str) -> PathBuf {
     let root = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
     PathBuf::from(root)
         .join("System32")

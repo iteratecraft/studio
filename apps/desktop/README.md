@@ -14,6 +14,7 @@ at a time in the editor.
 | `src-tauri/capabilities/main.json` | Every command the window may call, and the file scope |
 | `src-tauri/src/media.rs`, `src-tauri/media-tool.json` | The media converter (M2-13, D-12, D-43): the pinned FFmpeg build, its download, check and fixed conversion |
 | `src-tauri/src/update.rs` | Updates (M2-20): Tauri's updater plugin behind five commands, and *Help*, *Check for updates* in the window's menu |
+| `src-tauri/src/help.rs` | *Help*, *User guide* (M2-22): opens the guide on GitHub in the default browser |
 
 ## Security boundary
 
@@ -83,6 +84,10 @@ at a time in the editor.
   runs it; on Windows the app exits as it starts. The page decides when to check (the blocks
   editor: at start at most once a day, never offline or when turned off in *Settings*) and asks
   the author before downloading. The menu item only sends the page an event.
+- **Help, User guide (`src/help.rs`, M2-22):** the menu item opens one fixed address, the guide's
+  first page on GitHub, with Windows' own `rundll32.exe url.dll,FileProtocolHandler` (by its full
+  path, no shell), which hands it to the default browser. The page gets no command or permission
+  for it, and the app connects to nothing (ADR-0004).
 - **Drag and drop:** the window's own file-drop handling is off (`dragDropEnabled: false`), so
   files dragged from the desktop reach the editor's drop zones as the browser's `File`s, which it
   reads; a drop grants no path.

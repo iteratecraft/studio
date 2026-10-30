@@ -8,6 +8,7 @@
 // `?updates` gives the host a stand-in updater (M2-20): `?updates=found` finds version 9.9.10 at
 // start, `?updates=unavailable` is a build without an update key; `editorTest.updates` sets what
 // the next check answers, picks Help > Check for updates (`menu()`) and finishes a download.
+// `?version=0.1.0` sets the version the app reports (the user guide's pictures, M2-22).
 import "@course-suite/ui/styles.css";
 import "@course-suite/blocks-editor/styles.css";
 import { BlocksEditorApp } from "@course-suite/blocks-editor";
@@ -125,6 +126,7 @@ const converter: HostMedia = {
 
 /** The stand-in updater: what a check finds is set by the test, and a download waits half way. */
 const updatesMode = new URLSearchParams(location.search).get("updates");
+const version = new URLSearchParams(location.search).get("version");
 const menuListeners = new Set<() => void>();
 const updater: HostUpdates = {
   available: async () => test.updates.ready,
@@ -166,6 +168,7 @@ const test: EditorTest = {
       test.save === undefined ? (options.suggestedName ?? null) : test.save,
     ...(new URLSearchParams(location.search).has("converter") && { media: converter }),
     ...(updatesMode !== null && { updates: updater }),
+    ...(version && { app: { version } }),
   }),
   open: [],
   save: undefined,

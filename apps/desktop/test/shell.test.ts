@@ -1,6 +1,6 @@
 // The shell's security boundary (M2-01, ADR-0006) is configuration, so these tests pin it: a change
 // to the policy or the granted commands must change this file too, in a reviewed pull request.
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FRAME_SCRIPT_HASH } from "@course-suite/preview";
 import { describe, expect, test } from "vitest";
@@ -122,6 +122,18 @@ test("D-43: the media converter is a pinned LGPL build from a public GitHub rele
   expect(pin.bundled).toBe(false);
   // Nothing of it goes into the app or its installer.
   expect(JSON.stringify(config.bundle)).not.toMatch(/ffmpeg|media-tool|resources|externalBin/i);
+});
+
+test("M2-22, ADR-0004: Help > User guide opens one fixed https address of this repository's guide, which exists, and grants the page nothing", () => {
+  const help = readFileSync(join(shell, "src", "help.rs"), "utf8");
+  const url = /const GUIDE_URL: &str = "([^"]+)";/.exec(help)?.[1] ?? "";
+  const base = "https://github.com/iteratecraft/studio/blob/main/";
+  expect(url.startsWith(base)).toBe(true);
+  expect(existsSync(join(shell, "..", "..", "..", url.slice(base.length)))).toBe(true);
+  // The menu item is the shell's own: no command or opener permission reaches the page.
+  expect(JSON.stringify(read("capabilities/main.json").permissions)).not.toMatch(
+    /opener|shell:|guide/,
+  );
 });
 
 test("no file system plugin command or scope is granted, so WebView2's profile next to the data folder stays out of reach", () => {
