@@ -1,11 +1,12 @@
-// The desktop shell (M2-01, ADR-0006): a window with the editor UI, a default menu and Tauri's
-// official dialog and updater plugins (update.rs, M2-20). Our own file commands (files.rs) put
-// every path the page sends through one scope rule; the file system plugin only keeps the files the
-// user picks in a dialog (picks.rs remembers them across restarts), and grants the page nothing
-// itself. No product logic lives here.
+// The desktop shell (M2-01, ADR-0006): a window with the editor UI, a default menu with Help > User
+// guide (help.rs, M2-22), and Tauri's official dialog and updater plugins (update.rs, M2-20). Our own
+// file commands (files.rs) put every path the page sends through one scope rule; the file system
+// plugin only keeps the files the user picks in a dialog (picks.rs remembers them across restarts),
+// and grants the page nothing itself. No product logic lives here.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod files;
+mod help;
 mod media;
 mod picks;
 mod update;
@@ -15,8 +16,16 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .menu(update::menu)
-        .on_menu_event(update::on_menu_event)
+        // Help holds User guide (help.rs, M2-22) and Check for updates (update.rs, M2-20).
+        .menu(|app| {
+            let menu = update::menu(app)?;
+            help::add_guide(app, &menu)?;
+            Ok(menu)
+        })
+        .on_menu_event(|app, event| {
+            help::on_menu_event(&event);
+            update::on_menu_event(app, event);
+        })
         .manage(media::Tasks::default())
         .manage(update::Updates::default())
         .setup(|app| {

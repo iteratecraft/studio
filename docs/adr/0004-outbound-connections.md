@@ -43,6 +43,9 @@ ship inside the package. M1-30 tests every output and fails on any request outsi
 | Company server (publish, sync; ENG-41, M8) | Publish and sync projects | Only after the author signs in to a server URL | Sign out |
 
 - **No telemetry by default.** Opt-in telemetry, if ever wanted, needs a new ADR.
+- **Help > User guide** (M2-22, desktop) opens the user guide on GitHub in the author's default
+  browser, through Windows' own handler for web addresses. Like a link a learner clicks, that is
+  navigation, not a connection of the app: the app itself fetches and sends nothing for it.
 - Preview may load third-party media that the author embedded; that is the author's own content.
   (M2-13: the desktop app's preview shows where an embed plays without loading it, as its content
   security policy allows no third-party frame.)
