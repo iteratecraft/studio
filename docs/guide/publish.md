@@ -25,8 +25,8 @@ is one step to undo.
 
 Do not unzip a package before you upload it to a learning system: it expects the zip.
 
-The project tests its packages in open-source learning systems (Moodle for SCORM 1.2, ILIAS for
-SCORM 2004), an open-source learning record store for xAPI and the official cmi5 test suite. Other
+The project tests its packages in open-source learning systems (for SCORM 1.2 and SCORM 2004), an
+open-source learning record store for xAPI and the official cmi5 test suite. Other
 learning systems are not tested yet.
 
 ## Settings for learning systems
@@ -96,7 +96,7 @@ follow the theme's cover setting.
    `Lifting-safely-scorm12.zip`.
 4. The package is built in the background, with its progress. **Keep working** lets you go on
    editing meanwhile; **Cancel export** stops it, and nothing is saved.
-5. **Package saved** says where the zip is and its size, with what to do next: **Upload the zip to
+5. **Package saved** gives the zip's file name and its size, with what to do next: **Upload the zip to
    your learning system**, or for a web package, unzip it and open `index.html`, or put the folder
    on any web server. Any warnings follow under **Before you share it:**.
 

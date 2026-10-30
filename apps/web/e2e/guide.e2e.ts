@@ -161,6 +161,10 @@ test("[rise:3A] blocks-editor W1, W4, W7, W20, W23, UI-PUBCOLLAB-R1: the guide's
   await expect(check).toContainText("“Lift and carry” is empty.");
   await check.getByRole("button", { name: "Export anyway" }).click();
   const done = page.getByRole("dialog", { name: "Package saved" });
+  // Export step 5 of the guide: the zip's file name and its size, not the folder it is in.
+  await expect(done.getByRole("status")).toHaveText(
+    /^Lifting-safely-scorm12\.zip is saved \(\d[\d.,]*\s?(byte|kB|MB)\)\.$/,
+  );
   await expect(done).toContainText("Upload the zip to your learning system.");
   expect(await files(page)).toContain("Lifting-safely-scorm12.zip");
   await done.getByRole("button", { name: "OK" }).click();

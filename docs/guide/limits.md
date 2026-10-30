@@ -31,8 +31,6 @@ These block types are listed in the block library as **Not available yet**:
 
 Also not in 0.1:
 
-- In matching questions, learners pick each match from a list; dragging matches into place is
-  planned for version 0.2.
 - Formatted text has a fixed set of styles (normal text, headings, bold, italic and so on): no
   choice of font, size or colour for a word or a paragraph yet (planned for version 0.2).
 - Lesson templates of your own, shared with a team, come with the team libraries of a later
@@ -60,8 +58,8 @@ Also not in 0.1:
   or alongside a learning system: planned for version 0.2.
 - Version 0.2 is planned to keep a version of the course each time you export, and to let you
   name versions yourself. In 0.1, keep copies with **Save as** or **Duplicate**.
-- Learning systems receive one result for the whole course; the answer to each question is
-  reported from version 0.2.
+- Learning systems receive the course's result and each answer to a quiz question, but not the
+  answers to knowledge checks inside a lesson.
 - The words the course player shows learners (buttons and messages) cannot be changed or
   translated yet. Translating a course is planned for version 0.2.
 

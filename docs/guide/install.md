@@ -3,7 +3,7 @@
 [User guide](README.md) › Install and uninstall
 
 Course Suite 0.1 runs on **Windows 10 and Windows 11, 64-bit**. It installs for your own Windows
-account only, so you do not need administrator rights. The installer is about 2 MB.
+account only, so you do not need administrator rights. The installer is about 2.5 MB.
 
 ## Download
 

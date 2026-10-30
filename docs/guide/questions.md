@@ -18,7 +18,7 @@ Both use the same four question types.
 | **Single choice** | pick one answer | The answers, and which one is **Correct** (exactly one) |
 | **Multiple response** | pick every answer that applies | The answers, and which are **Correct** (one or more) |
 | **Fill in the blank** | type the answer | The **Accepted answers**, one per line, up to 10, and whether **Capitals must match** (off by default) |
-| **Matching** | pick the match of each item from a drop-down list | 2 to 10 pairs, each an **Item** and its **Match**, and the **Order learners see**: **Shuffle both columns**, **Keep the items in my order** or **Keep the matches in my order** |
+| **Matching** | drag each match onto its item, or pick one and then the other (with **Space** or a click). **Answer with drop-down lists** gives each item a drop-down list instead; **Answer by dragging** switches back | 2 to 10 pairs, each an **Item** and its **Match**, and the **Order learners see**: **Shuffle both columns**, **Keep the items in my order** or **Keep the matches in my order** |
 
 Every question also has:
 
