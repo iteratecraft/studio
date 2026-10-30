@@ -154,6 +154,91 @@ const appHtml = (frame: Frame) =>
     return html;
   });
 
+/**
+ * The scroll positions that show all of a range `max` deep through a window `view` high: each
+ * screen overlaps the last by a quarter, so what a sticky bar covers at one stop shows at the one
+ * before, and the last stop is the end.
+ */
+function stops(max: number, view: number): number[] {
+  const step = Math.max(1, Math.floor((view * 3) / 4));
+  const tops: number[] = [];
+  for (let top = 0; top < max; top += step) tops.push(top);
+  tops.push(max);
+  return tops;
+}
+
+/**
+ * The scrollers of the page on show: the page itself, then each panel in the player that scrolls
+ * on its own (the contents beside a lesson), in document order: how far each scrolls (`max`), how
+ * high it is (`view`) and where it is (`top`). With `to`, first scrolls scroller `to[0]` to `to[1]`.
+ */
+const scrollers = (frame: Frame, to?: readonly [number, number]) =>
+  frame.evaluate((to) => {
+    const panels = [...document.querySelectorAll<HTMLElement>("#app *")].filter((element) => {
+      const { overflowY } = getComputedStyle(element);
+      return (
+        (overflowY === "auto" || overflowY === "scroll") &&
+        element.scrollHeight > element.clientHeight &&
+        element.checkVisibility()
+      );
+    });
+    const all = [document.scrollingElement ?? document.documentElement, ...panels];
+    if (to) all[to[0]]?.scrollTo({ top: to[1], behavior: "instant" });
+    return all.map((element) => ({
+      max: element.scrollHeight - element.clientHeight,
+      view: element.clientHeight,
+      top: Math.round(element.scrollTop),
+    }));
+  }, to);
+
+/**
+ * M2 exit (b), BLK-10, ENG-13: the preview frame and the exported package's page, at the same size
+ * and on the same page, are the same pixels all the way down. A screenshot shows only the first
+ * screen (the frame scrolls inside), so both are scrolled together screen by screen, and so is
+ * each panel that scrolls on its own; at every stop the markup and the pixels are the same.
+ */
+async function samePixelsDownThePage(
+  frameElement: Locator,
+  preview: Frame,
+  exported: Page,
+  where: string,
+): Promise<void> {
+  const ranges = await scrollers(preview);
+  expect(await scrollers(exported.mainFrame()), `${where}: the scrollers`).toEqual(ranges);
+  for (const [index, { max, view }] of ranges.entries()) {
+    for (const top of stops(max, view)) {
+      const at = `${where}, ${index === 0 ? "page" : `panel ${index}`} at ${top} of ${max}`;
+      const there = await scrollers(preview, [index, top]);
+      expect(await scrollers(exported.mainFrame(), [index, top]), at).toEqual(there);
+      expect(there[index]?.top, at).toBe(top);
+      // Scrolling can mark progress: wait until both show the same page again, with the
+      // pictures now in view loaded.
+      await expect
+        .poll(async () => (await appHtml(preview)) === (await appHtml(exported.mainFrame())), {
+          message: `${at}: the same markup`,
+        })
+        .toBe(true);
+      await settled(preview);
+      await settled(exported.mainFrame());
+      // Any animation left is stopped for the shot. The caret is
+      // left as it is: no field has the focus here, so none shows, and Playwright hides it by
+      // setting an inline caret style on every text field and then emptying it, which would
+      // leave `style=""` in the markup the next stop compares.
+      const options = { animations: "disabled", caret: "initial" } as const;
+      const shot = await frameElement.screenshot(options);
+      const reference = await exported.screenshot(options);
+      if (!shot.equals(reference)) {
+        await test.info().attach(`preview, ${at}`, { body: shot, contentType: "image/png" });
+        await test.info().attach(`exported, ${at}`, { body: reference, contentType: "image/png" });
+      }
+      expect(shot.equals(reference), at).toBe(true);
+    }
+    // Back to the top, so each panel is compared beside the page's first screen.
+    await scrollers(preview, [index, 0]);
+    await scrollers(exported.mainFrame(), [index, 0]);
+  }
+}
+
 /** Every call to the debug adapter, with the session time left out (it is the wall clock's). */
 const comparable = (calls: AdapterCall[]) =>
   calls.map((call) => (call.method === "writeSessionTime" ? { method: call.method } : call));
@@ -200,25 +285,40 @@ function errorsOf(page: Page): string[] {
 test.describe("the preview and the exported web package", () => {
   for (const name of ["sample", ...CORPUS]) {
     // M2 exit (preview and export pixel-identical for corpus courses): every page of the course.
-    test(`UI-BLOCKS-EDITOR-R52 UI-BLOCKS-EDITOR-R55 [rise:R20] M2 exit, ${name}: the overview and every lesson and quiz render identically at computer, tablet and phone width`, async ({
+    test(`UI-BLOCKS-EDITOR-R52 UI-BLOCKS-EDITOR-R55 [rise:R20] M2 exit, ${name}: the overview and every lesson and quiz render identically from top to bottom at computer, tablet and phone width`, async ({
       page,
       browser,
     }) => {
-      test.slow();
       const course = fixture(name);
+      const pages = course.course.entries.filter((entry) => entry.kind !== "section");
+      // The time goes with the pages: each is compared at three widths, screen by screen, in
+      // about 1 s alone (long-resume, 37 pages: about 80 s), so allow 5 s for each on a busy
+      // machine.
+      test.setTimeout(60_000 + (pages.length + 1) * 3 * 5_000);
       const errors = errorsOf(page);
       const dir = await exportedWebPackage(course);
       const exported = await browser.newPage();
-      const pages = course.course.entries.filter((entry) => entry.kind !== "section");
+      // Both as a learner who asks for less motion sees them (UI-ACCESSIBILITY-R40): blocks show
+      // at rest, with no fade-in as they scroll into view. With the fade on, Chromium draws a
+      // block that has faded on a layer of its own, and depending on when the fade ended a rounded
+      // border near it can come out one colour step apart in a few pixels, in either page.
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await exported.emulateMedia({ reducedMotion: "reduce" });
       try {
         for (const lesson of [undefined, ...pages.map((entry) => entry.id)]) {
-          // Both start afresh at each page, so neither carries progress from the pages before.
           await page.goto("about:blank");
-          await exported.goto("about:blank");
           await openPreview(page, course, lesson ? { lesson } : {});
           for (const device of ["Computer", "Tablet", "Phone"]) {
             await page.getByRole("radio", { name: device }).click();
             await expect(page.getByRole("radio", { name: device })).toBeChecked();
+            // Both start afresh at each page and width, as a learner opening it there would:
+            // scrolling down a page can mark progress, and which blocks fade in depends on what
+            // was below the window when the page first showed. Restart loads the player again at
+            // this width; the package page is loaded again (a new hash alone would not reload it).
+            const before = await page.locator(FRAME).elementHandle();
+            await page.getByRole("button", { name: "Restart" }).click();
+            await expect.poll(() => before?.evaluate((element) => element.isConnected)).toBe(false);
+            await exported.goto("about:blank");
             const frameElement = page.locator(FRAME);
             const size = await frameElement.evaluate((element) => ({
               width: element.clientWidth,
@@ -230,28 +330,17 @@ test.describe("the preview and the exported web package", () => {
               `${pathToFileURL(join(dir, "index.html")).href}${lesson ? `#/lessons/${lesson}` : ""}`,
             );
             await expect(exported.locator("#content")).toBeVisible();
+            await expect(page.frameLocator(FRAME).locator("#content")).toBeVisible();
             const preview = await shownFrame(page);
-            // The player lays out again when its frame changes width; wait for the same page.
+            // Wait until the restarted player shows the same page.
             const expected = await appHtml(exported.mainFrame());
             await expect.poll(() => appHtml(preview)).toBe(expected);
-            await settled(preview);
-            await settled(exported.mainFrame());
-            // The caret is left as it is. Playwright hides it by default by setting an inline
-            // caret style on every text field and then emptying it, which leaves `style=""` on the
-            // preview's search field (the frame stays; the package page is loaded afresh) for the
-            // next width's markup comparison. No field has the focus here, so no caret shows.
-            const shot = await frameElement.screenshot({ caret: "initial" });
-            const reference = await exported.screenshot({ caret: "initial" });
-            if (!shot.equals(reference)) {
-              await test
-                .info()
-                .attach(`preview ${device}`, { body: shot, contentType: "image/png" });
-              await test.info().attach(`exported ${device}`, {
-                body: reference,
-                contentType: "image/png",
-              });
-            }
-            expect(shot.equals(reference), `${lesson ?? "overview"} at ${device} width`).toBe(true);
+            await samePixelsDownThePage(
+              frameElement,
+              preview,
+              exported,
+              `${lesson ?? "overview"} at ${device} width`,
+            );
           }
         }
         expect(errors).toEqual([]);
