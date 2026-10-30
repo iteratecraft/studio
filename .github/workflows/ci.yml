@@ -177,8 +177,18 @@ jobs:
 
       - name: Install Chromium for Playwright
         run: pnpm --filter @course-suite/conformance exec playwright install --with-deps --only-shell chromium
+      # The M2 exit run (M2-22, docs/exit-review/desktop-0.1.md): offline, the editor builds a course
+      # with every block type and a quiz lesson, sets theme and navigation, previews it and exports
+      # SCORM 1.2. The check job runs the same journey on Windows; here it hands its package to the
+      # next step, which passes it in Moodle.
+      - name: M2 exit run in the editor
+        run: pnpm --filter @course-suite/web exec playwright test e2e/exit-run.e2e.ts
+        env:
+          EXIT_RUN_OUT: ${{ github.workspace }}/exit-run
       - name: SCORM 1.2 in Moodle
         run: pnpm --filter @course-suite/conformance test:moodle
+        env:
+          EXIT_RUN_PACKAGE: ${{ github.workspace }}/exit-run
 
       # cancelled() too: a job that hits timeout-minutes is cancelled, and failure() is then false.
       - name: Collect the Moodle logs
@@ -193,4 +203,6 @@ jobs:
             moodle-logs.txt
             packages/conformance/moodle/playwright-report/
             packages/conformance/moodle/test-results/
+            apps/web/playwright-report/
+            apps/web/test-results/
           if-no-files-found: ignore

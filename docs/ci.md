@@ -37,6 +37,11 @@ it in Chromium with Playwright. Then it reads what Moodle recorded from its SCOR
 
 - **Courses:** the format's test fixtures, the course corpus when the `test-courses` checkout is
   present (see below), and a short quiz course for the exact pass and fail checks.
+- **The M2 exit run (M2-22):** before the Moodle tests, the job runs `apps/web/e2e/exit-run.e2e.ts`,
+  which builds a course with every block type and a quiz in the editor, offline, and exports it as
+  SCORM 1.2 into `exit-run/` (`EXIT_RUN_OUT`). A Moodle test then passes that package
+  (`EXIT_RUN_PACKAGE`; without it, as on a contributor's machine, the test skips). The check job
+  runs the same journey on Windows. See [exit-review/desktop-0.1.md](exit-review/desktop-0.1.md).
 - **Learner path:** launch, complete a lesson, open the next one, leave with Moodle's "Exit activity"
   button, relaunch, resume at that lesson, finish the course and pass its quiz. A second path fails
   the quiz.

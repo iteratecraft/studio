@@ -5,7 +5,12 @@
 // Moodle does not implement SCORM 2004 sequencing fully, nor xAPI or cmi5 without plugins
 // (standards.md T-4); those standards are verified in the conformance hosts (standards.e2e.ts).
 //
+// The M2 exit run (ROADMAP.md M2) ends here too: the package the editor built and exported in
+// apps/web/e2e/exit-run.e2e.ts, from the folder EXIT_RUN_PACKAGE names, is passed in Moodle.
+//
 // Start Moodle first: `pnpm --filter @course-suite/conformance moodle:up` (docs/ci.md).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { scorm12Exporter } from "@course-suite/exporters";
 import { type Course, publishSettingsOf } from "@course-suite/format";
 import { type Browser, expect, type Frame, test } from "@playwright/test";
@@ -18,8 +23,17 @@ import {
   secondVisit,
   testLmsVisits,
 } from "../test/compost.js";
+import { walkCourse } from "../test/learner.js";
 import { FALLING, failThrice, ids, pond } from "../test/pond.js";
-import { exitActivity, launch, logIn, type Tracks, trackedVisit, upload } from "./moodle.js";
+import {
+  exitActivity,
+  launch,
+  logIn,
+  MOODLE_URL,
+  type Tracks,
+  trackedVisit,
+  upload,
+} from "./moodle.js";
 
 /** A SCORM 1.2 time span (HHHH:MM:SS.SS) in seconds. */
 const seconds = (time = "") =>
@@ -191,4 +205,39 @@ test("[standards:T-4] [rise:R8] [rise:R10] [rise:R11] BLK-07: three failed attem
     "matching",
   ]);
   expect(kept12.map((interaction) => interaction.result === "correct")).toEqual(FALLING.flat());
+});
+
+// The M2 exit run: the Moodle job runs apps/web/e2e/exit-run.e2e.ts first, which builds the course
+// in the editor and exports it; this takes its package and course document from that folder.
+const exitRun = process.env.EXIT_RUN_PACKAGE;
+
+test("M2 exit, D-29 [standards:T-4] [rise:R7] [rise:R8]: the course built and exported in the editor's exit run passes in Moodle, and its pages load nothing from outside Moodle", async ({
+  browser,
+  page,
+}) => {
+  test.skip(
+    !exitRun,
+    "EXIT_RUN_PACKAGE names the exit run's output folder; the Moodle job sets it",
+  );
+  const folder = exitRun as string;
+  const zip = new Uint8Array(readFileSync(join(folder, "course.zip")));
+  const course = JSON.parse(readFileSync(join(folder, "course.json"), "utf8")) as Course;
+  // Every lesson and the quiz, failed once and then passed; the test LMS shows what the course sent.
+  const [reference] = await keptByTestLmsAfter(browser, zip, [(sco) => walkCourse(sco, course)]);
+  expect(reference).toMatchObject({ status: "passed", score: "100" });
+
+  const outside: string[] = [];
+  // What the course's own pages ask for; Moodle's pages around it are Moodle's business.
+  page.on("request", (request) => {
+    const fromCourse = request.frame().url().includes("/mod_scorm/content/");
+    if (fromCourse && !request.url().startsWith(`${MOODLE_URL}/`)) outside.push(request.url());
+  });
+  const activity = upload(zip, `${course.title}, exit run`);
+  await logIn(page);
+  await walkCourse(await launch(page, activity), course);
+  await exitActivity(page);
+  const ended = await trackedVisit(activity);
+  expect(kept(ended)).toEqual(reference);
+  expect(ended.elements).toMatchObject({ "cmi.core.score.max": "100" });
+  expect(outside).toEqual([]);
 });

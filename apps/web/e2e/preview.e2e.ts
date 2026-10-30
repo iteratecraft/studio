@@ -199,17 +199,22 @@ function errorsOf(page: Page): string[] {
 
 test.describe("the preview and the exported web package", () => {
   for (const name of ["sample", ...CORPUS]) {
-    test(`UI-BLOCKS-EDITOR-R52 UI-BLOCKS-EDITOR-R55 [rise:R20] ${name}: the overview and the first lesson render identically at computer, tablet and phone width`, async ({
+    // M2 exit (preview and export pixel-identical for corpus courses): every page of the course.
+    test(`UI-BLOCKS-EDITOR-R52 UI-BLOCKS-EDITOR-R55 [rise:R20] M2 exit, ${name}: the overview and every lesson and quiz render identically at computer, tablet and phone width`, async ({
       page,
       browser,
     }) => {
+      test.slow();
       const course = fixture(name);
       const errors = errorsOf(page);
       const dir = await exportedWebPackage(course);
       const exported = await browser.newPage();
+      const pages = course.course.entries.filter((entry) => entry.kind !== "section");
       try {
-        for (const lesson of [undefined, firstPage(course.course).id]) {
+        for (const lesson of [undefined, ...pages.map((entry) => entry.id)]) {
+          // Both start afresh at each page, so neither carries progress from the pages before.
           await page.goto("about:blank");
+          await exported.goto("about:blank");
           await openPreview(page, course, lesson ? { lesson } : {});
           for (const device of ["Computer", "Tablet", "Phone"]) {
             await page.getByRole("radio", { name: device }).click();
