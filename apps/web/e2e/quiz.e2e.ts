@@ -303,6 +303,8 @@ test.describe("knowledge checks", () => {
     await check.getByRole("button", { name: /Question type$/ }).click();
     await page.getByRole("option", { name: "Matching" }).click();
     await expect(check.getByRole("group", { name: /^Pair/ })).toHaveCount(3);
+    // A press before the list hands focus back to its button can be lost; wait for it.
+    await expect(check.getByRole("button", { name: /Question type$/ })).toBeFocused();
     await check.getByRole("button", { name: "Add Pair 4" }).click();
     await check.getByRole("textbox", { name: "Item 4", exact: true }).fill("Heron");
     await check.getByRole("textbox", { name: "Match for item 4" }).fill("Fish");
@@ -351,6 +353,9 @@ test.describe("knowledge checks", () => {
     await style.getByRole("button", { name: /Background/ }).click();
     await page.getByRole("option", { name: "Dark" }).click();
     await expect(page.getByRole("listbox")).toHaveCount(0);
+    // The list hands focus back to its button a moment after it closes; Escape before then
+    // reaches nothing and leaves the dialog open.
+    await expect(style.getByRole("button", { name: /Background/ })).toBeFocused();
     await close(style);
     await expect(await warning()).toHaveCount(0);
     await close(format);
